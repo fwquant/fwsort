@@ -1,0 +1,130 @@
+/* 主样式入口：集成 FWUI + 双主题（锁定区第10条 新页面/新CSS统一管理）*/
+@import url("./fwui.css");
+@import url("./theme_dark.css");
+@import url("./theme_light.css");
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--fwui-font-base);
+  background: var(--fwui-bg);
+  color: var(--fwui-text);
+  min-height: 100vh;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+a { color: var(--fwui-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ========== 顶部导航栏 ========== */
+.fwui-nav {
+  height: 56px;
+  background: var(--fwui-bg-elevated);
+  border-bottom: 1px solid var(--fwui-border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.fwui-nav__logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fwui-primary);
+}
+.fwui-nav__links {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+}
+.fwui-nav__link {
+  color: var(--fwui-text-secondary);
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: var(--fwui-radius-sm);
+  transition: var(--fwui-transition);
+}
+.fwui-nav__link:hover { background: var(--fwui-bg-hover); text-decoration: none; }
+.fwui-nav__link--active { color: var(--fwui-primary); background: var(--fwui-primary-soft); }
+.fwui-nav__actions { display: flex; align-items: center; gap: 12px; }
+
+/* ========== 主内容区 ========== */
+.fwui-main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.fwui-page-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+}
+.fwui-page-subtitle {
+  color: var(--fwui-text-secondary);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+/* ========== 工具栏 ========== */
+.fwui-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.fwui-toolbar__spacer { flex: 1; }
+
+/* ========== Tab 切换 ========== */
+.fwui-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--fwui-border);
+  margin-bottom: 16px;
+  gap: 4px;
+  overflow-x: auto;
+}
+.fwui-tab {
+  padding: 10px 16px;
+  cursor: pointer;
+  color: var(--fwui-text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: var(--fwui-transition);
+  white-space: nowrap;
+}
+.fwui-tab:hover { color: var(--fwui-text); }
+.fwui-tab--active {
+  color: var(--fwui-primary);
+  border-bottom-color: var(--fwui-primary);
+}
+
+/* ========== 段位徽章 ========== */
+.fwui-tier {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--fwui-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+.fwui-tier--bronze  { background: #cd7f32; color: #fff; }
+.fwui-tier--silver  { background: #c0c0c0; color: #1a1325; }
+.fwui-tier--gold    { background: #ffd700; color: #1a1325; }
+.fwui-tier--platinum{ background: linear-gradient(135deg, #b9f2ff, #e0b3ff); color: #1a1325; }
+.fwui-tier--diamond { background: linear-gradient(135deg, #6df0ff, #9b6dff); color: #fff; }
+
+/* ========== 涨跌配色 ========== */
+.fwui-up   { color: var(--fwui-success); }
+.fwui-down { color: var(--fwui-danger); }
+.fwui-flat { color: var(--fwui-text-muted); }
+
+/* ========== 移动端响应式（锁定区第2条）========== */
+@media (max-width: 768px) {
+  .fwui-main { padding: 12px; }
+  .fwui-nav { padding: 0 12px; gap: 12px; }
+  .fwui-nav__links { gap: 8px; overflow-x: auto; }
+  .fwui-nav__link { padding: 4px 8px; font-size: 13px; }
+  .fwui-page-title { font-size: 20px; }
+}

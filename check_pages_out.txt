@@ -1,0 +1,34 @@
+﻿=== HTML pages ===
+  /: status=200 bytes=3649 ct=text/html; charset=utf-8
+  /detail: status=200 bytes=3829 ct=text/html; charset=utf-8
+  /accounts: status=200 bytes=1885 ct=text/html; charset=utf-8
+  /follow: status=200 bytes=2109 ct=text/html; charset=utf-8
+  /rental: status=200 bytes=2352 ct=text/html; charset=utf-8
+  /admin: status=200 bytes=6723 ct=text/html; charset=utf-8
+=== Static files ===
+  /static/js/fwui/theme.js: status=200 bytes=1218 ct=text/javascript; charset=utf-8
+  /static/js/fwui/toast.js: status=200 bytes=1139 ct=text/javascript; charset=utf-8
+  /static/js/fwui/modal.js: status=200 bytes=2416 ct=text/javascript; charset=utf-8
+  /static/js/fwui/api.js: status=200 bytes=4267 ct=text/javascript; charset=utf-8
+  /static/js/fwui/utils.js: status=200 bytes=1682 ct=text/javascript; charset=utf-8
+  /static/js/fwui/charts.js: status=200 bytes=5784 ct=text/javascript; charset=utf-8
+  /static/js/app.js: status=200 bytes=7970 ct=text/javascript; charset=utf-8
+  /static/js/ranking_list.js: status=200 bytes=7552 ct=text/javascript; charset=utf-8
+  /static/js/ranking_detail.js: status=200 bytes=9461 ct=text/javascript; charset=utf-8
+  /static/js/accounts.js: status=200 bytes=8268 ct=text/javascript; charset=utf-8
+  /static/js/follow.js: status=200 bytes=7308 ct=text/javascript; charset=utf-8
+  /static/js/rental.js: status=200 bytes=8972 ct=text/javascript; charset=utf-8
+  /static/css/style.css: status=200 bytes=3423 ct=text/css; charset=utf-8
+  /static/css/fwui.css: status=200 bytes=8616 ct=text/css; charset=utf-8
+  /static/css/theme_dark.css: status=200 bytes=831 ct=text/css; charset=utf-8
+  /static/css/theme_light.css: status=200 bytes=650 ct=text/css; charset=utf-8
+=== APIs ===
+  GET /api/ranking/list?rank_type=realtime: status=200 bytes=5362
+  GET /api/ranking/list?rank_type=daily: status=200 bytes=5359
+  GET /api/auth/me: HTTP 401 (likely needs auth, ok)
+  GET /api/follow/my: HTTP 401 (likely needs auth, ok)
+  GET /api/rental/agents: status=200 bytes=1419
+  GET /api/rental/my: HTTP 401 (likely needs auth, ok)
+  GET /api/notify/list: HTTP 401 (likely needs auth, ok)
+  GET /api/info: status=200 bytes=53
+  GET /health: status=200 bytes=15

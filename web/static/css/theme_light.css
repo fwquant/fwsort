@@ -1,0 +1,25 @@
+/* 明亮主题：锁定区第14条 */
+[data-theme="light"] {
+  --fwui-bg: #f7f5fb;
+  --fwui-bg-elevated: #ffffff;
+  --fwui-bg-input: #ffffff;
+  --fwui-bg-hover: #f0ebf8;
+  --fwui-bg-tag: #f0ebf8;
+
+  --fwui-text: #1a1325;
+  --fwui-text-secondary: #4a3d6b;
+  --fwui-text-muted: #8a7da6;
+
+  --fwui-border: #e5dff0;
+  --fwui-mask: rgba(40, 30, 60, 0.4);
+
+  --fwui-primary: #6d3aff;
+  --fwui-primary-soft: rgba(109, 58, 255, 0.1);
+
+  --fwui-success: #16a34a;
+  --fwui-success-soft: rgba(22, 163, 74, 0.1);
+  --fwui-danger: #dc2626;
+  --fwui-danger-soft: rgba(220, 38, 38, 0.1);
+  --fwui-warning: #d97706;
+  --fwui-warning-soft: rgba(217, 119, 6, 0.1);
+}

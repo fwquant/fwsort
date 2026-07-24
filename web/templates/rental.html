@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>租用智能体 · 福纹排行榜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link" href="/">📊 榜单</a>
+      <a class="fwui-nav__link" href="/accounts">💼 我的账户</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link fwui-nav__link--active" href="/rental">🤖 租用智能体</a>
+      <a class="fwui-nav__link" href="/admin">⚙️ 控制台</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main">
+    <h1 class="fwui-page-title">🤖 智能体租用</h1>
+    <p class="fwui-page-subtitle">双轨计费：按次试算 / 包时段独占</p>
+
+    <div class="fwui-tabs">
+      <div class="fwui-tab fwui-tab--active" data-tab="per_use">⚡ 按次试算</div>
+      <div class="fwui-tab" data-tab="package">📦 包时段</div>
+      <div class="fwui-tab" data-tab="my">📋 我的租用</div>
+    </div>
+
+    <!-- 按次试算 -->
+    <div id="tab-per-use">
+      <div id="per-use-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;"></div>
+    </div>
+
+    <!-- 包时段 -->
+    <div id="tab-package" style="display:none;">
+      <div id="package-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;"></div>
+    </div>
+
+    <!-- 我的租用 -->
+    <div id="tab-my" style="display:none;">
+      <div id="my-rentals" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;"></div>
+    </div>
+  </main>
+
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/fwui/charts.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/rental.js"></script>
+</body>
+</html>

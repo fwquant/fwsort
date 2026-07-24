@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的账户 · 福纹排行榜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link" href="/">📊 榜单</a>
+      <a class="fwui-nav__link fwui-nav__link--active" href="/accounts">💼 我的账户</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link" href="/rental">🤖 租用智能体</a>
+      <a class="fwui-nav__link" href="/admin">⚙️ 控制台</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main">
+    <h1 class="fwui-page-title">💼 我的执行账户</h1>
+    <p class="fwui-page-subtitle">每个账户独立排榜。智能体只出信号，账户执行下单与风控。</p>
+
+    <div class="fwui-toolbar">
+      <button class="fwui-btn fwui-btn--primary" id="btn-create-account">+ 创建执行账户</button>
+      <div class="fwui-toolbar__spacer"></div>
+      <span style="color:var(--fwui-text-muted);font-size:13px;" id="account-count">--</span>
+    </div>
+
+    <div id="accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;"></div>
+  </main>
+
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/accounts.js"></script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>策略详情 · 福纹排行榜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link" href="/">📊 榜单</a>
+      <a class="fwui-nav__link" href="/accounts">💼 我的账户</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link" href="/rental">🤖 租用智能体</a>
+      <a class="fwui-nav__link" href="/admin">⚙️ 控制台</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main">
+    <h1 class="fwui-page-title" id="detail-title">加载中...</h1>
+    <div id="detail-meta" style="margin-bottom:16px;"></div>
+
+    <div id="detail-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px;"></div>
+
+    <!-- 图表区：净值 / 回撤 / 投票分布 / 执行质量 -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:24px;">
+      <div class="fwui-card">
+        <div class="fwui-card__title">📈 净值曲线（30 天）</div>
+        <div id="chart-equity" style="width:100%;height:260px;"></div>
+      </div>
+      <div class="fwui-card">
+        <div class="fwui-card__title">📉 回撤曲线（30 天）</div>
+        <div id="chart-drawdown" style="width:100%;height:260px;"></div>
+      </div>
+      <div class="fwui-card">
+        <div class="fwui-card__title">🗳 投票方向分布（近 50 笔）</div>
+        <div id="chart-vote-pie" style="width:100%;height:260px;"></div>
+      </div>
+      <div class="fwui-card">
+        <div class="fwui-card__title">⚡ 执行质量分（近 14 天）</div>
+        <div id="chart-exec" style="width:100%;height:260px;"></div>
+      </div>
+    </div>
+
+    <!-- 触发投票 -->
+    <div class="fwui-card" style="margin-bottom:24px;">
+      <div class="fwui-card__title">🧠 触发 3 智能体预测 + 投票（V1.0）</div>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+        <label style="flex:1;min-width:160px;">交易对 <input class="fwui-input" id="symbol-input" value="BTCUSDT"></label>
+        <label style="min-width:120px;">时窗
+          <select class="fwui-select" id="tf-input">
+            <option value="15m">15 分钟</option>
+            <option value="1h">1 小时</option>
+          </select>
+        </label>
+        <button class="fwui-btn fwui-btn--primary" id="btn-trigger-vote">触发一次预测+投票</button>
+      </div>
+      <div id="vote-result"></div>
+    </div>
+
+    <!-- 执行日志 -->
+    <div class="fwui-card">
+      <div class="fwui-card__title">📋 最近 20 条订单执行日志</div>
+      <table class="fwui-table">
+        <thead>
+          <tr><th>订单ID</th><th>平台</th><th>方向</th><th>金额</th><th>状态</th><th>时间</th></tr>
+        </thead>
+        <tbody id="execution-logs">
+          <tr><td colspan="6" style="text-align:center;padding:16px;">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/fwui/charts.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/ranking_detail.js"></script>
+</body>
+</html>

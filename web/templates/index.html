@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>福纹排行榜 · FWQuant</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link fwui-nav__link--active" href="/">📊 榜单</a>
+      <a class="fwui-nav__link" href="/accounts">💼 我的账户</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link" href="/rental">🤖 租用智能体</a>
+      <a class="fwui-nav__link" href="/admin">⚙️ 控制台</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main">
+    <h1 class="fwui-page-title">福纹榜单</h1>
+    <p class="fwui-page-subtitle">多智能体策略-订单执行规则 V1.0 · 实时/日/周/月/总榜 · 模拟盘数据</p>
+
+    <!-- 周期 Tab -->
+    <div class="fwui-tabs">
+      <div class="fwui-tab fwui-tab--active" data-rank-type="realtime">实时榜</div>
+      <div class="fwui-tab" data-rank-type="daily">日榜</div>
+      <div class="fwui-tab" data-rank-type="weekly">周榜</div>
+      <div class="fwui-tab" data-rank-type="monthly">月榜</div>
+      <div class="fwui-tab" data-rank-type="all_time">总榜</div>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="fwui-toolbar">
+      <span style="color:var(--fwui-text-muted);font-size:13px;">平台：</span>
+      <span class="fwui-tag fwui-tag--primary" data-platform="">全部</span>
+      <span class="fwui-tag" data-platform="polymarket">Polymarket</span>
+      <span class="fwui-tag" data-platform="okx">OKX</span>
+
+      <div class="fwui-toolbar__spacer"></div>
+
+      <span style="color:var(--fwui-text-muted);font-size:13px;">排序：</span>
+      <button class="fwui-btn fwui-btn--sm fwui-btn--primary" data-sort="composite">综合分</button>
+      <button class="fwui-btn fwui-btn--sm" data-sort="return">年化</button>
+      <button class="fwui-btn fwui-btn--sm" data-sort="drawdown">回撤</button>
+      <button class="fwui-btn fwui-btn--sm" data-sort="execution">执行质量</button>
+
+      <button class="fwui-btn fwui-btn--sm" data-view="list">列表</button>
+      <button class="fwui-btn fwui-btn--sm" data-view="card">卡片</button>
+    </div>
+
+    <!-- 榜单内容：列表用 table，卡片用 div 容器（同一容器切换渲染） -->
+    <table class="fwui-table" id="ranking-table">
+      <thead>
+        <tr>
+          <th>排名</th>
+          <th>名称</th>
+          <th>平台</th>
+          <th>综合分</th>
+          <th>年化</th>
+          <th>回撤</th>
+          <th>夏普</th>
+          <th>笔数</th>
+          <th>段位 / 执行质量</th>
+        </tr>
+      </thead>
+      <tbody id="ranking-body">
+        <tr><td colspan="9" style="text-align:center;padding:24px;">加载中...</td></tr>
+      </tbody>
+    </table>
+    <div id="ranking-pager" class="fwui-pagination"></div>
+  </main>
+
+  <!-- FWUI 必须按序加载（theme -> toast -> modal -> api -> utils）-->
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/ranking_list.js"></script>
+</body>
+</html>
