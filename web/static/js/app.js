@@ -128,7 +128,7 @@
     const form = document.createElement("div");
     form.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:12px;">
-        <label>邮箱 <input class="fwui-input" name="email" type="email" placeholder="email@example.com" required></label>
+        <label>邮箱 <input class="fwui-input" name="email" type="email" placeholder="email@example.com" required value="admin@fwquant.com"></label>
         <label>密码 <input class="fwui-input" name="password" type="password" placeholder="≥ 6 位" required></label>
       </div>
     `;

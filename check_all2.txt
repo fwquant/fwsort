@@ -1,0 +1,29 @@
+﻿=== 1. GET /api/agent/accounts ===
+  count=20
+    id=1 uid=ACC-FA90AF34B4 name=Alpha猎手-01 platform=polymarket balance=1130.620168
+    id=2 uid=ACC-BB95A9FB4A name=Beta套利-02 platform=okx balance=1092.985802
+    id=3 uid=ACC-C83F7ECCF3 name=Gamma网格-03 platform=polymarket balance=1134.741126
+=== 2. POST /api/agent/accounts ===
+  result: {'success': True, 'message': 'account created', 'data': {'id': 21, 'uid': 'ACC-98FAC91E1156', 'name': '测试账户-前端验证', 'platform': 'okx', 'current_balance': 1500.0}, 'code': 200, 'timestamp': 1784903571}
+=== 3. POST /api/agent/predict-and-vote?account_id=21 ===
+  vote: up=3 down=0 dir=1 amt=$10.0 reason=double_10
+  predictions: 3
+    GPT-4o(gpt-4o): dir=1 conf=0.9157
+    Claude(MiniMax-M2.7): dir=1 conf=0.5917
+    Gemini(gemini-2.0-flash): dir=1 conf=0.7899
+  order_id=ORD-AE27899CF36C47C9 order_status=3
+=== 4. DELETE /api/agent/accounts/21 ===
+  HTTP 404: {"detail":"Not Found"}
+=== 5. 跟单 ===
+d:\git\github\fwquant\fwsort\.venv\Scripts\python.exe : Traceback (most recent call last):
+At line:15 char:7578
++ ... nt\fwsort ; d:\git\github\fwquant\fwsort\.venv\Scripts\python.exe che ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "D:\git\github\fwquant\fwsort\check_all2.py", line 69, in <module>
+    print(f"  market: count={data['data']['count']} top={data['data']['items'][0]['leader_name'] if data['data'].get('i
+tems') else 'N/A'}")
+                                                         ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+KeyError: 'leader_name'

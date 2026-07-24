@@ -75,6 +75,40 @@ app.add_middleware(
 )
 
 
+# ========== 统一 JSON 响应 Content-Type 头（避免 PowerShell/某些客户端按 GBK 解码导致中文乱码）==========
+class _UTF8JSONHeaderMiddleware:
+    """为 application/json 响应补上 charset=utf-8（不影响其他资源）"""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                new_headers = []
+                for k, v in headers:
+                    k_str = k.decode("latin1") if isinstance(k, bytes) else k
+                    if k_str.lower() == "content-type":
+                        v_str = v.decode("latin1") if isinstance(v, bytes) else v
+                        # 仅给 application/json 补 charset，其它资源（CSS/JS/图片等）原样保留
+                        if v_str.startswith("application/json") and "charset" not in v_str.lower():
+                            v_str = v_str + "; charset=utf-8"
+                            v = v_str.encode("latin1") if isinstance(v, bytes) else v_str
+                    new_headers.append((k, v))
+                message["headers"] = new_headers
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
+app.add_middleware(_UTF8JSONHeaderMiddleware)
+
+
 # ========== 全局异常处理（业务异常）==========
 @app.exception_handler(FwsortError)
 async def fwsort_error_handler(_: Request, exc: FwsortError) -> JSONResponse:
