@@ -1,4 +1,4 @@
-# 智能体路由：V1.0 多智能体策略-订单执行规则（接入 Hermes MoA + Voting + Simulator）
+# 智能体路由：V1.0 多智能体策略-订单执行规则（接入 Hermes MoA + Voting + ExecutionGateway）
 import time
 
 from fastapi import APIRouter, Depends
@@ -9,7 +9,7 @@ from fwsort.agents.hermes_moa import build_hermes_moa
 from fwsort.config import settings
 from fwsort.database import get_async_db
 from fwsort.exceptions import NotFoundError, ParamError, RiskControlError
-from fwsort.execution.simulator import OrderSimulator
+from fwsort.execution.gateway import ExecutionResult, get_gateway
 from fwsort.models import (
     AgentPrediction,
     ExecutionAccount,
@@ -24,9 +24,9 @@ from router.auth_router import current_user
 
 router = APIRouter()
 
-# 单例：MoA 聚合器 + 模拟下单器
+# 单例：MoA 聚合器 + 统一执行网关
 _moa = build_hermes_moa()
-_simulator = OrderSimulator()
+_gateway = get_gateway()
 
 
 # ========== 接口：触发一轮预测+投票+下单（V1.0 完整闭环）==========
@@ -108,38 +108,64 @@ async def predict_and_vote(
     db.add(vote_row)
     await db.flush()
 
-    # 6) 模拟下单（V1.0 simulator 模式）
+    # 6) 下单（V1.0 通过 ExecutionGateway：根据 acc.account_type 自动选模拟/真实）
     order_id: str | None = None
     order_status: int | None = None
+    es_doc_id: int | None = None
     if v.final_direction != 0 and v.order_amount_usd > 0:
-        sim = _simulator.submit(
+        result: ExecutionResult = await _gateway.submit(
+            account_type=acc.account_type,
             platform=acc.platform,
             symbol=req.symbol,
             side=v.final_direction,
             amount_usd=v.order_amount_usd,
         )
-        order_id = sim.order_id
-        order_status = sim.status
+        order_id = result.order_id
+        order_status = result.status
         log = OrderExecutionLog(
             uid=acc.uid,
             account_id=acc.id,
             vote_id=vote_row.id,
-            order_id=sim.order_id,
+            order_id=result.order_id or f"FAIL-{int(time.time()*1000)}",
             order_type=2,  # 市价
-            side=sim.side,
-            platform=sim.platform,
-            symbol=sim.symbol,
-            expected_price=sim.expected_price,
-            actual_price=sim.actual_price,
-            quantity=sim.quantity,
-            amount_usd=sim.amount_usd,
-            status=sim.status,
-            latency_ms=sim.latency_ms,
-            slippage=sim.slippage,
+            side=result.side,
+            platform=result.platform,
+            symbol=result.symbol,
+            expected_price=result.expected_price,
+            actual_price=result.actual_price,
+            quantity=result.quantity,
+            amount_usd=result.amount_usd,
+            status=result.status,
+            latency_ms=result.latency_ms,
+            slippage=result.slippage,
             pnl=0.0,
         )
         db.add(log)
         await db.flush()
+        es_doc_id = log.id
+
+        # ES 双写（异步触发，失败不影响主流程）
+        from fwsort.execution.es_writer import index_order_log
+
+        await index_order_log(
+            order_log_id=log.id,
+            uid=acc.uid,
+            account_id=acc.id,
+            vote_id=vote_row.id,
+            order_id=log.order_id,
+            order_type=log.order_type,
+            side=log.side,
+            platform=log.platform,
+            symbol=log.symbol,
+            expected_price=float(log.expected_price),
+            actual_price=float(log.actual_price),
+            quantity=float(log.quantity),
+            amount_usd=float(log.amount_usd),
+            status=log.status,
+            latency_ms=log.latency_ms,
+            slippage=float(log.slippage),
+            created_at=log.created_at,
+        )
 
     # 7) 响应
     return success(
@@ -308,3 +334,94 @@ async def list_execution_logs(
         }
         for r in rows
     ]})
+
+
+# ========== 接口：订单状态同步（实盘模式：拉取 OKX/Polymarket 最新状态）==========
+@router.post("/execution/{uid}/sync", response_model=dict)
+async def sync_execution_status(
+    uid: str,
+    db: AsyncSession = Depends(get_async_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """把执行账户的所有未完结订单（status<3）拉取平台最新状态并落库"""
+    acc = (
+        await db.execute(
+            select(ExecutionAccount).where(
+                ExecutionAccount.uid == uid,
+                ExecutionAccount.owner_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not acc:
+        raise NotFoundError("execution account not found")
+
+    # 取未完结订单
+    rows = (
+        await db.execute(
+            select(OrderExecutionLog)
+            .where(
+                OrderExecutionLog.uid == uid,
+                OrderExecutionLog.status.in_([1, 2]),  # 已提交/部分成交
+            )
+            .order_by(OrderExecutionLog.created_at.desc())
+            .limit(50)
+        )
+    ).scalars().all()
+
+    if not rows:
+        return success(data={"uid": uid, "synced": 0, "details": []})
+
+    # 仅对实盘 OKX 账户做状态同步；模拟盘没有远程状态
+    synced: list[dict] = []
+    if acc.account_type == 1 and acc.platform == "okx" and _gateway is not None:
+        try:
+            okx_executor = _gateway._get_okx()  # 访问内部 OKX 客户端
+        except Exception:
+            okx_executor = None
+        if okx_executor and okx_executor.is_ready():
+            for r in rows:
+                try:
+                    inst_id, _ = okx_executor._symbol_to_inst_id(r.symbol)
+                    info = await okx_executor.client.get_order(inst_id=inst_id, order_id=r.order_id)
+                    payload = (info.get("data") or [{}])[0]
+                    if payload:
+                        new_state = payload.get("state", "")
+                        if new_state == "filled":
+                            r.status = 3
+                            r.actual_price = float(payload.get("avgPx", r.actual_price))
+                            r.quantity = float(payload.get("fillSz", r.quantity))
+                        elif new_state == "canceled":
+                            r.status = 4
+                        elif new_state == "partially_filled":
+                            r.status = 2
+                            r.quantity = float(payload.get("fillSz", r.quantity))
+                        synced.append({"order_id": r.order_id, "new_state": new_state, "status": r.status})
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"sync order {r.order_id} failed: {e}")
+                    synced.append({"order_id": r.order_id, "error": str(e)})
+            await db.flush()
+    else:
+        for r in rows:
+            synced.append({
+                "order_id": r.order_id,
+                "status": r.status,
+                "note": "simulator mode: no remote sync",
+            })
+
+    return success(data={"uid": uid, "synced": len(synced), "details": synced})
+
+
+# ========== 接口：ES 检索订单日志（高性能筛选）==========
+@router.get("/execution/{uid}/es-search", response_model=dict)
+async def es_search_logs(
+    uid: str,
+    platform: str | None = None,
+    status: int | None = None,
+    size: int = 50,
+    _user: User = Depends(current_user),
+) -> dict:
+    """通过 ES 检索某账户的订单日志（高并发场景用，DB 兜底）"""
+    from fwsort.execution.es_writer import search_order_logs
+
+    res = await search_order_logs(uid=uid, platform=platform, status=status, size=size)
+    return success(data=res)

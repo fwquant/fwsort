@@ -80,7 +80,10 @@ async def rent_by_call(
         valid = [order]
 
     # 调一个具体智能体（从 MoA 中匹配 model）
-    target = next((p for p in _moa.layer1_agents if agent.model in p.agent_model or p.agent_model.startswith(agent.model.split("-")[0])), None)
+    target = next(
+        (a for a in _moa.agents if agent.model in a.model or a.model.startswith(agent.model.split("-")[0])),
+        None,
+    )
     if target is None:
         raise NotFoundError(f"no live agent matched for model {agent.model}")
 
@@ -88,8 +91,8 @@ async def rent_by_call(
     valid[0].used_calls += 1
     # 落库预测
     ap = AgentPrediction(
-        agent_name=target.agent_name,
-        agent_model=target.agent_model,
+        agent_name=target.name,
+        agent_model=target.model,
         symbol=symbol,
         timeframe=timeframe,
         direction=res.direction,

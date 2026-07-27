@@ -113,6 +113,10 @@ async def list_ranking(
                         "win_rate": float(perf.win_rate),
                         "trade_count": perf.trade_count,
                         "execution_score": float(perf.execution_score),
+                        # 开发计划B §2.1 新增风险/收益字段
+                        "total_return": float(perf.total_return),
+                        "volatility": float(perf.volatility),
+                        "max_consecutive_loss": perf.max_consecutive_loss,
                     }
                 )
 
@@ -200,6 +204,10 @@ async def ranking_detail(uid: str, db: AsyncSession = Depends(get_async_db)) -> 
             "execution_score": float(perf.execution_score),
             "composite_score": float(perf.composite_score),
             "current_balance": float(acc.current_balance),
+            # 开发计划B §2.1 新增风险/收益字段
+            "total_return": float(perf.total_return),
+            "volatility": float(perf.volatility),
+            "max_consecutive_loss": perf.max_consecutive_loss,
         }
     )
 

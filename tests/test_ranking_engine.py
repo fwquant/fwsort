@@ -1,6 +1,12 @@
 # 榜单评分引擎单元测试
 import pytest
 
+from fwsort.indicator_calculator import (
+    TradeRecord,
+    cumulative_return,
+    max_consecutive_losses,
+    volatility,
+)
 from fwsort.ranking_engine import WeightTuple, composite_score, tier_of
 
 
@@ -121,6 +127,60 @@ class TestRankingEngine:
         """测试：青铜段位"""
         assert tier_of(0) == "青铜"
         assert tier_of(19) == "青铜"
+
+
+class TestIndicatorCalculator:
+    """绩效指标计算器测试类（开发计划B §2.1 B1 收益/风险类指标）"""
+
+    def test_cumulative_return_positive(self):
+        """测试：累计收益（盈利）"""
+        assert cumulative_return(1000, 1500) == pytest.approx(0.5)
+        assert cumulative_return(100, 110) == pytest.approx(0.1)
+
+    def test_cumulative_return_negative(self):
+        """测试：累计收益（亏损）"""
+        assert cumulative_return(1000, 800) == pytest.approx(-0.2)
+
+    def test_cumulative_return_zero_initial(self):
+        """测试：初始资金为 0 时返回 0（保护）"""
+        assert cumulative_return(0, 100) == 0.0
+
+    def test_volatility_zero(self):
+        """测试：恒定收益波动率为 0"""
+        assert volatility([0.01, 0.01, 0.01, 0.01]) == 0.0
+
+    def test_volatility_short(self):
+        """测试：序列过短返回 0（保护）"""
+        assert volatility([]) == 0.0
+        assert volatility([0.01]) == 0.0
+
+    def test_volatility_annualized(self):
+        """测试：年化波动率为日波动 * sqrt(252)"""
+        daily = [0.01, -0.02, 0.015, -0.005, 0.01]
+        v_daily = volatility(daily, annualize=False)
+        v_ann = volatility(daily, annualize=True)
+        assert v_ann == pytest.approx(v_daily * (252 ** 0.5))
+
+    def test_max_consecutive_losses_all_loss(self):
+        """测试：全部亏损时连续次数等于总笔数"""
+        trades = [TradeRecord(pnl=-1, opened_at=0, closed_at=1, is_win=False) for _ in range(5)]
+        assert max_consecutive_losses(trades) == 5
+
+    def test_max_consecutive_losses_mixed(self):
+        """测试：混合时取最大连续亏损段"""
+        # W L L L W L L W W
+        flags = [True, False, False, False, True, False, False, True, True]
+        trades = [TradeRecord(pnl=1, opened_at=0, closed_at=1, is_win=w) for w in flags]
+        assert max_consecutive_losses(trades) == 3
+
+    def test_max_consecutive_losses_empty(self):
+        """测试：空列表返回 0"""
+        assert max_consecutive_losses([]) == 0
+
+    def test_max_consecutive_losses_no_loss(self):
+        """测试：全部盈利时返回 0"""
+        trades = [TradeRecord(pnl=1, opened_at=0, closed_at=1, is_win=True) for _ in range(3)]
+        assert max_consecutive_losses(trades) == 0
 
 
 if __name__ == "__main__":

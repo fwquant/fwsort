@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -24,36 +24,36 @@
     <h1 class="fwui-page-title">⚙️ 系统控制台</h1>
     <p class="fwui-page-subtitle">数据库初始化 / 管理员 / MOCK 播种 / 任务触发</p>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+    <div class="fwui-admin-grid">
 
       <div class="fwui-card">
         <div class="fwui-card__title">🛠 初始化</div>
-        <p style="font-size:13px;color:var(--fwui-text-muted);margin-bottom:12px;">首次启动时执行：创建所有数据库表 + 管理员 + 20 个 MOCK 账户 + 50 条投票记录</p>
+        <p class="fwui-card__desc">首次启动时执行：创建所有数据库表 + 管理员 + 20 个 MOCK 账户 + 50 条投票记录</p>
         <button class="fwui-btn fwui-btn--primary" id="btn-init-all">一键初始化 + 播种</button>
       </div>
 
       <div class="fwui-card">
         <div class="fwui-card__title">🔑 管理员账户</div>
-        <p style="font-size:13px;color:var(--fwui-text-muted);margin-bottom:12px;">默认：admin@fwquant.com / admin123456</p>
+        <p class="fwui-card__desc">默认：admin@fwquant.com / admin123456</p>
         <button class="fwui-btn" id="btn-seed-admin">创建管理员</button>
       </div>
 
       <div class="fwui-card">
         <div class="fwui-card__title">📊 MOCK 数据</div>
-        <p style="font-size:13px;color:var(--fwui-text-muted);margin-bottom:12px;">播种 20 个执行账户 + 50 笔投票 + 50 笔订单</p>
+        <p class="fwui-card__desc">播种 20 个执行账户 + 50 笔投票 + 50 笔订单</p>
         <button class="fwui-btn" id="btn-seed-mock">播种 MOCK</button>
       </div>
 
       <div class="fwui-card">
         <div class="fwui-card__title">🤖 智能体租用品类</div>
-        <p style="font-size:13px;color:var(--fwui-text-muted);margin-bottom:12px;">播种 4 个可租用的智能体（GPT-4o / Claude / Gemini / MoA）</p>
+        <p class="fwui-card__desc">播种 4 个可租用的智能体（GPT-4o / Claude / Gemini / MoA）</p>
         <button class="fwui-btn" id="btn-seed-rental">播种租用品类</button>
       </div>
 
       <div class="fwui-card">
         <div class="fwui-card__title">⏰ 定时任务</div>
-        <p style="font-size:13px;color:var(--fwui-text-muted);margin-bottom:12px;">手动触发榜单刷新/快照/清理/归档/跟单同步/通知扫描</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <p class="fwui-card__desc">手动触发榜单刷新/快照/清理/归档/跟单同步/通知扫描</p>
+        <div class="fwui-task-grid">
           <button class="fwui-btn fwui-btn--sm" data-task="refresh_realtime_rank">刷新实时榜</button>
           <button class="fwui-btn fwui-btn--sm" data-task="daily_snapshot">日榜快照</button>
           <button class="fwui-btn fwui-btn--sm" data-task="daily_cleanup">数据清理</button>
@@ -61,9 +61,9 @@
         </div>
       </div>
 
-      <div class="fwui-card">
+      <div class="fwui-card fwui-card--wide">
         <div class="fwui-card__title">📜 执行日志</div>
-        <div id="console-log" style="height:240px;overflow:auto;background:var(--fwui-bg);padding:8px;border-radius:var(--fwui-radius-md);font-family:monospace;font-size:12px;"></div>
+        <div id="console-log" class="fwui-console"></div>
       </div>
 
     </div>

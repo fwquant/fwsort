@@ -287,7 +287,8 @@
 @media (max-width: 768px) {
   .fwui-modal { max-width: 95vw; }
   .fwui-table th, .fwui-table td { padding: 8px; font-size: 13px; }
-  .fwui-btn { padding: 6px 12px; font-size: 13px; }
+  .fwui-btn { padding: 6px 12px; font-size: 13px; min-height: 32px; }
+  .fwui-input, .fwui-select, .fwui-textarea { font-size: 16px; min-height: 40px; } /* 避免iOS缩放 */
 }
 
 /* ========== 滚动条样式（锁定区第5条 与主题一致）========== */

@@ -35,22 +35,37 @@
 
   function marketCard(it) {
     const t = FWUI.utils.tier(it.composite_score || 0);
+    const retCls = (it.annualized_return || 0) >= 0 ? "fwui-up" : "fwui-down";
     return `
-      <div class="fwui-card">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
-          <div>
-            <div style="font-size:11px;color:var(--fwui-text-muted);">#${it.rank} · ${escapeHtml(it.platform || "-")}</div>
-            <div style="font-size:16px;font-weight:600;margin-top:4px;">${escapeHtml(it.name || it.uid)}</div>
+      <div class="fwui-card product-card">
+        <div class="product-card__head">
+          <div class="product-card__avatar product-card__avatar--success">📈</div>
+          <div style="flex:1;min-width:0;">
+            <div class="product-card__title">${escapeHtml(it.name || it.uid)}</div>
+            <div class="product-card__subtitle">#${it.rank} · ${escapeHtml(it.platform || "-")} · <span class="fwui-tier fwui-tier--${t.cls}">${t.name}</span></div>
           </div>
-          <span class="fwui-tier fwui-tier--${t.cls}">${t.name}</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;font-size:12px;">
-          <div><div style="color:var(--fwui-text-muted);font-size:11px;">胜率</div><div>${FWUI.utils.fmtPercent(it.win_rate, 1)}</div></div>
-          <div><div style="color:var(--fwui-text-muted);font-size:11px;">年化</div><div class="${(it.annualized_return||0)>=0?'fwui-up':'fwui-down'}">${FWUI.utils.fmtPercent(it.annualized_return, 1)}</div></div>
-          <div><div style="color:var(--fwui-text-muted);font-size:11px;">回撤</div><div class="fwui-down">${FWUI.utils.fmtPercent(it.max_drawdown, 1)}</div></div>
+        <div class="product-card__stats">
+          <div>
+            <div class="product-card__stat-label">胜率</div>
+            <div class="product-card__stat-value">${FWUI.utils.fmtPercent(it.win_rate, 1)}</div>
+          </div>
+          <div>
+            <div class="product-card__stat-label">年化</div>
+            <div class="product-card__stat-value ${retCls}">${FWUI.utils.fmtPercent(it.annualized_return, 1)}</div>
+          </div>
+          <div>
+            <div class="product-card__stat-label">回撤</div>
+            <div class="product-card__stat-value fwui-down">${FWUI.utils.fmtPercent(it.max_drawdown, 1)}</div>
+          </div>
         </div>
-        <div style="font-size:11px;color:var(--fwui-text-muted);margin-bottom:8px;">订阅：$9.9/月 + 盈利20%分成</div>
-        <button class="fwui-btn fwui-btn--primary" data-action="subscribe" data-uid="${escapeHtml(it.uid)}">订阅跟单</button>
+        <div class="product-card__price-row">
+          <div class="product-card__price-info">
+            <div class="product-card__price-label">订阅 + 分成</div>
+            <div class="product-card__price">$9.9<small>/月 + 20%</small></div>
+          </div>
+          <button class="fwui-btn fwui-btn--primary fwui-btn--sm" data-action="subscribe" data-uid="${escapeHtml(it.uid)}">订阅跟单</button>
+        </div>
       </div>
     `;
   }
@@ -80,15 +95,35 @@
 
   function myCard(s) {
     return `
-      <div class="fwui-card">
-        <div style="font-size:16px;font-weight:600;">${escapeHtml(s.leader_name || s.leader_uid)}</div>
-        <div style="margin-top:8px;font-size:12px;color:var(--fwui-text-muted);">订阅 ${s.subscription_fee_usd} USD/月 · 分成 ${s.profit_share_ratio * 100}%</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;font-size:12px;">
-          <div><div style="color:var(--fwui-text-muted);">已跟单</div><div>${s.total_followed} 笔</div></div>
-          <div><div style="color:var(--fwui-text-muted);">累计盈亏</div><div class="${s.total_pnl >= 0 ? 'fwui-up' : 'fwui-down'}">${FWUI.utils.fmtUsd(s.total_pnl, 2)}</div></div>
+      <div class="fwui-card product-card">
+        <div class="product-card__head">
+          <div class="product-card__avatar product-card__avatar--warning">👥</div>
+          <div style="flex:1;min-width:0;">
+            <div class="product-card__title">${escapeHtml(s.leader_name || s.leader_uid)}</div>
+            <div class="product-card__subtitle">${s.subscription_fee_usd} USD/月 · 分成 ${s.profit_share_ratio * 100}%</div>
+          </div>
         </div>
-        <div style="font-size:11px;color:var(--fwui-text-muted);">状态：${s.status === 1 ? "✅ 订阅中" : "已取消"} · 到期 ${s.expires_at || "永久"}</div>
-        ${s.status === 1 ? `<button class="fwui-btn fwui-btn--sm" data-action="cancel" data-id="${s.id}" style="margin-top:8px;color:var(--fwui-danger);">取消订阅</button>` : ""}
+        <div class="product-card__stats">
+          <div>
+            <div class="product-card__stat-label">已跟单</div>
+            <div class="product-card__stat-value">${s.total_followed} 笔</div>
+          </div>
+          <div>
+            <div class="product-card__stat-label">累计盈亏</div>
+            <div class="product-card__stat-value ${s.total_pnl >= 0 ? 'fwui-up' : 'fwui-down'}">${FWUI.utils.fmtUsd(s.total_pnl, 2)}</div>
+          </div>
+          <div>
+            <div class="product-card__stat-label">状态</div>
+            <div class="product-card__stat-value">${s.status === 1 ? "✅ 订阅中" : "已取消"}</div>
+          </div>
+        </div>
+        <div class="product-card__price-row">
+          <div class="product-card__price-info">
+            <div class="product-card__price-label">到期时间</div>
+            <div class="product-card__price" style="font-size:13px;font-weight:500;">${s.expires_at || "永久"}</div>
+          </div>
+          ${s.status === 1 ? `<button class="fwui-btn fwui-btn--sm" data-action="cancel" data-id="${s.id}" style="color:var(--fwui-danger);">取消订阅</button>` : ""}
+        </div>
       </div>
     `;
   }

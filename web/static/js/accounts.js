@@ -5,8 +5,9 @@
   async function init() {
     if (!FWUI.api.getToken()) {
       document.getElementById("accounts-grid").innerHTML = `
-        <div class="fwui-card" style="grid-column:1/-1;text-align:center;padding:48px;">
-          <p style="margin-bottom:16px;">登录后查看您的执行账户</p>
+        <div class="fwui-empty-card">
+          <div style="font-size:32px;margin-bottom:12px;">🔒</div>
+          <div style="margin-bottom:16px;">登录后查看您的执行账户</div>
           <button class="fwui-btn fwui-btn--primary" onclick="FWUI.toast.info('请点击右上角登录')">去登录</button>
         </div>
       `;
@@ -22,14 +23,15 @@
 
   async function load() {
     const grid = document.getElementById("accounts-grid");
-    grid.innerHTML = `<div class="fwui-card" style="grid-column:1/-1;text-align:center;">加载中...</div>`;
+    grid.innerHTML = `<div class="fwui-empty-card">⏳ 加载中...</div>`;
     try {
       const data = await FWUI.api.myAccounts();
       document.getElementById("account-count").textContent = `共 ${data.count} 个账户`;
       if (data.count === 0) {
         grid.innerHTML = `
-          <div class="fwui-card" style="grid-column:1/-1;text-align:center;padding:48px;">
-            <p style="margin-bottom:16px;color:var(--fwui-text-muted);">还没有执行账户</p>
+          <div class="fwui-empty-card">
+            <div style="font-size:32px;margin-bottom:12px;">💼</div>
+            <div style="margin-bottom:16px;">还没有执行账户</div>
             <button class="fwui-btn fwui-btn--primary" onclick="document.getElementById('btn-create-account').click()">立即创建</button>
           </div>
         `;
@@ -41,40 +43,39 @@
       grid.querySelectorAll("[data-action=detail]").forEach((b) => b.onclick = goDetail);
       grid.querySelectorAll("[data-action=delete]").forEach((b) => b.onclick = delAccount);
     } catch (e) {
-      grid.innerHTML = `<div class="fwui-card" style="grid-column:1/-1;color:var(--fwui-danger);">${escapeHtml(e.message)}</div>`;
+      grid.innerHTML = `<div class="fwui-empty-card fwui-empty-card--error">${escapeHtml(e.message)}</div>`;
     }
   }
 
   function card(a) {
     const platColor = a.platform === "polymarket" ? "primary" : "warning";
     const frozenTag = a.risk_frozen ? `<span class="fwui-tag fwui-tag--danger">风控冻结</span>` : `<span class="fwui-tag fwui-tag--success">正常</span>`;
+    const pnlCls = a.daily_pnl >= 0 ? "fwui-up" : "fwui-down";
     return `
-      <div class="fwui-card">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
-          <div>
-            <div style="font-size:11px;color:var(--fwui-text-muted);font-family:monospace;">${escapeHtml(a.uid)}</div>
-            <div style="font-size:18px;font-weight:600;margin-top:4px;">${escapeHtml(a.name)}</div>
-            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
-              <span class="fwui-tag fwui-tag--${platColor}">${escapeHtml(a.platform)}</span>
-              ${frozenTag}
-              <span class="fwui-tag">${a.account_type === 0 ? "模拟盘" : "实盘"}</span>
-            </div>
+      <div class="fwui-card account-card">
+        <div class="account-card__head">
+          <div class="account-card__id">${escapeHtml(a.uid)}</div>
+          <div class="account-card__name">${escapeHtml(a.name)}</div>
+          <div class="account-card__tags">
+            <span class="fwui-tag fwui-tag--${platColor}">${escapeHtml(a.platform)}</span>
+            ${frozenTag}
+            <span class="fwui-tag">${a.account_type === 0 ? "模拟盘" : "实盘"}</span>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;padding-top:12px;border-top:1px solid var(--fwui-border);">
-          <div>
-            <div style="font-size:11px;color:var(--fwui-text-muted);">余额</div>
-            <div style="font-size:20px;font-weight:600;">${FWUI.utils.fmtUsd(a.current_balance, 2)}</div>
+        <div class="account-card__stats">
+          <div class="account-card__stat">
+            <div class="account-card__stat-label">余额</div>
+            <div class="account-card__stat-value">${FWUI.utils.fmtUsd(a.current_balance, 2)}</div>
           </div>
-          <div>
-            <div style="font-size:11px;color:var(--fwui-text-muted);">日盈亏</div>
-            <div style="font-size:20px;font-weight:600;" class="${a.daily_pnl >= 0 ? 'fwui-up' : 'fwui-down'}">${FWUI.utils.fmtUsd(a.daily_pnl, 2)}</div>
+          <div class="account-card__stat">
+            <div class="account-card__stat-label">日盈亏</div>
+            <div class="account-card__stat-value ${pnlCls}">${(a.daily_pnl >= 0 ? "+" : "")}${FWUI.utils.fmtUsd(a.daily_pnl, 2)}</div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+        <div class="account-card__actions">
           <button class="fwui-btn fwui-btn--primary fwui-btn--sm" data-action="vote" data-id="${a.id}" ${a.risk_frozen || a.status !== 0 ? 'disabled' : ''}>🧠 触发投票</button>
           <button class="fwui-btn fwui-btn--sm" data-action="detail" data-uid="${escapeHtml(a.uid)}" data-id="${a.id}">📋 详情/日志</button>
-          <button class="fwui-btn fwui-btn--sm" data-action="delete" data-id="${a.id}" style="margin-left:auto;color:var(--fwui-danger);">🗑</button>
+          <button class="fwui-btn fwui-btn--sm account-card__del" data-action="delete" data-id="${a.id}">🗑 删除</button>
         </div>
       </div>
     `;

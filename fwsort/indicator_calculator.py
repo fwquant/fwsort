@@ -20,6 +20,44 @@ def annualized_return(initial: float, final: float, days: float) -> float:
     return (final / initial) ** (365.0 / days) - 1
 
 
+def cumulative_return(initial: float, final: float) -> float:
+    """累计收益率 = (final - initial) / initial（开发计划B §2.1 收益类指标）"""
+    if initial <= 0:
+        return 0.0
+    return (final - initial) / initial
+
+
+def volatility(returns: list[float], annualize: bool = True) -> float:
+    """收益波动率 = 标准差；默认年化（开发计划B §2.1 风险类指标）
+
+    日收益序列传入时 annualize=True 会乘 sqrt(252)
+    """
+    if not returns or len(returns) < 2:
+        return 0.0
+    n = len(returns)
+    mean = sum(returns) / n
+    var = sum((r - mean) ** 2 for r in returns) / (n - 1)
+    std = math.sqrt(var)
+    if annualize:
+        return std * math.sqrt(252)
+    return std
+
+
+def max_consecutive_losses(trades: list[TradeRecord]) -> int:
+    """最大连续亏损次数（开发计划B §2.1 风险类指标）"""
+    if not trades:
+        return 0
+    max_run = 0
+    cur_run = 0
+    for t in trades:
+        if not t.is_win:
+            cur_run += 1
+            max_run = max(max_run, cur_run)
+        else:
+            cur_run = 0
+    return max_run
+
+
 def sharpe_ratio(returns: list[float], risk_free: float = 0.0) -> float:
     """夏普比率 = (平均收益 - 无风险) / 收益波动率"""
     if not returns or len(returns) < 2:

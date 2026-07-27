@@ -30,12 +30,12 @@
       <span class="fwui-tier fwui-tier--${t.cls}">${t.name}</span>
     `;
     document.getElementById("detail-stats").innerHTML = `
-      <div class="fwui-card"><div class="fwui-card__title">综合分</div><div style="font-size:28px;font-weight:700;">${FWUI.utils.fmtNumber(d.composite_score, 2)}</div></div>
-      <div class="fwui-card"><div class="fwui-card__title">年化收益</div><div style="font-size:24px;" class="${(d.annualized_return||0)>=0?'fwui-up':'fwui-down'}">${FWUI.utils.fmtPercent(d.annualized_return, 2)}</div></div>
-      <div class="fwui-card"><div class="fwui-card__title">最大回撤</div><div style="font-size:24px;" class="fwui-down">${FWUI.utils.fmtPercent(d.max_drawdown, 2)}</div></div>
-      <div class="fwui-card"><div class="fwui-card__title">夏普</div><div style="font-size:24px;">${FWUI.utils.fmtNumber(d.sharpe_ratio, 2)}</div></div>
-      <div class="fwui-card"><div class="fwui-card__title">胜率</div><div style="font-size:24px;">${FWUI.utils.fmtPercent(d.win_rate, 1)}</div></div>
-      <div class="fwui-card"><div class="fwui-card__title">执行质量</div><div style="font-size:24px;">${FWUI.utils.fmtNumber(d.execution_score, 2)}</div></div>
+      <div class="fwui-stat-card"><div class="fwui-stat-card__label">综合分</div><div class="fwui-stat-card__value fwui-stat-card__value--primary">${FWUI.utils.fmtNumber(d.composite_score, 2)}</div></div>
+      <div class="fwui-stat-card"><div class="fwui-stat-card__label">年化收益</div><div class="fwui-stat-card__value ${(d.annualized_return||0)>=0?'fwui-up':'fwui-down'}">${FWUI.utils.fmtPercent(d.annualized_return, 2)}</div></div>
+      <div class="fwui-stat-card"><div class="fwui-stat-card__label">最大回撤</div><div class="fwui-stat-card__value fwui-down">${FWUI.utils.fmtPercent(d.max_drawdown, 2)}</div></div>
+      <div class="fwui-stat-card"><div class="fwui-stat-card__label">夏普</div><div class="fwui-stat-card__value">${FWUI.utils.fmtNumber(d.sharpe_ratio, 2)}</div></div>
+      <div class="fwui-stat-card"><div class="fwui-stat-card__label">胜率</div><div class="fwui-stat-card__value">${FWUI.utils.fmtPercent(d.win_rate, 1)}</div></div>
+      <div class="fwui-stat-card"><div class="fwui-stat-card__label">执行质量</div><div class="fwui-stat-card__value">${FWUI.utils.fmtNumber(d.execution_score, 2)}</div></div>
     `;
   }
 
@@ -69,10 +69,19 @@
 
   // ========== ECharts 图表：净值 / 回撤 / 投票分布 / 执行质量 ==========
   async function loadCharts() {
+    const emptyIds = ["chart-equity", "chart-drawdown", "chart-vote-pie", "chart-exec"];
     try {
       // 拉取执行日志作为数据源
       const data = await FWUI.api.executionLogs(uid, 100);
       const logs = (data.logs || []).slice().reverse();
+
+      if (logs.length === 0) {
+        emptyIds.forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.innerHTML = `<div class="fwui-chart-empty">📊 暂无执行数据</div>`;
+        });
+        return;
+      }
 
       // 1) 净值曲线：用每笔 pnl 累加
       const equity = computeEquitySeries(logs, 1000);
@@ -113,6 +122,10 @@
       });
     } catch (e) {
       console.warn("charts load failed:", e);
+      emptyIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<div class="fwui-chart-empty">📊 暂无执行数据</div>`;
+      });
     }
   }
 

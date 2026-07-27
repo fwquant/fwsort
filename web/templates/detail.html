@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -21,58 +21,64 @@
   </nav>
 
   <main class="fwui-main">
-    <h1 class="fwui-page-title" id="detail-title">加载中...</h1>
-    <div id="detail-meta" style="margin-bottom:16px;"></div>
+    <h1 class="fwui-page-title" id="detail-title"><span class="fwui-skeleton">加载中...</span></h1>
+    <div id="detail-meta" class="fwui-detail-meta"></div>
 
-    <div id="detail-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px;"></div>
+    <div id="detail-stats" class="fwui-stats-grid"></div>
 
     <!-- 图表区：净值 / 回撤 / 投票分布 / 执行质量 -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:24px;">
+    <div class="fwui-charts-grid">
       <div class="fwui-card">
         <div class="fwui-card__title">📈 净值曲线（30 天）</div>
-        <div id="chart-equity" style="width:100%;height:260px;"></div>
+        <div id="chart-equity" class="fwui-chart"></div>
       </div>
       <div class="fwui-card">
         <div class="fwui-card__title">📉 回撤曲线（30 天）</div>
-        <div id="chart-drawdown" style="width:100%;height:260px;"></div>
+        <div id="chart-drawdown" class="fwui-chart"></div>
       </div>
       <div class="fwui-card">
         <div class="fwui-card__title">🗳 投票方向分布（近 50 笔）</div>
-        <div id="chart-vote-pie" style="width:100%;height:260px;"></div>
+        <div id="chart-vote-pie" class="fwui-chart"></div>
       </div>
       <div class="fwui-card">
         <div class="fwui-card__title">⚡ 执行质量分（近 14 天）</div>
-        <div id="chart-exec" style="width:100%;height:260px;"></div>
+        <div id="chart-exec" class="fwui-chart"></div>
       </div>
     </div>
 
     <!-- 触发投票 -->
-    <div class="fwui-card" style="margin-bottom:24px;">
+    <div class="fwui-card fwui-section">
       <div class="fwui-card__title">🧠 触发 3 智能体预测 + 投票（V1.0）</div>
-      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
-        <label style="flex:1;min-width:160px;">交易对 <input class="fwui-input" id="symbol-input" value="BTCUSDT"></label>
-        <label style="min-width:120px;">时窗
+      <div class="fwui-form-row">
+        <label class="fwui-form-field">
+          <span class="fwui-form-label">交易对</span>
+          <input class="fwui-input" id="symbol-input" value="BTCUSDT">
+        </label>
+        <label class="fwui-form-field fwui-form-field--narrow">
+          <span class="fwui-form-label">时窗</span>
           <select class="fwui-select" id="tf-input">
             <option value="15m">15 分钟</option>
             <option value="1h">1 小时</option>
           </select>
         </label>
-        <button class="fwui-btn fwui-btn--primary" id="btn-trigger-vote">触发一次预测+投票</button>
+        <button class="fwui-btn fwui-btn--primary" id="btn-trigger-vote">🧠 触发预测+投票</button>
       </div>
-      <div id="vote-result"></div>
+      <div id="vote-result" class="fwui-vote-result"></div>
     </div>
 
     <!-- 执行日志 -->
-    <div class="fwui-card">
+    <div class="fwui-card fwui-section">
       <div class="fwui-card__title">📋 最近 20 条订单执行日志</div>
-      <table class="fwui-table">
-        <thead>
-          <tr><th>订单ID</th><th>平台</th><th>方向</th><th>金额</th><th>状态</th><th>时间</th></tr>
-        </thead>
-        <tbody id="execution-logs">
-          <tr><td colspan="6" style="text-align:center;padding:16px;">加载中...</td></tr>
-        </tbody>
-      </table>
+      <div class="fwui-table-wrap">
+        <table class="fwui-table">
+          <thead>
+            <tr><th>订单ID</th><th>平台</th><th>方向</th><th>金额</th><th>状态</th><th>时间</th></tr>
+          </thead>
+          <tbody id="execution-logs">
+            <tr><td colspan="6" class="fwui-empty">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </main>
 

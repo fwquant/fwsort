@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -27,10 +27,10 @@
     <div class="fwui-toolbar">
       <button class="fwui-btn fwui-btn--primary" id="btn-create-account">+ 创建执行账户</button>
       <div class="fwui-toolbar__spacer"></div>
-      <span style="color:var(--fwui-text-muted);font-size:13px;" id="account-count">--</span>
+      <span class="fwui-toolbar__count" id="account-count">--</span>
     </div>
 
-    <div id="accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;"></div>
+    <div id="accounts-grid" class="fwui-card-grid fwui-card-grid--wide"></div>
   </main>
 
   <script src="/static/js/fwui/theme.js"></script>

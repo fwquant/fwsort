@@ -22,3 +22,6 @@ numpy==1.26.4
 APScheduler==3.10.4
 email-validator>=2.0.0
 aiohttp>=3.14.0
+# OKX / Polymarket 真实下单
+web3>=7.0.0
+eth-account>=0.13.0
