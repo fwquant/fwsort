@@ -5,21 +5,21 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.agents.hermes_moa import build_hermes_moa
-from core.config import settings
-from core.database import get_async_db
-from core.exceptions import NotFoundError, ParamError, RiskControlError
-from core.execution.simulator import OrderSimulator
-from core.models import (
+from fwsort.agents.hermes_moa import build_hermes_moa
+from fwsort.config import settings
+from fwsort.database import get_async_db
+from fwsort.exceptions import NotFoundError, ParamError, RiskControlError
+from fwsort.execution.simulator import OrderSimulator
+from fwsort.models import (
     AgentPrediction,
     ExecutionAccount,
     OrderExecutionLog,
     User,
     VoteDecision,
 )
-from core.response import success
-from core.schemas import AgentPredictionItem, AgentPredictionReq, VoteResultResp
-from core.voting import vote
+from fwsort.response import success
+from fwsort.schemas import AgentPredictionItem, AgentPredictionReq, VoteResultResp
+from fwsort.voting import vote
 from router.auth_router import current_user
 
 router = APIRouter()
@@ -247,7 +247,7 @@ async def delete_account(
     user: User = Depends(current_user),
 ) -> dict:
     """删除执行账户（仅本人/管理员；保留历史订单/投票/绩效记录）"""
-    from core.models import (
+    from fwsort.models import (
         AgentPrediction,
         OrderExecutionLog,
         StrategyPerformance,

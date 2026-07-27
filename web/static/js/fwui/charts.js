@@ -18,7 +18,7 @@
         return resolve(echartsInstance);
       }
       const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js";
+      script.src = "/static/js/lib/echarts.min.js";
       script.onload = () => {
         echartsInstance = global.echarts;
         if (!echartsInstance) reject(new Error("echarts not loaded"));

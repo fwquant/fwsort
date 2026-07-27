@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_async_db
-from core.models import Notification, User
-from core.response import success
+from fwsort.database import get_async_db
+from fwsort.models import Notification, User
+from fwsort.response import success
 from router.auth_router import current_user
 
 router = APIRouter()

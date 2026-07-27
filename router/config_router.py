@@ -3,11 +3,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_async_db
-from core.exceptions import PermissionError_
-from core.models import User, WeightConfig
-from core.response import success
-from core.schemas import WeightConfigReq, WeightConfigResp
+from fwsort.database import get_async_db
+from fwsort.exceptions import PermissionError_
+from fwsort.models import User, WeightConfig
+from fwsort.response import success
+from fwsort.schemas import WeightConfigReq, WeightConfigResp
 from router.auth_router import current_user
 
 router = APIRouter()
@@ -73,7 +73,7 @@ async def update_weights(
         + req.weight_execution
     )
     if abs(total - 1.0) > 0.001:
-        from core.exceptions import ParamError
+        from fwsort.exceptions import ParamError
 
         raise ParamError(f"weights must sum to 1.0, got {total}")
 

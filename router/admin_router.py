@@ -6,20 +6,20 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.agents.hermes_moa import build_hermes_moa
-from core.config import settings
-from core.database import get_async_db, init_db
-from core.models import (
+from fwsort.agents.hermes_moa import build_hermes_moa
+from fwsort.config import settings
+from fwsort.database import get_async_db, init_db
+from fwsort.models import (
     AgentPrediction,
     ExecutionAccount,
     StrategyPerformance,
     User,
     VoteDecision,
 )
-from core.ranking_engine import composite_score
-from core.response import success
-from core.security import hash_password
-from core.execution.simulator import OrderSimulator
+from fwsort.ranking_engine import composite_score
+from fwsort.response import success
+from fwsort.security import hash_password
+from fwsort.execution.simulator import OrderSimulator
 from router.auth_router import current_user
 
 router = APIRouter()
@@ -30,7 +30,7 @@ _simulator = OrderSimulator()
 
 async def require_admin(user: User = Depends(current_user)) -> User:
     if user.role < 3:
-        from core.exceptions import PermissionError_
+        from fwsort.exceptions import PermissionError_
 
         raise PermissionError_("admin required")
     return user
@@ -137,8 +137,8 @@ async def seed_mock(
     await db.flush()
 
     # 创建投票+订单（用模拟器）
-    from core.models import OrderExecutionLog
-    from core.voting import vote
+    from fwsort.models import OrderExecutionLog
+    from fwsort.voting import vote
 
     for _ in range(n_votes):
         acc = random.choice(accounts)
@@ -211,7 +211,7 @@ async def seed_mock(
 @router.post("/trigger/{task_name}", response_model=dict)
 async def trigger_task(task_name: str, _admin: User = Depends(require_admin)) -> dict:
     """手动触发 Celery 任务（仅管理员）"""
-    from core.scheduler import (
+    from fwsort.scheduler import (
         archive_hot_to_cold,
         daily_cleanup,
         daily_snapshot,
@@ -225,7 +225,7 @@ async def trigger_task(task_name: str, _admin: User = Depends(require_admin)) ->
         "archive_hot_to_cold": archive_hot_to_cold,
     }
     if task_name not in tasks:
-        from core.exceptions import ParamError
+        from fwsort.exceptions import ParamError
 
         raise ParamError(f"unknown task: {task_name}, options: {list(tasks.keys())}")
 
@@ -240,7 +240,7 @@ async def seed_rental_agents(
     _admin: User = Depends(require_admin),
 ) -> dict:
     """播种：6 个可租用的智能体品类（按次 + 包时段双轨）"""
-    from core.models import RentalAgent
+    from fwsort.models import RentalAgent
 
     catalog = [
         {"name": "GPT-4o 趋势猎手", "model": "gpt-4o", "agent_type": "trend",

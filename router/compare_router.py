@@ -3,7 +3,7 @@ import random
 
 from fastapi import APIRouter
 
-from core.response import success
+from fwsort.response import success
 
 router = APIRouter()
 
@@ -12,7 +12,7 @@ router = APIRouter()
 async def compare(uids: list[str]) -> dict:
     """2~5 个策略对标对比"""
     if len(uids) < 2 or len(uids) > 5:
-        from core.exceptions import ParamError
+        from fwsort.exceptions import ParamError
 
         raise ParamError("compare requires 2~5 uids")
     data = []

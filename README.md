@@ -148,7 +148,7 @@ python -c "from core.database import init_db; init_db()"
 uvicorn main:app --reload
 
 # 6. 启动 Celery（新窗口）
-celery -A core.scheduler.celery_app worker --loglevel=info -B
+celery -A fwsort.scheduler.celery_app worker --loglevel=info -B
 
 # 7. 播种（另一窗口）
 curl -X POST http://localhost:8000/api/admin/seed-admin

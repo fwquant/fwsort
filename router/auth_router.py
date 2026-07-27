@@ -5,12 +5,12 @@ from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_async_db
-from core.exceptions import AuthError, NotFoundError
-from core.models import User
-from core.response import success
-from core.schemas import LoginReq, RegisterReq, TokenResp
-from core.security import (
+from fwsort.database import get_async_db
+from fwsort.exceptions import AuthError, NotFoundError
+from fwsort.models import User
+from fwsort.response import success
+from fwsort.schemas import LoginReq, RegisterReq, TokenResp
+from fwsort.security import (
     create_access_token,
     create_refresh_token,
     decode_token,

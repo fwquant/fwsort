@@ -18,6 +18,6 @@ env/
 *.db
 web/static/exports/
 docs/_docx_text.txt
-docs/image/img.png
+docs/第一版需求/image/img.png
 node_modules/
 .DS_Store

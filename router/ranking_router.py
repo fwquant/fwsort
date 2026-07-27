@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_async_db
-from core.exceptions import NotFoundError
-from core.redis_client import RankType, rank_key
-from core.response import success
-from core.schemas import RankItem, RankListResp
-from core.models import ExecutionAccount, StrategyPerformance
+from fwsort.database import get_async_db
+from fwsort.exceptions import NotFoundError
+from fwsort.redis_client import RankType, rank_key
+from fwsort.response import success
+from fwsort.schemas import RankItem, RankListResp
+from fwsort.models import ExecutionAccount, StrategyPerformance
 
 router = APIRouter()
 
@@ -64,7 +64,7 @@ async def list_ranking(
 ) -> dict:
     """获取榜单列表（分页+筛选），未上榜时回退 MOCK"""
     # 尝试从 Redis ZSet 读取
-    from core.redis_client import async_redis
+    from fwsort.redis_client import async_redis
 
     key = rank_key(rank_type)
     total = await async_redis.zcard(key)

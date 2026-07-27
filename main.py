@@ -8,10 +8,10 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from core.config import settings
-from core.es_client import ensure_order_log_index, close_es_client
-from core.exceptions import FwsortError
-from core.response import fail
+from fwsort.config import settings
+from fwsort.es_client import ensure_order_log_index, close_es_client
+from fwsort.exceptions import FwsortError
+from fwsort.response import fail
 from router import (
     admin_router,
     agent_router,
@@ -186,7 +186,41 @@ async def health() -> dict:
 
 
 if __name__ == "__main__":
+    import threading
+    import time
+    import socket
     import uvicorn
+    import webbrowser
+
+    def is_port_open(host: str, port: int, timeout: float = 1.0) -> bool:
+        """检查端口是否已开放（服务是否启动）"""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(timeout)
+                result = s.connect_ex((host, port))
+                return result == 0
+        except Exception:
+            return False
+
+    def open_browser():
+        """等待服务启动完成后打开浏览器"""
+        host = "localhost" if settings.APP_HOST == "0.0.0.0" else settings.APP_HOST
+        port = settings.APP_PORT
+        max_wait = 30  # 最大等待30秒
+        check_interval = 0.5  # 每0.5秒检查一次
+        elapsed = 0
+
+        while elapsed < max_wait:
+            if is_port_open(host, port):
+                url = f"http://{host}:{port}"
+                webbrowser.open(url)
+                return
+            time.sleep(check_interval)
+            elapsed += check_interval
+
+    # 启动浏览器线程（仅在开发模式下）
+    if settings.APP_DEBUG:
+        threading.Thread(target=open_browser, daemon=True).start()
 
     uvicorn.run(
         "main:app",
