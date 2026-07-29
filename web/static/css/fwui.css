@@ -192,38 +192,76 @@
   to { opacity: 0; transform: translateX(20px); }
 }
 
-/* ========== Modal 弹框 ========== */
+/* ========== Modal 弹框（统一风格 · 玻璃质感）========== */
 .fwui-modal-mask {
   position: fixed;
   inset: 0;
   background: var(--fwui-mask);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
   z-index: 9000;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fwui-mask-in 0.2s ease;
+  padding: 20px;
+  animation: fwui-mask-in 0.22s ease;
 }
 .fwui-modal {
-  min-width: 320px;
-  max-width: 640px;
-  max-height: 80vh;
+  min-width: 340px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 85vh;
   background: var(--fwui-bg-elevated);
+  border: 1px solid var(--fwui-border);
   border-radius: var(--fwui-radius-lg);
-  box-shadow: var(--fwui-shadow-lg);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.35),
+    0 4px 16px rgba(124, 58, 237, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: fwui-modal-in 0.25s ease;
+  animation: fwui-modal-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+}
+.fwui-modal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(155, 109, 255, 0.25) 0%, rgba(155, 109, 255, 0) 50%, rgba(155, 109, 255, 0.1) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 .fwui-modal__header {
-  padding: 16px 20px;
+  padding: 18px 22px 14px;
   border-bottom: 1px solid var(--fwui-border);
   font-size: 16px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: var(--fwui-text);
+  gap: 12px;
 }
+.fwui-modal__header-text { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fwui-modal__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.fwui-modal__icon--info    { background: var(--fwui-primary-soft); color: var(--fwui-primary); }
+.fwui-modal__icon--success { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.fwui-modal__icon--warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.fwui-modal__icon--danger  { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 .fwui-modal__close {
   cursor: pointer;
   background: none;
@@ -231,17 +269,69 @@
   color: var(--fwui-text-muted);
   font-size: 20px;
   line-height: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--fwui-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--fwui-transition);
 }
-.fwui-modal__body { padding: 20px; overflow: auto; flex: 1; }
+.fwui-modal__close:hover {
+  color: var(--fwui-text);
+  background: var(--fwui-bg-hover);
+}
+.fwui-modal__body {
+  padding: 20px 22px;
+  overflow: auto;
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fwui-text-secondary);
+}
+.fwui-modal__body .fwui-form-row { margin-bottom: 14px; }
+.fwui-modal__body label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fwui-text);
+  margin-bottom: 6px;
+}
+.fwui-modal__body .fwui-input,
+.fwui-modal__body .fwui-select {
+  width: 100%;
+  box-sizing: border-box;
+}
 .fwui-modal__footer {
-  padding: 12px 20px;
+  padding: 14px 22px 18px;
   border-top: 1px solid var(--fwui-border);
   display: flex;
-  gap: 8px;
+  gap: 10px;
   justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.02);
+}
+/* 类型标签（info/warning/danger 影响按钮） */
+.fwui-modal--danger .fwui-btn--primary {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-color: #ef4444;
+}
+.fwui-modal--warning .fwui-btn--primary {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-color: #f59e0b;
+}
+/* 移动端优化 */
+@media (max-width: 480px) {
+  .fwui-modal { min-width: 0; max-width: 100%; }
+  .fwui-modal__header { padding: 14px 16px 12px; font-size: 15px; }
+  .fwui-modal__body { padding: 14px 16px; }
+  .fwui-modal__footer { padding: 12px 16px 14px; gap: 8px; }
+  .fwui-modal__footer .fwui-btn { flex: 1; min-width: 0; }
 }
 @keyframes fwui-mask-in  { from { opacity: 0; } to { opacity: 1; } }
-@keyframes fwui-modal-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes fwui-modal-in {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
 
 /* ========== 分页 ========== */
 .fwui-pagination {

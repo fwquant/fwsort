@@ -96,14 +96,14 @@ class ExecutionGateway:
                 # 实盘失败 → 降级模拟（保证主流程不挂）
 
         # 默认：模拟盘
-        return self._submit_simulator(platform, symbol, side, amount_usd)
+        return await self._submit_simulator(platform, symbol, side, amount_usd)
 
     async def _submit_okx(self, symbol: str, side: int, amount_usd: float) -> ExecutionResult:
         """OKX 实盘下单"""
         client = self._get_okx()
         if not client.is_ready():
             logger.warning("[GATEWAY] OKX not configured, fallback to simulator")
-            return self._submit_simulator("okx", symbol, side, amount_usd)
+            return await self._submit_simulator("okx", symbol, side, amount_usd)
         result = await client.submit(symbol=symbol, side=side, amount_usd=amount_usd)
         # 状态映射
         state_map = {"filled": 3, "live": 1, "partially_filled": 2, "canceled": 4, "expired": 4}
@@ -129,7 +129,7 @@ class ExecutionGateway:
         client = self._get_polymarket()
         if not client.is_configured():
             logger.warning("[GATEWAY] Polymarket not configured, fallback to simulator")
-            return self._submit_simulator("polymarket", symbol, side, amount_usd)
+            return await self._submit_simulator("polymarket", symbol, side, amount_usd)
         # 注：实际生产需要把 symbol 映射到 condition_id/token_id
         # 这里走中间价查询 → 计算份额 → 下单
         try:
@@ -159,11 +159,11 @@ class ExecutionGateway:
             )
         except Exception as e:  # noqa: BLE001
             logger.error(f"[GATEWAY] polymarket place_order error: {e}")
-            return self._submit_simulator("polymarket", symbol, side, amount_usd)
+            return await self._submit_simulator("polymarket", symbol, side, amount_usd)
 
-    def _submit_simulator(self, platform: str, symbol: str, side: int, amount_usd: float) -> ExecutionResult:
-        """模拟下单（同步）"""
-        sim: SimulatedOrder = self._simulator.submit(platform, symbol, side, amount_usd)
+    async def _submit_simulator(self, platform: str, symbol: str, side: int, amount_usd: float) -> ExecutionResult:
+        """WP-12：模拟下单（异步）"""
+        sim: SimulatedOrder = await self._simulator.submit(platform, symbol, side, amount_usd)
         return ExecutionResult(
             order_id=sim.order_id,
             platform=sim.platform,

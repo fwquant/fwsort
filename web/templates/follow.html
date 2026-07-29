@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -31,12 +31,113 @@
 
     <!-- 跟单市场 -->
     <div id="tab-market">
-      <div id="market-grid" class="fwui-card-grid fwui-card-grid--wide"></div>
+      <div class="fwui-toolbar" id="market-toolbar">
+        <div class="fwui-toolbar__group">
+          <input type="text" class="fwui-input" id="market-search" placeholder="🔍 搜索交易员名称 / 平台" style="width:220px;">
+        </div>
+        <div class="fwui-toolbar__spacer"></div>
+        <div class="fwui-toolbar__group">
+          <span class="fwui-toolbar__label">视图</span>
+          <div class="fwui-select-dropdown" data-section="market" data-current="auto">
+            <div class="fwui-select-dropdown__trigger" data-dropdown-toggle>
+              <span class="fwui-select-dropdown__current" data-dropdown-current>自动</span>
+              <svg class="fwui-select-dropdown__caret" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="fwui-select-dropdown__menu">
+              <div class="fwui-select-dropdown__option" data-dropdown-option="auto">
+                <div class="fwui-select-dropdown__option-name">自动</div>
+                <div class="fwui-select-dropdown__option-hint">PC · 列表 / 移动端 · 卡片</div>
+              </div>
+              <div class="fwui-select-dropdown__option" data-dropdown-option="list">
+                <div class="fwui-select-dropdown__option-name">列表</div>
+                <div class="fwui-select-dropdown__option-hint">表格行视图</div>
+              </div>
+              <div class="fwui-select-dropdown__option" data-dropdown-option="card">
+                <div class="fwui-select-dropdown__option-name">卡片</div>
+                <div class="fwui-select-dropdown__option-hint">图文卡片视图</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fwui-toolbar__group">
+          <button class="fwui-btn fwui-btn--sm fwui-btn--secondary" id="market-download">📥 导出</button>
+        </div>
+      </div>
+      <div id="market-table-wrap" class="fwui-table-wrap" style="display:none;">
+        <table class="fwui-table" id="market-table">
+          <thead>
+            <tr>
+              <th data-sort-key="rank">排名</th>
+              <th data-sort-key="name">名称</th>
+              <th>平台</th>
+              <th data-sort-key="composite">综合分</th>
+              <th data-sort-key="return">年化</th>
+              <th data-sort-key="drawdown">回撤</th>
+              <th data-sort-key="winrate">胜率</th>
+              <th>订阅</th>
+            </tr>
+          </thead>
+          <tbody id="market-body">
+            <tr><td colspan="8" class="fwui-empty">加载中</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="market-cards" class="fwui-card-grid fwui-card-grid--wide"></div>
     </div>
 
     <!-- 我的订阅 -->
     <div id="tab-my" style="display:none;">
-      <div id="my-grid" class="fwui-card-grid fwui-card-grid--wide"></div>
+      <div class="fwui-toolbar" id="my-toolbar">
+        <div class="fwui-toolbar__group">
+          <input type="text" class="fwui-input" id="my-search" placeholder="🔍 搜索订阅交易员" style="width:220px;">
+        </div>
+        <div class="fwui-toolbar__spacer"></div>
+        <div class="fwui-toolbar__group">
+          <span class="fwui-toolbar__label">视图</span>
+          <div class="fwui-select-dropdown" data-section="my" data-current="auto">
+            <div class="fwui-select-dropdown__trigger" data-dropdown-toggle>
+              <span class="fwui-select-dropdown__current" data-dropdown-current>自动</span>
+              <svg class="fwui-select-dropdown__caret" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="fwui-select-dropdown__menu">
+              <div class="fwui-select-dropdown__option" data-dropdown-option="auto">
+                <div class="fwui-select-dropdown__option-name">自动</div>
+                <div class="fwui-select-dropdown__option-hint">PC · 列表 / 移动端 · 卡片</div>
+              </div>
+              <div class="fwui-select-dropdown__option" data-dropdown-option="list">
+                <div class="fwui-select-dropdown__option-name">列表</div>
+                <div class="fwui-select-dropdown__option-hint">表格行视图</div>
+              </div>
+              <div class="fwui-select-dropdown__option" data-dropdown-option="card">
+                <div class="fwui-select-dropdown__option-name">卡片</div>
+                <div class="fwui-select-dropdown__option-hint">图文卡片视图</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fwui-toolbar__group">
+          <button class="fwui-btn fwui-btn--sm fwui-btn--secondary" id="my-download">📥 导出</button>
+        </div>
+      </div>
+      <div id="my-table-wrap" class="fwui-table-wrap" style="display:none;">
+        <table class="fwui-table" id="my-table">
+          <thead>
+            <tr>
+              <th>交易员</th>
+              <th>订阅费</th>
+              <th>分成</th>
+              <th>已跟单</th>
+              <th>累计盈亏</th>
+              <th>状态</th>
+              <th>到期</th>
+            </tr>
+          </thead>
+          <tbody id="my-body">
+            <tr><td colspan="7" class="fwui-empty">加载中</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="my-cards" class="fwui-card-grid fwui-card-grid--wide"></div>
     </div>
   </main>
 

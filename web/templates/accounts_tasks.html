@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务状态 · 福纹排行榜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link" href="/">📊 榜单</a>
+      <a class="fwui-nav__link" href="/accounts">💼 我的账户</a>
+      <a class="fwui-nav__link fwui-nav__link--active" href="/accounts/tasks">🛰 任务状态</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link" href="/rental">🤖 租用智能体</a>
+      <a class="fwui-nav__link" href="/admin">⚙️ 控制台</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main">
+    <h1 class="fwui-page-title">🛰 自动化任务状态</h1>
+    <p class="fwui-page-subtitle">展示 Celery 定时任务最近一次执行结果。所有数据每 5 秒自动刷新。</p>
+
+    <div class="fwui-toolbar">
+      <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-refresh-tasks">🔄 手动刷新</button>
+      <div class="fwui-select-dropdown" data-view-dropdown="tasks">
+        <div class="fwui-select-dropdown__trigger">
+          <span data-view-label>自动</span>
+          <svg class="fwui-select-dropdown__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+        <div class="fwui-select-dropdown__menu">
+          <div class="fwui-select-dropdown__option is-selected" data-view="auto">
+            <span class="fwui-select-dropdown__option-name">自动</span>
+            <span class="fwui-select-dropdown__option-hint">PC默认列表，手机默认卡片</span>
+          </div>
+          <div class="fwui-select-dropdown__option" data-view="list">
+            <span class="fwui-select-dropdown__option-name">列表</span>
+            <span class="fwui-select-dropdown__option-hint">表格形式，适合PC查看</span>
+          </div>
+          <div class="fwui-select-dropdown__option" data-view="card">
+            <span class="fwui-select-dropdown__option-name">卡片</span>
+            <span class="fwui-select-dropdown__option-hint">卡片形式，适合手机查看</span>
+          </div>
+        </div>
+      </div>
+      <div class="fwui-toolbar__spacer"></div>
+      <span class="fwui-toolbar__count" id="tasks-count">--</span>
+    </div>
+
+    <div id="tasks-table-wrap" style="display:none;">
+      <div class="fwui-table-wrap">
+        <table class="fwui-table">
+          <thead>
+            <tr>
+              <th style="width:60px;">状态</th>
+              <th>任务名称</th>
+              <th style="width:120px;">任务标识</th>
+              <th style="width:200px;">描述</th>
+              <th style="width:160px;">最近执行</th>
+              <th style="width:180px;">执行结果</th>
+              <th style="width:100px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tasks-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="tasks-cards-wrap" class="tasks-view"></div>
+  </main>
+
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/accounts_tasks.js"></script>
+</body>
+</html>

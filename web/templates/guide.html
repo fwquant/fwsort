@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跟单流程演示 · 福纹排行榜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link" id="nav-ranking">📊 总榜单</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link fwui-nav__link--active" href="/demo/guide" target="_blank">📖 流程演示</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main">
+    <!-- 演示模式角标 -->
+    <div id="demo-badge" style="display:none;background:linear-gradient(90deg,#9b6dff,#6df0ff);color:#fff;padding:6px 16px;border-radius:0 0 var(--fwui-radius-md) var(--fwui-radius-md);font-size:12px;font-weight:600;letter-spacing:0.5px;position:fixed;top:56px;right:24px;z-index:99;box-shadow:0 2px 8px rgba(155,109,255,0.3);">🎬 演示模式</div>
+
+    <h1 class="fwui-page-title">跟单流程演示</h1>
+    <p class="fwui-page-subtitle">3 步完成跟单，让顶级策略为你赚钱</p>
+
+    <!-- 步骤卡 -->
+    <div class="fwui-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 32px;">
+      <!-- Step 1 -->
+      <div class="ranking-card" style="cursor:default;">
+        <div style="font-size:48px;text-align:center;">1️⃣</div>
+        <div class="ranking-card__name" style="text-align:center;">浏览总榜单</div>
+        <div style="font-size:14px;color:var(--fwui-text-secondary);text-align:center;line-height:1.6;">
+          在总榜单中查看所有用户的收益率、资金量和综合得分。<br>
+          找到你想跟单的顶级策略师。
+        </div>
+        <a id="btn-step1" class="fwui-btn fwui-btn--primary" style="width:100%;text-align:center;" target="_blank">查看总榜单</a>
+      </div>
+      <!-- Step 2 -->
+      <div class="ranking-card" style="cursor:default;">
+        <div style="font-size:48px;text-align:center;">2️⃣</div>
+        <div class="ranking-card__name" style="text-align:center;">点击跟单</div>
+        <div style="font-size:14px;color:var(--fwui-text-secondary);text-align:center;line-height:1.6;">
+          在总榜单中点击用户旁的「跟单」按钮。<br>
+          选择订阅模式：纯订阅 / 纯分成 / 订阅+分成。
+        </div>
+        <a href="/follow" class="fwui-btn fwui-btn--primary" style="width:100%;text-align:center;" target="_blank">跟单市场</a>
+      </div>
+      <!-- Step 3 -->
+      <div class="ranking-card" style="cursor:default;">
+        <div style="font-size:48px;text-align:center;">3️⃣</div>
+        <div class="ranking-card__name" style="text-align:center;">自动跟单收益</div>
+        <div style="font-size:14px;color:var(--fwui-text-secondary);text-align:center;line-height:1.6;">
+          系统自动复制策略师的每笔交易。<br>
+          实时查看跟单收益和分成记录。
+        </div>
+        <a href="/accounts" class="fwui-btn fwui-btn--primary" style="width:100%;text-align:center;" target="_blank">我的账户</a>
+      </div>
+    </div>
+
+    <!-- 演示模式 vs 生产模式说明 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+      <div style="background:var(--fwui-primary-soft);border:1px solid var(--fwui-primary);border-radius:var(--fwui-radius-lg);padding:24px;">
+        <div style="font-size:18px;font-weight:700;color:var(--fwui-primary);margin-bottom:12px;">🎬 演示模式</div>
+        <ul style="color:var(--fwui-text-secondary);font-size:14px;line-height:2;padding-left:20px;">
+          <li>所有数据均为模拟数据</li>
+          <li>免费体验完整跟单流程</li>
+          <li>无需真实资金和 API Key</li>
+          <li>访问路径：<code>/demo/</code></li>
+        </ul>
+        <a id="btn-demo" class="fwui-btn fwui-btn--primary" style="width:100%;text-align:center;margin-top:12px;" target="_blank">进入演示模式</a>
+      </div>
+      <div style="background:var(--fwui-success-soft,rgba(16,185,129,0.08));border:1px solid var(--fwui-success,#10b981);border-radius:var(--fwui-radius-lg);padding:24px;">
+        <div style="font-size:18px;font-weight:700;color:var(--fwui-success,#10b981);margin-bottom:12px;">🚀 生产模式</div>
+        <ul style="color:var(--fwui-text-secondary);font-size:14px;line-height:2;padding-left:20px;">
+          <li>真实交易数据，真实收益</li>
+          <li>需要登录并配置 API Key</li>
+          <li>支持 Polymarket / OKX 实盘</li>
+          <li>访问路径：<code>/</code></li>
+        </ul>
+        <a id="btn-prod" class="fwui-btn fwui-btn--primary" style="width:100%;text-align:center;margin-top:12px;background:var(--fwui-success,#10b981);border-color:var(--fwui-success,#10b981);" target="_blank">进入生产模式</a>
+      </div>
+    </div>
+
+    <!-- 所有演示页面 -->
+    <div style="margin-top:24px;">
+      <div style="font-size:18px;font-weight:700;color:var(--fwui-text);margin-bottom:16px;">🎬 所有演示页面</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+        <a href="/demo" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">📊</div>
+          <div style="font-weight:600;font-size:14px;">首页榜单</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">总榜单 / 我的榜单</div>
+        </a>
+        <a href="/demo/global" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">🌍</div>
+          <div style="font-weight:600;font-size:14px;">总榜单</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">所有用户排名</div>
+        </a>
+        <a href="/demo/my" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">👤</div>
+          <div style="font-weight:600;font-size:14px;">我的榜单</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">我的账户成绩</div>
+        </a>
+        <a href="/demo/accounts" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">💼</div>
+          <div style="font-weight:600;font-size:14px;">我的账户</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">管理执行账户</div>
+        </a>
+        <a href="/demo/accounts/tasks" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">📋</div>
+          <div style="font-weight:600;font-size:14px;">任务状态</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">系统级任务监控</div>
+        </a>
+        <a href="/demo/accounts/execution" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">⚡</div>
+          <div style="font-weight:600;font-size:14px;">执行任务</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">账户定时任务执行</div>
+        </a>
+        <a href="/demo/follow" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">🌟</div>
+          <div style="font-weight:600;font-size:14px;">跟单市场</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">浏览高胜率交易员</div>
+        </a>
+        <a href="/demo/follow/my" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">📋</div>
+          <div style="font-weight:600;font-size:14px;">我的订阅</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">跟单订阅管理</div>
+        </a>
+        <a href="/demo/rental" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">🤖</div>
+          <div style="font-weight:600;font-size:14px;">租用智能体</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">AI 策略智能体</div>
+        </a>
+        <a href="/demo/profile" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">⚙️</div>
+          <div style="font-weight:600;font-size:14px;">个人设置</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">隐私与公开设置</div>
+        </a>
+        <a href="/demo/admin" target="_blank" class="fwui-card" style="padding:16px;text-decoration:none;color:inherit;border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);transition:all 0.2s;">
+          <div style="font-size:20px;margin-bottom:8px;">🔧</div>
+          <div style="font-weight:600;font-size:14px;">控制台</div>
+          <div style="font-size:12px;color:var(--fwui-text-muted);">系统管理</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- 模式切换提示 -->
+    <div style="text-align:center;padding:16px;background:var(--fwui-bg-elevated);border-radius:var(--fwui-radius-md);border:1px solid var(--fwui-border);margin-top:24px;">
+      <span style="color:var(--fwui-text-secondary);font-size:13px;">💡 演示模式和生产模式通过 URL 路由区分：<code>/demo/</code> 为演示，<code>/</code> 为生产</span>
+    </div>
+  </main>
+
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script>
+  (function() {
+    // 根据当前路径判断演示/生产模式，动态设置链接
+    var isDemo = window.__FW_DEMO_MODE__ || location.pathname.startsWith("/demo");
+    var rankingUrl = isDemo ? "/demo/global" : "/global";
+    document.getElementById("nav-ranking").href = rankingUrl;
+    document.getElementById("btn-step1").href = rankingUrl;
+    document.getElementById("btn-demo").href = "/demo";
+    document.getElementById("btn-prod").href = "/";
+
+    // 演示模式角标
+    if (isDemo) {
+      var badge = document.getElementById("demo-badge");
+      if (badge) badge.style.display = "";
+    }
+  })();
+  </script>
+</body>
+</html>

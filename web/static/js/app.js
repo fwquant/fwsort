@@ -5,8 +5,24 @@
   // 渲染导航栏
   function renderNav() {
     const token = FWUI.api.getToken();
+    const demoMode = !!window.__FW_DEMO_MODE__;
+    const demoPrefix = window.__FW_DEMO_PREFIX__ || "";
+
+    // 演示模式：未登录时自动调用 demo-login 拿 token（无密码）
+    if (demoMode && !token) {
+      FWUI.api.login({}).then((data) => {
+        FWUI.api.setToken(data.access_token);
+        localStorage.setItem("fwsort.refresh", data.refresh_token || "");
+        // 刷新一次页面，让导航/数据都按登录态渲染
+        location.reload();
+      }).catch((e) => {
+        console.warn("demo auto-login failed:", e);
+        FWUI.toast.error("演示模式自动登录失败：" + (e.message || "未知错误"));
+      });
+    }
+
     const actions = token
-      ? `<span class="fwui-tag fwui-tag--primary" id="user-nickname">--</span>
+      ? `<a href="${demoPrefix}/profile" class="fwui-tag fwui-tag--primary" id="user-nickname" style="text-decoration:none;cursor:pointer;" title="账户管理">--</a>
          <button class="fwui-btn fwui-btn--sm" id="btn-notify" title="通知中心" style="position:relative;">🔔<span id="notify-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--fwui-danger);color:#fff;font-size:10px;border-radius:8px;padding:0 4px;min-width:14px;text-align:center;">0</span></button>
          <button class="fwui-btn fwui-btn--sm" id="btn-logout">退出</button>`
       : `<button class="fwui-btn fwui-btn--sm" id="btn-login">登录</button>
@@ -43,7 +59,7 @@
 
     // 拉取当前用户 + 通知未读数
     if (token) {
-      FWUI.api.me()
+      FWUI.api.me({ silent401: true })
         .then((u) => {
           const el = document.getElementById("user-nickname");
           if (el) el.textContent = u.nickname;
@@ -129,7 +145,7 @@
     form.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:12px;">
         <label>邮箱 <input class="fwui-input" name="email" type="email" placeholder="email@example.com" required value="admin@fwquant.com"></label>
-        <label>密码 <input class="fwui-input" name="password" type="password" placeholder="≥ 6 位" required></label>
+        <label>密码 <input class="fwui-input" name="password" type="password" placeholder="≥ 1 位" required></label>
       </div>
     `;
     FWUI.modal.confirm({
@@ -156,9 +172,14 @@
     const form = document.createElement("div");
     form.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:12px;">
-        <label>邮箱 <input class="fwui-input" name="email" type="email" required></label>
-        <label>昵称 <input class="fwui-input" name="nickname" required></label>
-        <label>密码 <input class="fwui-input" name="password" type="password" required></label>
+        <label>邮箱 <input class="fwui-input" name="email" type="email" placeholder="email@example.com" required></label>
+        <label>昵称 <input class="fwui-input" name="nickname" placeholder="2-64 个字符" required></label>
+        <label>密码 <input class="fwui-input" name="password" type="password" placeholder="6-64 位" required></label>
+        <div style="font-size:12px;color:var(--fwui-text-muted);line-height:1.6;">
+          · 邮箱用于登录与找回<br>
+          · 昵称长度 2-64 个字符<br>
+          · 密码长度 6-64 位
+        </div>
       </div>
     `;
     FWUI.modal.confirm({
@@ -169,7 +190,16 @@
         const email = form.querySelector("[name=email]").value.trim();
         const nickname = form.querySelector("[name=nickname]").value.trim();
         const password = form.querySelector("[name=password]").value;
-        if (!email || !nickname || !password) { FWUI.toast.error("请填写完整"); throw new Error("validation"); }
+        // 邮箱格式
+        const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email) { FWUI.toast.error("请输入邮箱"); throw new Error("validation"); }
+        if (!emailRe.test(email)) { FWUI.toast.error("邮箱格式不正确"); throw new Error("validation"); }
+        // 昵称
+        if (nickname.length < 2) { FWUI.toast.error("昵称至少 2 个字符"); throw new Error("validation"); }
+        if (nickname.length > 64) { FWUI.toast.error("昵称最多 64 个字符"); throw new Error("validation"); }
+        // 密码
+        if (password.length < 1) { FWUI.toast.error("密码至少 1 位"); throw new Error("validation"); }
+        if (password.length > 64) { FWUI.toast.error("密码最多 64 位"); throw new Error("validation"); }
         try {
           await FWUI.api.register({ email, nickname, password });
           FWUI.toast.success("注册成功，请登录");

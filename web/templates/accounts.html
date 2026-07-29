@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -27,10 +27,32 @@
     <div class="fwui-toolbar">
       <button class="fwui-btn fwui-btn--primary" id="btn-create-account">+ 创建执行账户</button>
       <div class="fwui-toolbar__spacer"></div>
+
+      <input type="text" class="fwui-input fwui-input--sm" id="account-search" placeholder="搜索账户名 / UID / 平台..." style="max-width:220px;">
+
+      <select class="fwui-select fwui-select--sm" id="account-type-filter" style="max-width:90px;">
+        <option value="-1">全部类型</option>
+        <option value="0">模拟盘</option>
+        <option value="1">实盘</option>
+      </select>
+
+      <div class="fwui-toolbar__group" style="margin-left:6px;">
+        <span class="fwui-toolbar__label">视图</span>
+        <select class="fwui-select fwui-select--sm" id="view-switch" style="max-width:70px;">
+          <option value="list">列表</option>
+          <option value="card">卡片</option>
+        </select>
+      </div>
+
       <span class="fwui-toolbar__count" id="account-count">--</span>
     </div>
 
-    <div id="accounts-grid" class="fwui-card-grid fwui-card-grid--wide"></div>
+    <div id="accounts-view" class="accounts-view"></div>
+
+    <!-- 进入任务状态页 -->
+    <div class="fwui-toolbar" style="margin-top:20px;justify-content:flex-end;">
+      <a class="fwui-btn fwui-btn--sm" id="btn-go-tasks" href="/accounts/tasks">🛰 任务状态</a>
+    </div>
   </main>
 
   <script src="/static/js/fwui/theme.js"></script>

@@ -1,5 +1,8 @@
 # 配置管理路由：config_router（榜单权重/黑名单/段位配置）
-from fastapi import APIRouter, Depends
+import asyncio
+
+from fastapi import APIRouter, BackgroundTasks, Depends
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +22,30 @@ async def require_admin(user: User = Depends(current_user)) -> User:
     if user.role < 3:
         raise PermissionError_("admin required")
     return user
+
+
+# ========== WP-08：权重重算后台任务 ==========
+def _refresh_zset_task(rank_type: int) -> None:
+    """WP-08：同步执行权重重算（独立 sync session 避免与 async 冲突）
+    失败只记日志，不影响主接口返回
+    """
+    try:
+        from fwsort.database import get_sync_db
+        from fwsort.ranking_engine import refresh_redis_zset
+
+        with get_sync_db() as db:
+            result = refresh_redis_zset(db, rank_type=rank_type)
+        logger.bind(action="refresh_redis_zset", rank_type=rank_type, result=result).info(
+            "WP-08: rankings refreshed after weight update"
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"WP-08 refresh_redis_zset (rank_type={rank_type}) failed: {type(e).__name__}: {e}")
+
+
+async def _refresh_zset_async(rank_type: int) -> None:
+    """WP-08：异步触发权重重算（在线程池中执行同步阻塞操作）"""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _refresh_zset_task, rank_type)
 
 
 # ========== 接口：获取权重 ==========
@@ -61,10 +88,11 @@ async def get_weights(
 async def update_weights(
     rank_type: int,
     req: WeightConfigReq,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),
     _admin: User = Depends(require_admin),
 ) -> dict:
-    """更新榜单权重（仅管理员）"""
+    """更新榜单权重（仅管理员；WP-08 提交后异步触发榜单重算）"""
     total = (
         req.weight_annualized
         + req.weight_drawdown
@@ -89,4 +117,10 @@ async def update_weights(
     cfg.weight_profit_loss = req.weight_profit_loss
     cfg.weight_execution = req.weight_execution
     await db.flush()
-    return success(message="weights updated")
+
+    # WP-08：commit 后由后台任务重算 StrategyPerformance.composite_score + 写 Redis ZSet
+    # 使用 BackgroundTasks 而非 asyncio.create_task：确保数据库 commit 已完成
+    background_tasks.add_task(_refresh_zset_task, rank_type)
+    logger.bind(action="update_weights", rank_type=rank_type).info("weights updated, scheduling refresh")
+
+    return success(message="weights updated, ranking will refresh in background")

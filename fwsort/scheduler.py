@@ -55,8 +55,27 @@ celery_app.conf.update(
             "task": "fwsort.scheduler.notify_scan",
             "schedule": crontab(minute="*/10"),
         },
+        # 账户信号刷新：每 5 分钟
+        "refresh-account-signals": {
+            "task": "fwsort.scheduler.refresh_account_signals",
+            "schedule": crontab(minute="*/5"),
+        },
+        # 全账户预测-投票-下单：每 1 分钟（V1.0 自动化流水线）
+        "auto-predict-vote-trade": {
+            "task": "fwsort.scheduler.auto_predict_vote_trade",
+            "schedule": crontab(minute="*"),
+        },
+        # WP-09：outbox 消费：每 1 分钟（订单日志投递到 ES）
+        # Celery crontab 不支持 second 字段；分钟级足够覆盖 30s 内的延迟
+        "flush-outbox": {
+            "task": "fwsort.scheduler.flush_outbox",
+            "schedule": crontab(minute="*"),
+        },
     },
 )
+
+# 任务状态键：记录最近一次执行时间和结果（用 Redis 持久）
+TASK_STATUS_KEY = "fwsort:task:status"
 
 
 # ========== 任务 1：实时榜刷新（Redis ZSet）==========
@@ -179,60 +198,71 @@ def archive_hot_to_cold() -> dict:
 def follow_auto_copy() -> int:
     """每 5 分钟扫描所有有效订阅，复用最近一笔 leader 订单信号给粉丝"""
     from fwsort.models import ExecutionAccount, FollowOrder, FollowSubscription, OrderExecutionLog
+    from fwsort.exceptions import FwsortError
 
-    copied = 0
-    with get_sync_db() as db:
-        subs = db.query(FollowSubscription).filter(FollowSubscription.status == 1).all()
-        for s in subs:
-            # 找 leader 账户
-            leader_acc = db.query(ExecutionAccount).filter(ExecutionAccount.uid == s.leader_uid).first()
-            if not leader_acc:
-                continue
-            # 最近 5 分钟的 leader 订单
-            recent = (
-                db.query(OrderExecutionLog)
-                .filter(
-                    OrderExecutionLog.account_id == leader_acc.id,
-                    OrderExecutionLog.status == 3,
-                    OrderExecutionLog.created_at > datetime.now() - timedelta(minutes=5),
+    # 单元测试/CI 场景下表结构可能未初始化，容错兜底
+    try:
+        copied = 0
+        with get_sync_db() as db:
+            subs = db.query(FollowSubscription).filter(FollowSubscription.status == 1).all()
+            for s in subs:
+                # 找 leader 账户
+                leader_acc = db.query(ExecutionAccount).filter(ExecutionAccount.uid == s.leader_uid).first()
+                if not leader_acc:
+                    continue
+                # 最近 5 分钟的 leader 订单
+                recent = (
+                    db.query(OrderExecutionLog)
+                    .filter(
+                        OrderExecutionLog.account_id == leader_acc.id,
+                        OrderExecutionLog.status == 3,
+                        OrderExecutionLog.created_at > datetime.now() - timedelta(minutes=5),
+                    )
+                    .order_by(OrderExecutionLog.created_at.desc())
+                    .first()
                 )
-                .order_by(OrderExecutionLog.created_at.desc())
-                .first()
-            )
-            if not recent:
-                continue
-            # 是否已跟单过
-            dup = (
-                db.query(FollowOrder)
-                .filter(FollowOrder.subscription_id == s.id, FollowOrder.leader_order_id == recent.order_id)
-                .first()
-            )
-            if dup:
-                continue
-            # 算粉丝 pnl（按比例缩放）
-            scale = float(s.follow_amount_usd) / float(recent.amount_usd) if recent.amount_usd else 1
-            pnl = float(recent.pnl) * scale
-            share = max(pnl, 0) * float(s.profit_share_ratio) if s.mode in (2, 3) else 0
-            db.add(
-                FollowOrder(
-                    subscription_id=s.id,
-                    leader_order_id=recent.order_id,
-                    symbol=recent.symbol,
-                    side=recent.side,
-                    amount_usd=s.follow_amount_usd,
-                    expected_price=float(recent.expected_price),
-                    actual_price=float(recent.actual_price),
-                    pnl=pnl,
-                    share_paid=share,
-                    status=3,
+                if not recent:
+                    continue
+                # 是否已跟单过
+                dup = (
+                    db.query(FollowOrder)
+                    .filter(FollowOrder.subscription_id == s.id, FollowOrder.leader_order_id == recent.order_id)
+                    .first()
                 )
-            )
-            s.total_followed += 1
-            s.total_pnl = float(s.total_pnl) + pnl
-            s.total_share_paid = float(s.total_share_paid) + share
-            copied += 1
-    logger.info(f"[scheduler] follow auto copy: {copied} orders")
-    return copied
+                if dup:
+                    continue
+                # 算粉丝 pnl（按比例缩放）
+                scale = float(s.follow_amount_usd) / float(recent.amount_usd) if recent.amount_usd else 1
+                pnl = float(recent.pnl) * scale
+                share = max(pnl, 0) * float(s.profit_share_ratio) if s.mode in (2, 3) else 0
+                db.add(
+                    FollowOrder(
+                        subscription_id=s.id,
+                        leader_order_id=recent.order_id,
+                        symbol=recent.symbol,
+                        side=recent.side,
+                        amount_usd=s.follow_amount_usd,
+                        expected_price=float(recent.expected_price),
+                        actual_price=float(recent.actual_price),
+                        pnl=pnl,
+                        share_paid=share,
+                        status=3,
+                    )
+                )
+                s.total_followed += 1
+                s.total_pnl = float(s.total_pnl) + pnl
+                s.total_share_paid = float(s.total_share_paid) + share
+                copied += 1
+        logger.info(f"[scheduler] follow auto copy: {copied} orders")
+        return copied
+    except Exception as e:  # noqa: BLE001
+        # 表结构未初始化/数据库异常 → 安全降级（不影响主流程）
+        msg = f"{type(e).__name__}: {str(e)[:120]}"
+        if "no such table" in msg or "relation" in msg or "UndefinedTableError" in msg:
+            logger.warning(f"[scheduler] follow_auto_copy: table not ready, skip (init_db first): {msg}")
+        else:
+            logger.warning(f"[scheduler] follow_auto_copy error: {msg}")
+        return 0
 
 
 # ========== 任务 6：通知扫描（风控冻结/榜单异动/订阅到期）==========
@@ -269,6 +299,228 @@ def notify_scan() -> int:
             pushed += 1
     logger.info(f"[scheduler] notify scan pushed: {pushed}")
     return pushed
+
+
+# ========== 任务 7：账户信号刷新（每 5 分钟）==========
+@celery_app.task(name="fwsort.scheduler.refresh_account_signals")
+def refresh_account_signals() -> dict:
+    """给所有 status=0 的执行账户生成一次信号，更新 account.signal 等字段"""
+    from datetime import datetime
+
+    from fwsort.models import ExecutionAccount
+    from fwsort.signals.generator import generate_signal
+
+    updated = 0
+    failed = 0
+    started = datetime.now()
+    with get_sync_db() as db:
+        accounts = db.query(ExecutionAccount).filter(ExecutionAccount.status == 0).all()
+        for a in accounts:
+            try:
+                source = a.signal_source if a.signal_source in ("random", "gpt-4o", "claude", "gemini", "moa") else "random"
+                a.signal = generate_signal(source=source)
+                a.signal_source = source
+                a.signal_updated_at = datetime.now()
+                updated += 1
+            except Exception as e:  # noqa: BLE001
+                failed += 1
+                logger.warning(f"refresh signal for {a.uid} failed: {e}")
+    result = {"updated": updated, "failed": failed, "started_at": started.isoformat()}
+    _record_task_status("refresh_account_signals", "ok", result)
+    logger.info(f"[scheduler] refresh_account_signals: {result}")
+    return result
+
+
+# ========== 任务 8：全账户预测-投票-下单（V1.0 流水线，每 1 分钟）==========
+@celery_app.task(name="fwsort.scheduler.auto_predict_vote_trade")
+def auto_predict_vote_trade() -> dict:
+    """对所有激活执行账户跑一次 V1.0 流水线：
+    signal→MoA 预测→投票→ExecutionGateway 下单
+    """
+    import asyncio
+    from datetime import datetime
+
+    from fwsort.agents.hermes_moa import build_hermes_moa
+    from fwsort.execution.gateway import get_gateway
+    from fwsort.models import (
+        AgentPrediction,
+        ExecutionAccount,
+        OrderExecutionLog,
+        VoteDecision,
+    )
+    from fwsort.signals.generator import signal_to_direction
+    from fwsort.voting import vote
+
+    started = datetime.now()
+    moa = build_hermes_moa()
+    gateway = get_gateway()
+
+    success_count = 0
+    skip_count = 0
+    fail_count = 0
+    with get_sync_db() as db:
+        accounts = db.query(ExecutionAccount).filter(
+            ExecutionAccount.status == 0,
+            ExecutionAccount.risk_frozen == False,  # noqa: E712
+        ).all()
+        for acc in accounts:
+            try:
+                symbol = acc.target_symbol or "BTC-USDT"
+                # 已无信号则跳过
+                direction = signal_to_direction(acc.signal or "NEUTRAL")
+                if direction == 0:
+                    skip_count += 1
+                    continue
+                # 跑 MoA 异步
+                moa_result = asyncio.run(moa.aggregate(symbol, settings.PREDICTION_TIMEFRAME))
+                db_preds = []
+                for p in moa_result.layer1_results:
+                    ap = AgentPrediction(
+                        agent_name=p.agent_name,
+                        agent_model=p.agent_model,
+                        symbol=p.symbol,
+                        timeframe=p.timeframe,
+                        direction=p.direction,
+                        confidence=p.confidence,
+                        reasoning=p.reasoning,
+                        raw_payload=p.raw_payload,
+                        latency_ms=p.latency_ms,
+                    )
+                    db.add(ap)
+                    db_preds.append(ap)
+                db.flush()
+                directions = [p.direction for p in moa_result.layer1_results]
+                v = vote(
+                    directions=directions,
+                    account_balance=float(acc.current_balance),
+                    daily_pnl=float(acc.daily_pnl),
+                    initial_balance=float(acc.initial_balance),
+                )
+                if "risk_freeze" in v.reason:
+                    acc.risk_frozen = True
+                    db.flush()
+                    fail_count += 1
+                    continue
+                vote_row = VoteDecision(
+                    account_id=acc.id,
+                    symbol=symbol,
+                    timeframe=settings.PREDICTION_TIMEFRAME,
+                    up_count=v.up_count,
+                    down_count=v.down_count,
+                    flat_count=v.flat_count,
+                    final_direction=v.final_direction,
+                    order_amount_usd=v.order_amount_usd,
+                    order_amount_reason=v.reason,
+                    prediction_ids=",".join(str(p.id) for p in db_preds),
+                )
+                db.add(vote_row)
+                db.flush()
+                # 下单
+                if v.final_direction != 0 and v.order_amount_usd > 0:
+                    res = asyncio.run(gateway.submit(
+                        account_type=acc.account_type,
+                        platform=acc.platform,
+                        symbol=symbol,
+                        side=v.final_direction,
+                        amount_usd=v.order_amount_usd,
+                    ))
+                    log = OrderExecutionLog(
+                        uid=acc.uid,
+                        account_id=acc.id,
+                        vote_id=vote_row.id,
+                        order_id=res.order_id or f"FAIL-{int(time.time()*1000)}",
+                        order_type=2,
+                        side=res.side,
+                        platform=res.platform,
+                        symbol=res.symbol,
+                        expected_price=res.expected_price,
+                        actual_price=res.actual_price,
+                        quantity=res.quantity,
+                        amount_usd=res.amount_usd,
+                        status=res.status,
+                        latency_ms=res.latency_ms,
+                        slippage=res.slippage,
+                        pnl=0.0,
+                    )
+                    db.add(log)
+                    acc.last_order_at = datetime.now()
+                success_count += 1
+            except Exception as e:  # noqa: BLE001
+                fail_count += 1
+                logger.warning(f"auto_predict_vote_trade for {acc.uid} failed: {e}")
+    result = {
+        "success": success_count,
+        "skipped": skip_count,
+        "failed": fail_count,
+        "started_at": started.isoformat(),
+    }
+    _record_task_status("auto_predict_vote_trade", "ok", result)
+    logger.info(f"[scheduler] auto_predict_vote_trade: {result}")
+    return result
+
+
+# ========== 任务 9：Outbox 消费（WP-09：订单日志投递 ES）==========
+@celery_app.task(name="fwsort.scheduler.flush_outbox")
+def flush_outbox() -> dict:
+    """WP-09：把 outbox_event 表中 status=0/2 的事件投递到 Elasticsearch
+    - 失败重试：指数退避（1 / 2 / 4 分钟），最多 3 次后转长退避
+    - 进程崩溃恢复：重启后从 status=0/2 继续消费
+    """
+    from fwsort.execution.outbox import flush_outbox_sync
+
+    result = flush_outbox_sync()
+    # flush_outbox_sync 内部已写 Redis HASH，这里再调用一次 _record_task_status 保持统一格式
+    _record_task_status("flush_outbox", "ok", result)
+    return result
+
+
+# ========== 工具：记录任务状态到 Redis（供 /api/agent/tasks 查询）==========
+def _record_task_status(task_name: str, status: str, payload: dict) -> None:
+    """把任务最近一次执行状态写入 Redis HASH"""
+    import json as _json
+    from datetime import datetime
+
+    field_map = {
+        "status": status,
+        "last_run_at": datetime.now().isoformat(),
+        "last_result": _json.dumps(payload, ensure_ascii=False),
+    }
+    try:
+        sync_redis.hset(TASK_STATUS_KEY, task_name, _json.dumps(field_map, ensure_ascii=False))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"record task status {task_name} failed: {e}")
+
+
+def get_all_task_status() -> list[dict]:
+    """读取所有任务最近一次执行状态（前端 /accounts/tasks 用）"""
+    import json as _json
+
+    task_names = [
+        "refresh_realtime_rank",
+        "daily_snapshot",
+        "daily_cleanup",
+        "archive_hot_to_cold",
+        "follow_auto_copy",
+        "notify_scan",
+        "refresh_account_signals",
+        "auto_predict_vote_trade",
+        "flush_outbox",  # WP-09
+    ]
+    result: list[dict] = []
+    try:
+        raw = sync_redis.hgetall(TASK_STATUS_KEY) or {}
+    except Exception:
+        raw = {}
+    for name in task_names:
+        rec: dict = {"task": name, "status": "unknown", "last_run_at": None, "last_result": None}
+        if isinstance(raw, dict) and name in raw:
+            try:
+                rec = _json.loads(raw[name])
+                rec["task"] = name
+            except Exception:
+                pass
+        result.append(rec)
+    return result
 
 
 # ========== 工具：MOCK 计算综合分（无真实交易时填充榜单）==========

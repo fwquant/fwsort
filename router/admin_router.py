@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 import random
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from loguru import logger
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fwsort.agents.hermes_moa import build_hermes_moa
@@ -20,7 +21,7 @@ from fwsort.ranking_engine import composite_score
 from fwsort.response import success
 from fwsort.security import hash_password
 from fwsort.execution.simulator import OrderSimulator
-from router.auth_router import current_user
+from router.auth_router import current_user, current_user_optional
 
 router = APIRouter()
 
@@ -36,11 +37,40 @@ async def require_admin(user: User = Depends(current_user)) -> User:
     return user
 
 
+async def _has_any_admin(db: AsyncSession) -> bool:
+    """检查是否已经存在管理员（首次启动判定）"""
+    row = (
+        await db.execute(select(func.count(User.id)).where(User.role == 3))
+    ).scalar_one()
+    return (row or 0) > 0
+
+
+async def _bootstrap_or_admin(db: AsyncSession, user: User | None) -> None:
+    """WP-04：首次启动放行 / 已有 admin 必须鉴权
+    - 若无 admin 且 APP_ALLOW_INIT=True → 放行（首次部署引导）
+    - 否则 → 必须有 admin token
+    """
+    if settings.APP_ALLOW_INIT and not await _has_any_admin(db):
+        logger.warning("⚠️  bootstrap mode: init endpoint open until first admin is created")
+        return
+    if not user or user.role < 3:
+        from fwsort.exceptions import AuthError, PermissionError_
+
+        if not user:
+            raise AuthError("admin token required for init endpoints")
+        raise PermissionError_("admin role required")
+
+
 # ========== 1. 初始化数据库表 ==========
 @router.post("/init-db", response_model=dict)
-async def init_database() -> dict:
-    """初始化所有表结构（首次启动时调用）"""
+async def init_database(
+    db: AsyncSession = Depends(get_async_db),
+    user: User | None = Depends(current_user_optional),
+) -> dict:
+    """初始化所有表结构（首次启动时调用；WP-04 仅 admin/首次启动放行）"""
+    await _bootstrap_or_admin(db, user)
     init_db()
+    logger.bind(action="init_db").info("database tables initialized")
     return success(message="database tables initialized")
 
 
@@ -51,8 +81,10 @@ async def seed_admin(
     password: str = "admin123456",
     nickname: str = "管理员",
     db: AsyncSession = Depends(get_async_db),
+    user: User | None = Depends(current_user_optional),
 ) -> dict:
-    """创建初始管理员账户（仅当无 admin 时生效）"""
+    """创建初始管理员账户（仅当无 admin 时生效；WP-04）"""
+    await _bootstrap_or_admin(db, user)
     exists = (await db.execute(select(User).where(User.role == 3))).scalar_one_or_none()
     if exists:
         return success(message="admin already exists", data={"user_id": exists.id})
@@ -65,6 +97,7 @@ async def seed_admin(
     )
     db.add(admin)
     await db.flush()
+    logger.bind(action="seed_admin", user_id=admin.id).warning("admin account created (bootstrap)")
     return success({"user_id": admin.id, "email": email, "role": 3}, message="admin created")
 
 
@@ -74,9 +107,10 @@ async def seed_mock(
     n_accounts: int = 20,
     n_votes: int = 50,
     db: AsyncSession = Depends(get_async_db),
-    _user: User = Depends(current_user),
+    user: User | None = Depends(current_user_optional),
 ) -> dict:
-    """播种：N 个执行账户 + 50 笔模拟投票+订单 + 综合分"""
+    """播种：N 个执行账户 + 50 笔模拟投票+订单 + 综合分（WP-04 鉴权）"""
+    await _bootstrap_or_admin(db, user)
     # 找一个用户作为所有者（没有就用 admin 邮箱匹配）
     owner = (await db.execute(select(User).where(User.role == 3))).scalar_one_or_none()
     if not owner:
@@ -215,6 +249,8 @@ async def trigger_task(task_name: str, _admin: User = Depends(require_admin)) ->
         archive_hot_to_cold,
         daily_cleanup,
         daily_snapshot,
+        flush_outbox,  # WP-09：outbox 消费任务
+        follow_auto_copy,  # WP-07：跟单自动执行任务（修复 F-3 路径缺失）
         refresh_realtime_rank,
     )
 
@@ -223,11 +259,29 @@ async def trigger_task(task_name: str, _admin: User = Depends(require_admin)) ->
         "daily_snapshot": daily_snapshot,
         "daily_cleanup": daily_cleanup,
         "archive_hot_to_cold": archive_hot_to_cold,
+        "follow_auto_copy": follow_auto_copy,  # WP-07：管理员可手动触发跟单自动同步
+        "flush_outbox": flush_outbox,  # WP-09：手动触发 outbox 消费（无需等 30s）
     }
     if task_name not in tasks:
         from fwsort.exceptions import ParamError
 
         raise ParamError(f"unknown task: {task_name}, options: {list(tasks.keys())}")
+
+    # WP-07：USE_FAKE_REDIS 时 Celery broker 不可用 → 降级为本地同步执行
+    # 生产环境 (USE_FAKE_REDIS=false) 走标准 Celery .delay() 异步队列
+    if settings.USE_FAKE_REDIS:
+        try:
+            result_value = tasks[task_name].apply().get(timeout=10)
+            return success(
+                {"task_id": f"local-{task_name}", "task": task_name, "result": result_value, "mode": "sync-fallback"},
+                message="task executed synchronously (Celery broker unavailable in dev mode)",
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"sync fallback for {task_name} failed: {e}")
+            return success(
+                {"task_id": f"local-{task_name}", "task": task_name, "error": str(e), "mode": "sync-fallback-failed"},
+                message="task sync fallback failed",
+            )
 
     result = tasks[task_name].delay()
     return success({"task_id": result.id, "task": task_name})

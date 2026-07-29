@@ -30,6 +30,7 @@ async def follow_market(
             select(StrategyPerformance, ExecutionAccount)
             .join(ExecutionAccount, ExecutionAccount.id == StrategyPerformance.account_id)
             .where(StrategyPerformance.period_type == 4)  # 总榜
+            .where(ExecutionAccount.deleted_at.is_(None))  # WP-05：过滤已软删
             .order_by(desc(StrategyPerformance.composite_score))
             .limit(limit)
         )
@@ -79,10 +80,27 @@ async def subscribe(
     if months <= 0 or months > 12:
         raise ParamError("months must in 1..12")
 
-    # 校验 leader 存在
-    leader_acc = (await db.execute(select(ExecutionAccount).where(ExecutionAccount.uid == leader_uid))).scalar_one_or_none()
+    # 校验 leader 存在（WP-05：拒绝已软删账户作为 leader）
+    leader_acc = (
+        await db.execute(
+            select(ExecutionAccount)
+            .where(ExecutionAccount.uid == leader_uid)
+            .where(ExecutionAccount.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if not leader_acc:
-        raise NotFoundError(f"leader uid {leader_uid} not found")
+        raise NotFoundError(f"leader uid {leader_uid} not found or has been removed")
+
+    # 跟单守卫：leader 主账号未开启 allow_follow 时拒绝
+    leader_user = (
+        await db.execute(select(User).where(User.id == leader_acc.owner_id))
+    ).scalar_one_or_none()
+    if leader_user and not leader_user.allow_follow:
+        raise ParamError("该用户已关闭被跟单权限")
+
+    # 不允许订阅自己
+    if leader_acc.owner_id == user.id:
+        raise ParamError("不能订阅自己的账户")
 
     # 已存在有效订阅则续期
     existing = (

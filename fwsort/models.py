@@ -1,4 +1,4 @@
-﻿# SQLAlchemy 数据模型（对应架构文档第五章数据库表）
+# SQLAlchemy 数据模型（对应架构文档第五章数据库表）
 from datetime import datetime
 
 from sqlalchemy import (
@@ -35,6 +35,10 @@ class User(Base):
     nickname: Mapped[str] = mapped_column(String(64), nullable=False)
     role: Mapped[int] = mapped_column(SmallInteger, default=0, comment="0-访客 1-策略所有者 2-组合管理者 3-管理员")
     status: Mapped[int] = mapped_column(SmallInteger, default=0, comment="0-正常 1-禁用")
+    # 主账号可见性开关（粒度A：是否参与总榜单）
+    share_to_global: Mapped[bool] = mapped_column(Boolean, default=True, comment="主账号公开开关：True-参与总榜单")
+    # 主账号可订阅性开关（粒度B：是否允许被订阅跟单）
+    allow_follow: Mapped[bool] = mapped_column(Boolean, default=True, comment="允许被订阅：True-可被跟单")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -61,6 +65,18 @@ class ExecutionAccount(Base):
     daily_pnl: Mapped[float] = mapped_column(DECIMAL(18, 6), default=0.0, comment="日盈亏")
     risk_frozen: Mapped[bool] = mapped_column(Boolean, default=False, comment="风控冻结")
     status: Mapped[int] = mapped_column(SmallInteger, default=0, comment="0-启用 1-黑名单 2-暂停")
+    # ===== 交易员需求新增字段（20260729）=====
+    target_url: Mapped[str | None] = mapped_column(String(512), nullable=True, comment="交易标 URL")
+    target_symbol: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="标的简称（由 URL 解析）")
+    order_amount_usd: Mapped[float] = mapped_column(DECIMAL(18, 6), default=50.0, comment="每次下单金额 USDT")
+    signal: Mapped[str] = mapped_column(String(16), default="NEUTRAL", comment="当前信号 UP/DOWN/NEUTRAL")
+    signal_source: Mapped[str] = mapped_column(String(32), default="random", comment="random/gpt-4o/claude/gemini/moa")
+    signal_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_order_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    public_enabled: Mapped[bool] = mapped_column(Boolean, default=True, comment="账户级可见性：True-参与总榜单")
+    # ====================================
+    # WP-05：软删除时间戳（None=未删除；时间=已删除）
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -357,6 +373,58 @@ class WeightConfig(Base):
     weight_sharpe: Mapped[float] = mapped_column(DECIMAL(18, 4), default=0.20)
     weight_profit_loss: Mapped[float] = mapped_column(DECIMAL(18, 4), default=0.15)
     weight_execution: Mapped[float] = mapped_column(DECIMAL(18, 4), default=0.15)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ========== 16. 登录失败审计表（WP-03 限流配套）==========
+class LoginAttempt(Base):
+    """登录失败审计：持久化每次失败记录，支持事后追溯与安全分析
+    - 限流热路径只查 Redis（rate_limit.py）
+    - 本表冷存全部失败/成功事件，供安全审计 / 攻击溯源使用
+    """
+
+    __tablename__ = "login_attempt"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    ip: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    success: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    user_agent: Mapped[str] = mapped_column(String(256), default="", nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), default="", nullable=False, comment="invalid_credentials/user_disabled/locked")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), index=True
+    )
+
+
+# ========== 17. 订单日志 Outbox 表（WP-09：事务一致性）==========
+class OutboxEvent(Base):
+    """订单日志异步投递 outbox：先入库再异步写 ES
+    - 同一事务内把 OrderExecutionLog + OutboxEvent 一起 commit
+    - 后台 flush_outbox Celery 任务每 30s 扫描 status=0 的事件
+    - 写 ES 成功后置 status=1；失败 status=2（重试 ≤ 3 次）
+    - 进程崩溃后重启也能从 status=0/2 继续消费
+    """
+
+    __tablename__ = "outbox_event"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    # 事件类型：当前仅 order_log_index
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, default="order_log_index", index=True)
+    # 关联业务实体（订单日志 ID）
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, comment="ES 文档 JSON 序列化")
+    # 状态：0-待消费 1-成功 2-失败重试
+    status: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False, index=True)
+    # 重试次数
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # 失败原因（最近一次）
+    last_error: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    # 调度：下一次重试时间（失败后递增退避）
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), index=True
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )

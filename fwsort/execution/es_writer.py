@@ -1,4 +1,5 @@
 # 订单日志双写器：写完 PostgreSQL 后异步落 ES（无 ES 时降级）
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -65,6 +66,57 @@ async def index_order_log(
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ES] order_log index failed (id={order_log_id}): {e}")
         return False
+
+
+# ========== WP-09：Fire-and-Forget 异步包装（含重试）==========
+async def _index_with_retry(**kwargs: Any) -> bool:
+    """WP-09：内部包装，含 3 次重试（指数退避）
+    - 失败仍返回 False，由 schedule_index_order_log 决定如何处理
+    """
+    last_err: str = ""
+    for attempt in range(3):
+        try:
+            ok = await index_order_log(**kwargs)
+            if ok:
+                return True
+            last_err = "index_order_log returned False (ES unavailable?)"
+        except Exception as e:  # noqa: BLE001
+            last_err = f"{type(e).__name__}: {e}"
+        if attempt < 2:
+            # 指数退避：0.2s, 0.4s
+            await asyncio.sleep(0.2 * (2 ** attempt))
+    logger.warning(f"[ES] index_order_log failed after 3 attempts: {last_err}")
+    return False
+
+
+def schedule_index_order_log(**kwargs: Any) -> asyncio.Task | None:
+    """WP-09：把 ES 索引写入调度为后台异步任务（不阻塞主流程）
+    - 返回 asyncio.Task 便于调用方跟踪 / 测试；调用方通常忽略
+    - 任务内部已 try/except + 3 次重试，单次失败仅记日志
+    - ES 不可用时立即返回 None
+    """
+    if not es_available or async_es is None:
+        return None
+    try:
+        task = asyncio.create_task(_index_with_retry(**kwargs))
+        # 回调：若任务异常则捕获（避免 'Task exception was never retrieved' 警告）
+        task.add_done_callback(_log_es_task_result)
+        return task
+    except RuntimeError:
+        # 没有 event loop（同步上下文）→ 静默跳过
+        return None
+
+
+def _log_es_task_result(task: asyncio.Task) -> None:
+    """WP-09：异步任务完成回调，捕获异常仅记日志"""
+    try:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc:
+            logger.warning(f"[ES] async index task failed: {type(exc).__name__}: {exc}")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ES] task result inspection failed: {e}")
 
 
 async def search_order_logs(

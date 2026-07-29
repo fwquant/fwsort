@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -9,12 +9,15 @@
 <body>
   <!-- 顶部导航 -->
   <nav class="fwui-nav">
-    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <a href="/">
+      <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    </a>
     <div class="fwui-nav__links">
       <a class="fwui-nav__link fwui-nav__link--active" href="/">📊 榜单</a>
       <a class="fwui-nav__link" href="/accounts">💼 我的账户</a>
       <a class="fwui-nav__link" href="/follow">👥 跟单</a>
       <a class="fwui-nav__link" href="/rental">🤖 租用智能体</a>
+      <a class="fwui-nav__link" href="/demo/guide" target="_blank">📖 流程演示</a>
       <a class="fwui-nav__link" href="/admin">⚙️ 控制台</a>
     </div>
     <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
@@ -23,65 +26,146 @@
 
   <main class="fwui-main">
     <h1 class="fwui-page-title">福纹榜单</h1>
-    <p class="fwui-page-subtitle">多智能体策略-订单执行规则 V1.0 · 实时/日/周/月/总榜 · 模拟盘数据</p>
+    <p class="fwui-page-subtitle">多智能体策略-订单执行规则 V1.0 · 实时/日/周/月/总榜</p>
 
-    <!-- 周期 Tab -->
-    <div class="fwui-tabs">
-      <div class="fwui-tab fwui-tab--active" data-rank-type="realtime">实时榜</div>
-      <div class="fwui-tab" data-rank-type="daily">日榜</div>
-      <div class="fwui-tab" data-rank-type="weekly">周榜</div>
-      <div class="fwui-tab" data-rank-type="monthly">月榜</div>
-      <div class="fwui-tab" data-rank-type="all_time">总榜</div>
+    <!-- 一级 Tab：总榜单 / 我的榜单 -->
+    <div class="fwui-tabs fwui-tabs--primary">
+      <div class="fwui-tab fwui-tab--active" data-main-tab="global">🌍 总榜单</div>
+      <div class="fwui-tab" data-main-tab="my">👤 我的榜单</div>
     </div>
 
-    <!-- 工具栏 -->
-    <div class="fwui-toolbar">
-      <div class="fwui-toolbar__group">
-        <span class="fwui-toolbar__label">平台</span>
-        <span class="fwui-tag fwui-tag--primary" data-platform="">全部</span>
-        <span class="fwui-tag" data-platform="polymarket">Polymarket</span>
-        <span class="fwui-tag" data-platform="okx">OKX</span>
+    <!-- 总榜单面板 -->
+    <div id="panel-global">
+      <!-- 周期 Tab -->
+      <div class="fwui-tabs">
+        <div class="fwui-tab fwui-tab--active" data-rank-type="realtime">实时榜</div>
+        <div class="fwui-tab" data-rank-type="daily">日榜</div>
+        <div class="fwui-tab" data-rank-type="weekly">周榜</div>
+        <div class="fwui-tab" data-rank-type="monthly">月榜</div>
+        <div class="fwui-tab" data-rank-type="all_time">总榜</div>
       </div>
 
-      <div class="fwui-toolbar__group">
-        <span class="fwui-toolbar__label">排序</span>
-        <button class="fwui-btn fwui-btn--sm fwui-btn--primary" data-sort="composite">综合分</button>
-        <button class="fwui-btn fwui-btn--sm" data-sort="return">年化</button>
-        <button class="fwui-btn fwui-btn--sm" data-sort="drawdown">回撤</button>
-        <button class="fwui-btn fwui-btn--sm" data-sort="execution">执行质量</button>
+      <!-- 工具栏 -->
+      <div class="fwui-toolbar">
+        <div class="fwui-toolbar__group">
+          <span class="fwui-toolbar__label">平台</span>
+          <span class="fwui-tag fwui-tag--primary" data-platform="">全部</span>
+          <span class="fwui-tag" data-platform="polymarket">Polymarket</span>
+          <span class="fwui-tag" data-platform="okx">OKX</span>
+        </div>
+
+        <div class="fwui-toolbar__group fwui-toolbar__group--sort">
+          <span class="fwui-toolbar__label">排序</span>
+          <button class="fwui-btn fwui-btn--sm fwui-btn--primary" data-sort="composite">综合分</button>
+          <button class="fwui-btn fwui-btn--sm" data-sort="return">收益率</button>
+          <button class="fwui-btn fwui-btn--sm" data-sort="capital">资金量</button>
+        </div>
+
+        <div class="fwui-toolbar__group">
+          <span class="fwui-toolbar__label">视图</span>
+          <div class="fwui-select-dropdown" data-view-dropdown="global">
+            <div class="fwui-select-dropdown__trigger">
+              <span data-view-label>自动</span>
+              <svg class="fwui-select-dropdown__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="fwui-select-dropdown__menu">
+              <div class="fwui-select-dropdown__option is-selected" data-view="auto">
+                <span class="fwui-select-dropdown__option-name">自动</span>
+                <span class="fwui-select-dropdown__option-hint">按屏幕宽度自动切换</span>
+              </div>
+              <div class="fwui-select-dropdown__option" data-view="list">
+                <span class="fwui-select-dropdown__option-name">列表</span>
+                <span class="fwui-select-dropdown__option-hint">表格形式，适合PC查看</span>
+              </div>
+              <div class="fwui-select-dropdown__option" data-view="card">
+                <span class="fwui-select-dropdown__option-name">卡片</span>
+                <span class="fwui-select-dropdown__option-hint">卡片形式，适合手机查看</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="fwui-toolbar__group">
-        <span class="fwui-toolbar__label">视图</span>
-        <button class="fwui-btn fwui-btn--sm fwui-btn--primary" data-view="auto">自动</button>
-        <button class="fwui-btn fwui-btn--sm" data-view="list">列表</button>
-        <button class="fwui-btn fwui-btn--sm" data-view="card">卡片</button>
+      <!-- 榜单内容：列表用 table，卡片用 div 容器（同一时间只渲染一个） -->
+      <div id="ranking-table-wrap" class="fwui-table-wrap">
+        <table class="fwui-table" id="ranking-table">
+          <thead>
+            <tr id="ranking-thead-row">
+              <th data-sort-key="rank">排名</th>
+              <th>用户</th>
+              <th>平台</th>
+              <th data-sort-key="composite">综合分</th>
+              <th data-sort-key="return">收益率</th>
+              <th data-sort-key="capital">资金量</th>
+              <th data-sort-key="trades">笔数</th>
+              <th>段位</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="ranking-body">
+            <tr><td colspan="9" class="fwui-empty">加载中...</td></tr>
+          </tbody>
+        </table>
       </div>
+      <div id="ranking-cards" class="fwui-card-grid"></div>
+      <div id="ranking-pager" class="fwui-pagination"></div>
     </div>
 
-    <!-- 榜单内容：列表用 table，卡片用 div 容器（同一时间只渲染一个） -->
-    <div id="ranking-table-wrap" class="fwui-table-wrap">
-      <table class="fwui-table" id="ranking-table">
-        <thead>
-          <tr>
-            <th data-sort-key="rank">排名</th>
-            <th>名称</th>
-            <th>平台</th>
-            <th data-sort-key="composite">综合分</th>
-            <th data-sort-key="return">年化</th>
-            <th data-sort-key="drawdown">回撤</th>
-            <th data-sort-key="sharpe">夏普</th>
-            <th data-sort-key="trades">笔数</th>
-            <th>段位 / 执行质量</th>
-          </tr>
-        </thead>
-        <tbody id="ranking-body">
-          <tr><td colspan="9" class="fwui-empty">加载中...</td></tr>
-        </tbody>
-      </table>
+    <!-- 我的榜单面板（登录后显示） -->
+    <div id="panel-my" style="display:none;">
+      <div class="fwui-toolbar">
+        <div class="fwui-toolbar__group">
+          <span class="fwui-toolbar__label">平台</span>
+          <span class="fwui-tag fwui-tag--primary" data-my-platform="">全部</span>
+          <span class="fwui-tag" data-my-platform="polymarket">Polymarket</span>
+          <span class="fwui-tag" data-my-platform="okx">OKX</span>
+        </div>
+        <div class="fwui-toolbar__group">
+          <span class="fwui-toolbar__label">视图</span>
+          <div class="fwui-select-dropdown" data-view-dropdown="my">
+            <div class="fwui-select-dropdown__trigger">
+              <span data-my-view-label>自动</span>
+              <svg class="fwui-select-dropdown__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="fwui-select-dropdown__menu">
+              <div class="fwui-select-dropdown__option is-selected" data-my-view="auto">
+                <span class="fwui-select-dropdown__option-name">自动</span>
+                <span class="fwui-select-dropdown__option-hint">PC默认列表，手机默认卡片</span>
+              </div>
+              <div class="fwui-select-dropdown__option" data-my-view="list">
+                <span class="fwui-select-dropdown__option-name">列表</span>
+                <span class="fwui-select-dropdown__option-hint">表格形式，适合PC查看</span>
+              </div>
+              <div class="fwui-select-dropdown__option" data-my-view="card">
+                <span class="fwui-select-dropdown__option-name">卡片</span>
+                <span class="fwui-select-dropdown__option-hint">卡片形式，适合手机查看</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="my-ranking-table-wrap" class="fwui-table-wrap">
+        <table class="fwui-table" id="my-ranking-table">
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>账户名称</th>
+              <th>平台</th>
+              <th>综合分</th>
+              <th>年化</th>
+              <th>回撤</th>
+              <th>夏普</th>
+              <th>笔数</th>
+              <th>段位</th>
+            </tr>
+          </thead>
+          <tbody id="my-ranking-body">
+            <tr><td colspan="9" class="fwui-empty">请先登录</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="my-ranking-cards" class="fwui-card-grid"></div>
     </div>
-    <div id="ranking-cards" class="fwui-card-grid"></div>
-    <div id="ranking-pager" class="fwui-pagination"></div>
   </main>
 
   <!-- FWUI 必须按序加载（theme -> toast -> modal -> api -> utils）-->

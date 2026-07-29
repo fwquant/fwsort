@@ -1,25 +1,34 @@
 # Redis 客户端：榜单 ZSet / 缓存 / 限流
 # 轻量模式：USE_FAKE_REDIS=True 时使用进程内纯 Python 内存版（无外部依赖）
+# WP-06：演示模式独立 Redis 实例（独立内存版 + 独立 key 命名空间）
+import datetime as _dt
+from datetime import timezone
 from typing import Any
+
+from fastapi import Request
 
 from fwsort.config import settings
 
 
 # ========== Fake Redis（纯 Python 内存版）==========
 class _FakeAsyncZSet:
-    """最小 ZSet 实现：仅覆盖 zadd/zcard/zrevrange/delete/scan_iter"""
+    """最小 ZSet 实现：覆盖 zadd/zcard/zrevrange/zremrangebyscore/delete/expire/scan_iter"""
 
     def __init__(self) -> None:
         self._data: dict[str, float] = {}
+        self._ttls: dict[str, int] = {}  # 过期时间（unix 时间戳）
 
     async def zadd(self, key: str, mapping: dict[str, float]) -> int:
+        self._evict_if_expired(key)
         self._data.update(mapping)
         return len(mapping)
 
     async def zcard(self, key: str) -> int:
+        self._evict_if_expired(key)
         return len(self._data)
 
     async def zrevrange(self, key: str, start: int, end: int, withscores: bool = False) -> list:
+        self._evict_if_expired(key)
         sorted_items = sorted(self._data.items(), key=lambda x: x[1], reverse=True)
         if end == -1:
             sl = sorted_items[start:]
@@ -29,10 +38,41 @@ class _FakeAsyncZSet:
             return [(k, v) for k, v in sl]
         return [k for k, _ in sl]
 
+    async def zrevrangebyscore(
+        self, key: str, max: float, min: float = "-inf",
+        start: int = 0, num: int = 100, withscores: bool = False,
+    ) -> list:
+        """WP-10：keyset 分页——按 score 区间倒序拉取
+        - max: 上界（不包含，调用方传上一页最后一条的 score）
+        - min: 下界（包含）
+        - start/num: 区间内分页
+        """
+        self._evict_if_expired(key)
+        items = [(k, v) for k, v in self._data.items() if v < max and v >= min]
+        items.sort(key=lambda x: x[1], reverse=True)
+        page = items[start : start + num]
+        if withscores:
+            return [(k, v) for k, v in page]
+        return [k for k, _ in page]
+
+    async def zremrangebyscore(self, key: str, min_: float, max_: float) -> int:
+        """删除 score 在 [min_, max_] 区间的成员"""
+        self._evict_if_expired(key)
+        to_del = [k for k, v in self._data.items() if min_ <= v <= max_]
+        for k in to_del:
+            del self._data[k]
+        return len(to_del)
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        self._ttls[key] = int(datetime.now(tz=timezone.utc).timestamp()) + seconds
+        return True
+
     async def delete(self, *keys: str) -> int:
         # Fake 模式只有 1 个 key，不区分
         n = len(self._data)
         self._data.clear()
+        for k in keys:
+            self._ttls.pop(k, None)
         return n
 
     async def scan_iter(self, match: str | None = None, count: int = 100):
@@ -40,13 +80,20 @@ class _FakeAsyncZSet:
             if match is None or match.replace("*", "") in k:
                 yield k
 
+    def _evict_if_expired(self, key: str) -> None:
+        exp = self._ttls.get(key)
+        if exp and _dt.datetime.now(tz=timezone.utc).timestamp() > exp:
+            self._data.clear()
+            self._ttls.pop(key, None)
+
 
 class _FakeAsyncRedis:
-    """最小化 async Redis 客户端：仅实现 zadd/zcard/zrevrange/delete/get/setex/scan_iter"""
+    """最小化 async Redis 客户端：实现 zadd/zcard/zrevrange/zremrangebyscore/expire/delete/get/setex/scan_iter"""
 
     def __init__(self) -> None:
         self._zsets: dict[str, _FakeAsyncZSet] = {}
         self._kv: dict[str, str] = {}
+        self._kv_ttls: dict[str, int] = {}
 
     def zset(self, key: str) -> _FakeAsyncZSet:
         if key not in self._zsets:
@@ -62,22 +109,49 @@ class _FakeAsyncRedis:
     async def zrevrange(self, key: str, start: int, end: int, withscores: bool = False) -> list:
         return await self.zset(key).zrevrange(key, start, end, withscores)
 
+    async def zrevrangebyscore(
+        self, key: str, max: float, min: float = "-inf",
+        start: int = 0, num: int = 100, withscores: bool = False,
+    ) -> list:
+        return await self.zset(key).zrevrangebyscore(key, max, min, start, num, withscores)
+
+    async def zremrangebyscore(self, key: str, min_: float, max_: float) -> int:
+        return await self.zset(key).zremrangebyscore(key, min_, max_)
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        if key in self._zsets:
+            return await self._zsets[key].expire(key, seconds)
+        if key in self._kv:
+            self._kv_ttls[key] = int(_dt.datetime.now(tz=timezone.utc).timestamp()) + seconds
+            return True
+        return False
+
     async def delete(self, *keys: str) -> int:
         n = 0
         for k in keys:
             if k in self._zsets:
-                n += await self._zsets[k].delete()
+                await self._zsets[k].delete()
                 self._zsets.pop(k, None)
+                n += 1
             if k in self._kv:
                 self._kv.pop(k, None)
+                self._kv_ttls.pop(k, None)
                 n += 1
         return n
 
+    def _evict_kv_if_expired(self, key: str) -> None:
+        exp = self._kv_ttls.get(key)
+        if exp and _dt.datetime.now(tz=timezone.utc).timestamp() > exp:
+            self._kv.pop(key, None)
+            self._kv_ttls.pop(key, None)
+
     async def get(self, key: str) -> str | None:
+        self._evict_kv_if_expired(key)
         return self._kv.get(key)
 
     async def setex(self, key: str, ttl: int, value: str) -> None:
         self._kv[key] = value
+        self._kv_ttls[key] = int(_dt.datetime.now(tz=timezone.utc).timestamp()) + ttl
 
     async def scan_iter(self, match: str | None = None, count: int = 100):
         for k in list(self._kv.keys()):
@@ -167,6 +241,40 @@ sync_redis = _build_sync()
 
 # 异步客户端（FastAPI 路由）
 async_redis = _build_async()
+
+
+# ========== WP-06：演示模式独立 Redis（独立内存实例 + 隔离 key 命名空间）==========
+# 演示模式用 _FakeAsyncRedis（无需外部 Redis 即可完全隔离）
+demo_async_redis = _FakeAsyncRedis()
+demo_sync_redis = _FakeSyncRedis()
+
+
+def _is_demo_request(request: Request | None) -> bool:
+    """判断当前请求是否走演示数据通道（与 database.py 保持一致）"""
+    if request is None:
+        return False
+    return request.url.path.startswith("/api/demo/")
+
+
+def get_async_redis_for(request: Request | None = None) -> Any:
+    """WP-06：根据请求路径返回 prod 或 demo redis 客户端"""
+    if _is_demo_request(request):
+        return demo_async_redis
+    return async_redis
+
+
+def get_sync_redis_for(request: Request | None = None) -> Any:
+    """WP-06：根据请求路径返回 prod 或 demo 同步 redis 客户端"""
+    if _is_demo_request(request):
+        return demo_sync_redis
+    return sync_redis
+
+
+def demo_redis_key(raw_key: str) -> str:
+    """WP-06：demo redis key 加命名空间前缀（与 prod 完全隔离）"""
+    if not raw_key.startswith(settings.APP_DEMO_REDIS_PREFIX):
+        return f"{settings.APP_DEMO_REDIS_PREFIX}{raw_key}"
+    return raw_key
 
 
 # ========== 榜单 ZSet 命名空间 ==========

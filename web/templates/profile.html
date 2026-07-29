@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>账户管理 · 福纹排行榜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link" href="/">📊 榜单</a>
+      <a class="fwui-nav__link" href="/accounts">💼 我的账户</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link" href="/rental">🤖 租用智能体</a>
+      <a class="fwui-nav__link" href="/admin">⚙️ 控制台</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main profile-main">
+    <!-- 移动端顶部 Tab -->
+    <div class="profile-mobile-tabs">
+      <div class="profile-mobile-tab is-active" data-tab="info">
+        <span class="profile-mobile-tab__icon">👤</span>
+        <span class="profile-mobile-tab__label">个人信息</span>
+      </div>
+      <div class="profile-mobile-tab" data-tab="privacy">
+        <span class="profile-mobile-tab__icon">🔐</span>
+        <span class="profile-mobile-tab__label">可见性</span>
+      </div>
+      <div class="profile-mobile-tab" data-tab="password">
+        <span class="profile-mobile-tab__icon">🔑</span>
+        <span class="profile-mobile-tab__label">修改密码</span>
+      </div>
+      <div class="profile-mobile-tab" data-tab="stats">
+        <span class="profile-mobile-tab__icon">📊</span>
+        <span class="profile-mobile-tab__label">账户统计</span>
+      </div>
+    </div>
+
+    <div class="profile-layout">
+      <!-- 左侧栏（PC 显示，Mobile 隐藏） -->
+      <aside class="profile-sidebar">
+        <div class="profile-sidebar__user">
+          <div class="profile-sidebar__avatar">
+            <span id="sidebar-avatar">👤</span>
+          </div>
+          <div class="profile-sidebar__name" id="sidebar-name">加载中...</div>
+          <div class="profile-sidebar__email" id="sidebar-email">--</div>
+        </div>
+
+        <nav class="profile-sidebar__menu">
+          <div class="profile-sidebar__item is-active" data-tab="info">
+            <span class="profile-sidebar__icon">👤</span>
+            <span class="profile-sidebar__label">个人信息</span>
+          </div>
+          <div class="profile-sidebar__item" data-tab="privacy">
+            <span class="profile-sidebar__icon">🔐</span>
+            <span class="profile-sidebar__label">可见性</span>
+          </div>
+          <div class="profile-sidebar__item" data-tab="password">
+            <span class="profile-sidebar__icon">🔑</span>
+            <span class="profile-sidebar__label">修改密码</span>
+          </div>
+          <div class="profile-sidebar__item" data-tab="stats">
+            <span class="profile-sidebar__icon">📊</span>
+            <span class="profile-sidebar__label">账户统计</span>
+          </div>
+        </nav>
+
+        <div class="profile-sidebar__decor"></div>
+      </aside>
+
+      <!-- 右侧内容区 -->
+      <section class="profile-content">
+        <!-- 未登录提示 -->
+        <div id="panel-login" class="profile-panel" style="display:none;">
+          <div class="fwui-card profile-card">
+            <div class="profile-empty">
+              <div class="profile-empty__icon">🔒</div>
+              <div class="profile-empty__title">请先登录</div>
+              <div class="profile-empty__desc">登录后即可管理您的账户信息</div>
+              <button class="fwui-btn fwui-btn--primary" onclick="FWUI.toast.info('请点击右上角登录')">去登录</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 个人信息 -->
+        <div id="panel-info" class="profile-panel is-active">
+          <div class="fwui-card profile-card">
+            <div class="profile-card__header">
+              <div class="profile-card__title">👤 个人信息</div>
+              <div class="profile-card__subtitle">查看和管理您的基本资料</div>
+            </div>
+            <div id="profile-info" class="profile-info">
+              <div class="fwui-loading">⏳ 加载中...</div>
+            </div>
+          </div>
+
+          <div class="fwui-card profile-card">
+            <div class="profile-card__header">
+              <div class="profile-card__title">✏️ 修改昵称</div>
+              <div class="profile-card__subtitle">更新您在平台上的显示名称</div>
+            </div>
+            <div class="profile-form">
+              <div class="fwui-form-group">
+                <label class="fwui-label">新昵称</label>
+                <input type="text" class="fwui-input" id="new-nickname" placeholder="请输入新昵称" maxlength="32">
+              </div>
+              <button class="fwui-btn fwui-btn--primary" id="btn-update-nickname">更新昵称</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 可见性设置 -->
+        <div id="panel-privacy" class="profile-panel">
+          <div class="fwui-card profile-card">
+            <div class="profile-card__header">
+              <div class="profile-card__title">🔐 主账号可见性</div>
+              <div class="profile-card__subtitle">控制您的账户是否出现在公开榜单 / 是否允许被订阅跟单</div>
+            </div>
+            <div class="profile-privacy" id="profile-privacy">
+              <div class="fwui-loading">⏳ 加载中...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 修改密码 -->
+        <div id="panel-password" class="profile-panel">
+          <div class="fwui-card profile-card">
+            <div class="profile-card__header">
+              <div class="profile-card__title">🔐 修改密码</div>
+              <div class="profile-card__subtitle">定期更换密码可提升账户安全性</div>
+            </div>
+            <div class="profile-form">
+              <div class="fwui-form-group">
+                <label class="fwui-label">当前密码</label>
+                <input type="password" class="fwui-input" id="old-password" placeholder="请输入当前密码">
+              </div>
+              <div class="fwui-form-group">
+                <label class="fwui-label">新密码</label>
+                <input type="password" class="fwui-input" id="new-password" placeholder="请输入新密码（至少1位）">
+              </div>
+              <div class="fwui-form-group">
+                <label class="fwui-label">确认新密码</label>
+                <input type="password" class="fwui-input" id="confirm-password" placeholder="请再次输入新密码">
+              </div>
+              <button class="fwui-btn fwui-btn--primary" id="btn-change-password">修改密码</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 账户统计 -->
+        <div id="panel-stats" class="profile-panel">
+          <div class="fwui-card profile-card">
+            <div class="profile-card__header">
+              <div class="profile-card__title">📊 账户统计</div>
+              <div class="profile-card__subtitle">概览您的账户运行数据</div>
+            </div>
+            <div id="profile-stats" class="profile-stats">
+              <div class="fwui-loading">⏳ 加载中...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

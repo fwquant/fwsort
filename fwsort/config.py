@@ -19,12 +19,32 @@ class Settings(BaseSettings):
     APP_NAME: str = "fwsort"
     APP_ENV: Literal["development", "staging", "production"] = "development"
     APP_DEBUG: bool = True
+    APP_RELOAD: bool = False
     APP_HOST: str = "0.0.0.0"
-    APP_PORT: int = 8000
+    APP_PORT: int = 8002
     APP_SECRET_KEY: str = "change-me"
     APP_JWT_ALGORITHM: str = "HS256"
     APP_JWT_ACCESS_TTL_MIN: int = 30
     APP_JWT_REFRESH_TTL_DAYS: int = 7
+
+    # CORS 收敛：生产环境必须显式白名单（避免与 allow_credentials 冲突导致 CSRF）
+    # 配置示例：APP_CORS_ORIGINS="https://app.fwquant.com,https://admin.fwquant.com"
+    # 留空或 "*" 表示完全开放（仅开发模式使用）
+    APP_CORS_ORIGINS: str = ""
+
+    # 管理员初始化放行开关：仅在首次启动无 admin 时允许未授权调用 init/seed
+    APP_ALLOW_INIT: bool = True
+
+    # WP-06：演示模式数据层隔离
+    # APP_DEMO_MODE=True 时，所有 /api/demo/* 走独立 SQLite + 内存 Redis（与生产物理隔离）
+    APP_DEMO_MODE: bool = True
+    APP_DEMO_SQLITE_PATH: str = "./fwsort_demo.db"
+    APP_DEMO_REDIS_PREFIX: str = "fwsort_demo:"  # 隔离 key 命名空间（共享 Redis 时使用）
+
+    # 限流配置（WP-03）
+    APP_LOGIN_RATE_LIMIT: int = 5           # 5 次失败
+    APP_LOGIN_LOCK_MINUTES: int = 0         # 0 = 不锁定（默认关闭登录锁定）
+    APP_REGISTER_RATE_LIMIT: int = 3        # 同 IP 3 次/小时
 
     # 轻量模式（无外部服务时使用 SQLite + 内存 Redis）
     USE_SQLITE: bool = False

@@ -1,4 +1,5 @@
 # 模拟下单执行器：Polymarket / OKX 通用模拟
+import asyncio
 import random
 import time
 import uuid
@@ -27,9 +28,11 @@ class SimulatedOrder:
 
 
 class OrderSimulator:
-    """统一模拟下单器（支持 polymarket / okx）"""
+    """统一模拟下单器（支持 polymarket / okx）
+    WP-12：submit 改为 async，内部 sleep 改 await asyncio.sleep（不阻塞 event loop）
+    """
 
-    def submit(
+    async def submit(
         self,
         platform: str,
         symbol: str,
@@ -55,9 +58,9 @@ class OrderSimulator:
         else:
             price, qty, slip = 0.0, 0.0, 0.0
 
-        # 模拟执行延迟
+        # WP-12：await asyncio.sleep 不阻塞 event loop（替代 time.sleep）
         latency = int(random.uniform(80, 600))
-        time.sleep(latency / 1000)
+        await asyncio.sleep(latency / 1000)
 
         order_id = f"ORD-{uuid.uuid4().hex[:16].upper()}"
         # 90% 概率全部成交，10% 部分成交

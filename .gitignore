@@ -114,3 +114,26 @@ yarn.lock
 # Linux
 *.swp
 .svn/
+
+# D2/WP-18：临时调试残留（避免再有人把演示/调试文件误提交）
+# 临时 token / 调试用 curl 输出 / 凭据
+admin_token.txt
+*_token.txt
+*_token.json
+*.curl.out
+_check_*.py
+_syntax_*.py
+_test_*.py
+_test*.json
+1.html
+1.md
+img.png
+img_*.png
+# 根目录临时文件
+uvicorn.*.log
+server.*.log
+server.*.err
+start.log
+logs_*.log
+ranking.json
+login.json
