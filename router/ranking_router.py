@@ -63,7 +63,6 @@ async def list_ranking(
     db: AsyncSession = Depends(get_async_db),
 ) -> dict:
     """获取榜单列表（分页+筛选），未上榜时回退 MOCK"""
-    # 尝试从 Redis ZSet 读取
     from fwsort.redis_client import async_redis
 
     key = rank_key(rank_type)
@@ -73,19 +72,65 @@ async def list_ranking(
     start = (page - 1) * page_size
     end = start + page_size - 1
     if total and total > 0:
-        start = (page - 1) * page_size
-        end = start + page_size - 1
-        # ZREVRANGE 按分数倒序
         rows = await async_redis.zrevrange(key, start, end, withscores=True)
-        for idx, (uid, score) in enumerate(rows, start=start + 1):
-            items.append(
-                {
-                    "rank": idx,
-                    "uid": uid,
-                    "composite_score": float(score),
-                    # 简化：榜单中只展示分数，详细指标走详情接口
-                }
-            )
+        uid_list = [uid for uid, _ in rows]
+        uid_score_map = {uid: float(score) for uid, score in rows}
+
+        if uid_list:
+            stmt = select(ExecutionAccount, StrategyPerformance).join(
+                StrategyPerformance, StrategyPerformance.account_id == ExecutionAccount.id
+            ).where(ExecutionAccount.uid.in_(uid_list))
+            if platform:
+                stmt = stmt.where(ExecutionAccount.platform == platform)
+            result = await db.execute(stmt)
+            db_rows = result.all()
+
+            perf_map = {}
+            for acc, perf in db_rows:
+                perf_map[acc.uid] = (acc, perf)
+
+            for idx, uid in enumerate(uid_list, start=start + 1):
+                if uid in perf_map:
+                    acc, perf = perf_map[uid]
+                    items.append(
+                        {
+                            "rank": idx,
+                            "uid": uid,
+                            "name": acc.name,
+                            "platform": acc.platform,
+                            "composite_score": uid_score_map.get(uid, float(perf.composite_score)),
+                            "annualized_return": float(perf.annualized_return),
+                            "max_drawdown": float(perf.max_drawdown),
+                            "calmar_ratio": float(perf.calmar_ratio),
+                            "sharpe_ratio": float(perf.sharpe_ratio),
+                            "win_rate": float(perf.win_rate),
+                            "trade_count": perf.trade_count,
+                            "execution_score": float(perf.execution_score),
+                            "total_return": float(perf.total_return),
+                            "volatility": float(perf.volatility),
+                            "max_consecutive_loss": perf.max_consecutive_loss,
+                        }
+                    )
+                else:
+                    items.append(
+                        {
+                            "rank": idx,
+                            "uid": uid,
+                            "name": uid,
+                            "platform": "",
+                            "composite_score": uid_score_map.get(uid, 0.0),
+                            "annualized_return": 0.0,
+                            "max_drawdown": 0.0,
+                            "calmar_ratio": 0.0,
+                            "sharpe_ratio": 0.0,
+                            "win_rate": 0.0,
+                            "trade_count": 0,
+                            "execution_score": 0.0,
+                            "total_return": 0.0,
+                            "volatility": 0.0,
+                            "max_consecutive_loss": 0,
+                        }
+                    )
     else:
         # 回退到数据库
         stmt = select(ExecutionAccount, StrategyPerformance).join(
