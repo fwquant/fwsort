@@ -1,5 +1,4 @@
 # Celery 定时任务：榜单刷新 / 日榜快照 / 数据清理（架构文档 4.3.6）
-import asyncio
 import random
 from datetime import datetime, timedelta
 
@@ -10,7 +9,7 @@ from loguru import logger
 from fwsort.config import settings
 from fwsort.database import get_sync_db
 from fwsort.models import RankSnapshot, StrategyPerformance
-from fwsort.ranking_engine import composite_score, tier_of
+from fwsort.ranking_engine import composite_score
 from fwsort.redis_client import RankType, rank_key, sync_redis
 
 # ========== Celery 实例 ==========
@@ -147,7 +146,6 @@ def archive_hot_to_cold() -> dict:
     真实生产环境应写到 S3 / OSS，本 MVP 直接把过期数据 DELETE 之前先批量
     dump 到 ES（冷存），PG 保留近 90 天热数据。
     """
-    import json
     from datetime import datetime
 
     from fwsort.es_client import get_es_client
@@ -198,7 +196,6 @@ def archive_hot_to_cold() -> dict:
 def follow_auto_copy() -> int:
     """每 5 分钟扫描所有有效订阅，复用最近一笔 leader 订单信号给粉丝"""
     from fwsort.models import ExecutionAccount, FollowOrder, FollowSubscription, OrderExecutionLog
-    from fwsort.exceptions import FwsortError
 
     # 单元测试/CI 场景下表结构可能未初始化，容错兜底
     try:
@@ -341,7 +338,7 @@ def auto_predict_vote_trade() -> dict:
     from datetime import datetime
 
     from fwsort.agents.hermes_moa import build_hermes_moa
-    from fwsort.execution.gateway import get_gateway
+    from fwsort.gateway.gateway import get_gateway
     from fwsort.models import (
         AgentPrediction,
         ExecutionAccount,

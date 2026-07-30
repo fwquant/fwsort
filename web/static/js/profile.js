@@ -16,6 +16,7 @@
     await loadUserInfo();
     await loadStats();
     await loadPrivacy();
+    await loadTokenTTL();
   }
 
   function bindUI() {
@@ -285,6 +286,50 @@
       // 回滚 toggle
       const el = document.getElementById(field === "share_to_global" ? "toggle-share" : "toggle-follow");
       if (el) el.checked = !value;
+    }
+  }
+
+  // 加载登录有效期设置
+  async function loadTokenTTL() {
+    const container = document.getElementById("profile-ttl");
+    try {
+      const data = await FWUI.api.get("/api/auth/privacy");
+      const ttl = data.token_ttl_minutes || 10080;
+      const options = [
+        { value: 30, label: "30 分钟" },
+        { value: 60, label: "1 小时" },
+        { value: 180, label: "3 小时" },
+        { value: 1440, label: "1 天" },
+        { value: 10080, label: "7 天" },
+      ];
+      container.innerHTML = `
+        <div class="fwui-form-group">
+          <label class="fwui-label">登录有效期</label>
+          <select class="fwui-input" id="select-token-ttl">
+            ${options.map(o => `<option value="${o.value}" ${ttl === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+          </select>
+          <div style="font-size:12px;color:var(--fwui-text-muted);margin-top:4px;">设置后下次登录生效，当前登录不受影响</div>
+        </div>
+        <button class="fwui-btn fwui-btn--primary" id="btn-update-ttl">保存设置</button>
+      `;
+      document.getElementById("btn-update-ttl").onclick = updateTokenTTL;
+    } catch (e) {
+      container.innerHTML = `<div class="fwui-empty-card fwui-empty-card--error">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  async function updateTokenTTL() {
+    const select = document.getElementById("select-token-ttl");
+    const ttl = parseInt(select.value, 10);
+    const btn = document.getElementById("btn-update-ttl");
+    btn.disabled = true;
+    try {
+      await FWUI.api.post("/api/auth/privacy", { token_ttl_minutes: ttl });
+      FWUI.toast.success("有效期已更新，下次登录生效");
+    } catch (e) {
+      FWUI.toast.error(e.message);
+    } finally {
+      btn.disabled = false;
     }
   }
 

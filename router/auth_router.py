@@ -20,22 +20,15 @@ from fwsort.security import (
     hash_password,
     verify_password,
 )
-try:
-    from fwsort.rate_limit import (  # WP-03
-        check_login_rate_limit,
-        check_register_rate_limit,
-        clear_login_failures,
-        record_login_failure,
-        record_register_attempt,
-    )
-except ImportError:  # 兼容旧路径
-    from fwsort.security.rate_limit import (
-        check_login_rate_limit,
-        check_register_rate_limit,
-        clear_login_failures,
-        record_login_failure,
-        record_register_attempt,
-    )
+
+from fwsort.rate_limit import (  # WP-03
+    check_login_rate_limit,
+    check_register_rate_limit,
+    clear_login_failures,
+    record_login_failure,
+    record_register_attempt,
+)
+
 
 router = APIRouter()
 
@@ -189,7 +182,7 @@ async def login(
     logger.bind(action="login_success", user_id=user.id, email=req.email).info("user logged in")
 
     token = TokenResp(
-        access_token=create_access_token(user.id, {"role": user.role}),
+        access_token=create_access_token(user.id, {"role": user.role}, ttl_minutes=user.token_ttl_minutes),
         refresh_token=create_refresh_token(user.id),
         user_id=user.id,
         nickname=user.nickname,
@@ -241,7 +234,7 @@ async def demo_login(
 
     # 2) 签发 token
     token = TokenResp(
-        access_token=create_access_token(admin.id, {"role": admin.role, "demo": True}),
+        access_token=create_access_token(admin.id, {"role": admin.role, "demo": True}, ttl_minutes=admin.token_ttl_minutes),
         refresh_token=create_refresh_token(admin.id),
         user_id=admin.id,
         nickname=admin.nickname,
@@ -266,6 +259,7 @@ async def me(user: User = Depends(current_user)) -> dict:
             "status_name": {0: "正常", 1: "禁用"}.get(user.status, "未知"),
             "share_to_global": bool(user.share_to_global),
             "allow_follow": bool(user.allow_follow),
+            "token_ttl_minutes": user.token_ttl_minutes,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None,
         }
@@ -315,9 +309,9 @@ async def update_nickname(
 
 # ========== 请求模型（续）==========
 class UpdatePrivacyReq(BaseModel):
-    """更新主账号可见性设置"""
     share_to_global: bool | None = None
     allow_follow: bool | None = None
+    token_ttl_minutes: int | None = None
 
 
 # ========== 接口：刷新令牌 ==========
@@ -339,7 +333,7 @@ async def refresh_token(
         raise NotFoundError("user not found")
     return success(
         {
-            "access_token": create_access_token(user.id, {"role": user.role}),
+            "access_token": create_access_token(user.id, {"role": user.role}, ttl_minutes=user.token_ttl_minutes),
             "token_type": "bearer",
         }
     )
@@ -356,6 +350,7 @@ async def get_privacy(
         {
             "share_to_global": bool(user.share_to_global),
             "allow_follow": bool(user.allow_follow),
+            "token_ttl_minutes": user.token_ttl_minutes,
         }
     )
 
@@ -374,6 +369,11 @@ async def update_privacy(
         user.share_to_global = bool(req.share_to_global)
     if req.allow_follow is not None:
         user.allow_follow = bool(req.allow_follow)
+    if req.token_ttl_minutes is not None:
+        if req.token_ttl_minutes not in (30, 60, 180, 1440, 10080):
+            from fwsort.exceptions import ParamError
+            raise ParamError("token_ttl_minutes must be one of: 30, 60, 180, 1440, 10080")
+        user.token_ttl_minutes = req.token_ttl_minutes
     await db.flush()
     logger.bind(
         action="update_privacy",
@@ -385,6 +385,7 @@ async def update_privacy(
         {
             "share_to_global": bool(user.share_to_global),
             "allow_follow": bool(user.allow_follow),
+            "token_ttl_minutes": user.token_ttl_minutes,
         },
         message="privacy updated",
     )

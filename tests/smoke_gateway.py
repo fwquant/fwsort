@@ -1,6 +1,6 @@
 """Test ExecutionGateway 真实 OKX 路径"""
 import asyncio
-from fwsort.execution.gateway import get_gateway
+from fwsort.gateway.gateway import get_gateway
 
 
 async def main():

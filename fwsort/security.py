@@ -26,11 +26,10 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(subject: str | int, extra: dict[str, Any] | None = None) -> str:
-    """签发访问令牌（30 分钟）"""
-    expire = datetime.now(tz=timezone.utc) + timedelta(
-        minutes=settings.APP_JWT_ACCESS_TTL_MIN
-    )
+def create_access_token(subject: str | int, extra: dict[str, Any] | None = None, ttl_minutes: int | None = None) -> str:
+    """签发访问令牌（默认 7 天，可通过 ttl_minutes 自定义）"""
+    minutes = ttl_minutes if ttl_minutes is not None else settings.APP_JWT_ACCESS_TTL_MIN
+    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=minutes)
     payload: dict[str, Any] = {"sub": str(subject), "exp": expire, "type": "access"}
     if extra:
         payload.update(extra)

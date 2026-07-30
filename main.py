@@ -22,6 +22,7 @@ from router import (
     config_router,
     follow_router,
     notification_router,
+    polymarket_router,
     ranking_router,
     rental_router,
 )
@@ -63,6 +64,39 @@ def _validate_production_secret() -> None:
         msg = "❌ 生产环境启动失败，安全基线未通过:\n  - " + "\n  - ".join(issues)
         msg += "\n  生成方式：python -c \"import secrets;print(secrets.token_urlsafe(32))\""
         raise RuntimeError(msg)
+
+
+def _warn_polymarket_keys() -> None:
+    """启动时醒目提醒 Polymarket 网关密钥配置状态
+
+    - 密钥未填：警告无法连接/查余额/下单
+    - BTC 5min 已启用但密钥未填：警告自动下单不会生效
+    - 模拟盘 + BTC 5min 已启用：警告实盘不会触发
+    """
+    missing = settings.polymarket_missing_keys
+    if missing:
+        logger.warning(
+            "⚠️⚠️⚠️  Polymarket 网关密钥未配置: "
+            + ", ".join(missing)
+            + "  → 仅能查询公开行情，无法连接/查余额/下单。"
+            "请编辑 .env 填入对应密钥后重启服务。"
+        )
+    if settings.POLYMARKET_BTC5M_ENABLED:
+        if not settings.polymarket_configured:
+            logger.warning(
+                "⚠️  POLYMARKET_BTC5M_ENABLED=true 但 Polymarket 密钥未填，"
+                "BTC 5min 自动下单不会生效（请先填好 POLYMARKET_WALLET_PRIVATE_KEY / _ADDRESS）"
+            )
+        if settings.is_simulator:
+            logger.warning(
+                "⚠️  POLYMARKET_BTC5M_ENABLED=true 但 TRADE_MODE=simulator，"
+                "BTC 5min 自动下单不会触发实盘（请设 TRADE_MODE=live 启用实盘）"
+            )
+        if settings.btc5m_enabled_effective:
+            logger.info(
+                f"✅ BTC 5min 自动下单已生效：每 {settings.POLYMARKET_BTC5M_POLL_SECONDS}s 轮询，"
+                f"auto_order={settings.POLYMARKET_BTC5M_AUTO_ORDER}"
+            )
 
 
 def _init_demo_db_sync() -> None:
@@ -337,6 +371,7 @@ async def _seed_demo_redis_zset() -> None:
 async def lifespan(app: FastAPI):
     """启动：初始化 ES 索引 + 演示数据库；关闭：清理资源"""
     _validate_production_secret()
+    _warn_polymarket_keys()
 
     # ES 初始化：放到后台，不阻塞启动
     async def _init_es() -> None:
@@ -360,6 +395,13 @@ async def lifespan(app: FastAPI):
         await close_es_client()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"ES close error: {type(e).__name__}: {e}")
+    # 清理 Polymarket 网关 httpx 连接
+    try:
+        if polymarket_router._client is not None:
+            await polymarket_router._client.close()
+            polymarket_router._client = None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Polymarket client close error: {type(e).__name__}: {e}")
     logger.info("fwsort shutting down")
 
 
@@ -577,6 +619,7 @@ app.include_router(admin_router.router, prefix="/api/admin", tags=["admin"])
 app.include_router(follow_router.router, prefix="/api/follow", tags=["follow"])
 app.include_router(rental_router.router, prefix="/api/rental", tags=["rental"])
 app.include_router(notification_router.router, prefix="/api/notify", tags=["notify"])
+app.include_router(polymarket_router.router, prefix="/api/polymarket", tags=["polymarket"])
 
 
 # ========== WP-06：把所有 /api/* 路由镜像到 /api/demo/*（独立数据通道）==========
@@ -622,6 +665,7 @@ _total_mirrored += _mirror_router_to_demo(admin_router.router, "/api/admin")
 _total_mirrored += _mirror_router_to_demo(follow_router.router, "/api/follow")
 _total_mirrored += _mirror_router_to_demo(rental_router.router, "/api/rental")
 _total_mirrored += _mirror_router_to_demo(notification_router.router, "/api/notify")
+_total_mirrored += _mirror_router_to_demo(polymarket_router.router, "/api/polymarket")
 logger.info(f"WP-06: mirrored {_total_mirrored} /api/* routes to /api/demo/*")
 
 

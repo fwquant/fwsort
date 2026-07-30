@@ -7,6 +7,7 @@ from router import (
     config_router,
     follow_router,
     notification_router,
+    polymarket_router,
     ranking_router,
     rental_router,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "config_router",
     "follow_router",
     "notification_router",
+    "polymarket_router",
     "ranking_router",
     "rental_router",
 ]

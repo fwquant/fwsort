@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fwsort"
+version = "0.1.0"
+description = "FWQuant 排序系统"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "FWQuant Team"}
+]
+
+dependencies = [
+    "fastapi==0.139.2",
+    "uvicorn[standard]==0.27.1",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.2",
+    "SQLAlchemy==2.0.51",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.10",
+    "redis==8.0.1",
+    "elasticsearch==9.4.1",
+    "celery==5.3.6",
+    "python-jose[cryptography]==3.5.0",
+    "passlib[bcrypt]==1.7.4",
+    "python-multipart==0.0.9",
+    "httpx==0.27.0",
+    "openai==1.13.3",
+    "anthropic==0.20.0",
+    "google-generativeai==0.3.2",
+    "python-dotenv==1.2.2",
+    "loguru==0.7.3",
+    "pandas==2.2.1",
+    "numpy==1.26.4",
+    "APScheduler==3.10.4",
+    "email-validator>=2.0.0",
+    "aiohttp>=3.14.0",
+    "web3>=7.0.0",
+    "eth-account>=0.13.0",
+    "polymarket-client>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0",
+    "isort>=5.12",
+    "flake8>=6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["fwsort*"]
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 120

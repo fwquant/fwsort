@@ -1,7 +1,7 @@
 """OKX DEMO 链路 smoke test"""
 import asyncio
-from fwsort.execution.okx_client import OkxClient
-from fwsort.execution.okx_executor import OkxExecutor
+from fwsort.gateway.okx_client import OkxClient
+from fwsort.gateway.okx_executor import OkxExecutor
 
 
 async def main():

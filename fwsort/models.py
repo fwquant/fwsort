@@ -39,6 +39,7 @@ class User(Base):
     share_to_global: Mapped[bool] = mapped_column(Boolean, default=True, comment="主账号公开开关：True-参与总榜单")
     # 主账号可订阅性开关（粒度B：是否允许被订阅跟单）
     allow_follow: Mapped[bool] = mapped_column(Boolean, default=True, comment="允许被订阅：True-可被跟单")
+    token_ttl_minutes: Mapped[int] = mapped_column(Integer, default=10080, comment="登录有效期（分钟），默认7天=10080")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
