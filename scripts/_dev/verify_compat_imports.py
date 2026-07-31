@@ -78,7 +78,7 @@ def main():
     print("\n[4] 旧 import 拿到的类与新类是同一个对象（身份等价）")
     from fwsort.gateway.simulator_gateway import OrderSimulator as NewOrderSimulator
     from fwsort.gateway.okx_gateway import OkxExecutor as NewOkxExecutor
-    from fwsort.gateway.polymarket_gateway import PolymarketClient as NewPolymarketClient
+    from fwsort.gateway.polymarket.polymarket_gateway import PolymarketClient as NewPolymarketClient
     from fwsort.execution.simulator import OrderSimulator as OldOS
     from fwsort.execution.es_writer import schedule_index_order_log as OldSchedule
     from fwsort.gateway.okx_executor import OkxExecutor as OldOE

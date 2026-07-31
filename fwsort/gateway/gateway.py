@@ -16,9 +16,9 @@ from loguru import logger
 
 from fwsort.config import settings
 from fwsort.gateway.base import BaseGateway
-from fwsort.gateway.okx_gateway import OkxGateway, OkxExecutor  # OkxExecutor 别名（兼容）
-from fwsort.gateway.polymarket_gateway import (
-    PolymarketClient,        # 别名（兼容旧路由）
+from fwsort.gateway.okx_gateway import OkxGateway  # OkxExecutor 别名（兼容）
+from fwsort.gateway.polymarket.polymarket_gateway import (
+    # 别名（兼容旧路由）
     PolymarketGateway,
     PolymarketV1Client,
 )

@@ -25,9 +25,8 @@ def banner(t):
 async def main():
     from fwsort.config import settings
     from fwsort.gateway import (
-        get_hub, PolymarketGateway, PolymarketV1Client,
-    )
-    from fwsort.gateway.polymarket_gateway import _HAS_SDK
+        get_hub, )
+    from fwsort.gateway.polymarket.polymarket_gateway import _HAS_SDK
 
     banner("0. SDK 与基础配置")
     print(f"  polymarket-client SDK 加载: {_HAS_SDK}")

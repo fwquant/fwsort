@@ -40,7 +40,7 @@ from fwsort.gateway.okx_gateway import (
     OkxExecutor,  # 别名（兼容旧路由调用）
     usd_to_size,
 )
-from fwsort.gateway.polymarket_gateway import (
+from fwsort.gateway.polymarket.polymarket_gateway import (
     POLY_HOSTS,
     OrderBookSnapshot,
     PlaceOrderResult,

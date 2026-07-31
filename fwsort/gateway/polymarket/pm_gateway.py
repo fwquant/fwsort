@@ -1,9 +1,10 @@
 import asyncio
 import os
 import time
+from decimal import Decimal
 
 from dotenv import load_dotenv
-from polymarket import AsyncSecureClient, ApiKeyCreds
+from polymarket import AsyncSecureClient, ApiKeyCreds, OrderSide
 from polymarket.auth import RelayerApiKey
 
 load_dotenv()
@@ -24,6 +25,12 @@ def _current_btc5m_slug() -> str:
     # 对齐到 5 分钟边界 + 300 = 当前窗口结束
     epoch = now - (now % 300) + 300
     return f"btc-updown-5m-{epoch}"
+
+
+def 获得当前_时间值(间隔秒: 300 | 1440 = 300):
+    now = int(time.time())
+    epoch = now - (now % 间隔秒) + 间隔秒
+    return epoch
 
 
 # 辅助：下单后统一处理（检查是否被拒 + 等待上链 + 查持仓）
@@ -141,14 +148,15 @@ async def F2_市单():
     print(f"5、关闭对象，清空实例")
 
 
-# F3认证: Relayer Gasless (免Gas费)，无需持有POL
-async def F3_市单():
+# F3认证: Relayer Gasless (免Gas费)，无需持有POL  标的代码就是 最后斜线后面的值 ，比如： https://polymarket.com/zh/event/btc-updown-4h-1785456000  值 为：btc-updown-4h-1785456000
+async def F3_市单(标的代码: str = "btc-updown-5m-{epoch}", side: OrderSide = "BUY", amount: Decimal = 1):
     print("=" * 50)
     print("F3: Relayer Gasless (免Gas费)")
     print("=" * 50)
     print("说明: Polymarket官方Relayer代付Gas，无需持有POL")
     print("环境变量: POLYMARKET_PRIVATE_KEY, POLYMARKET_RELAYER_API_KEY, POLYMARKET_RELAYER_API_KEY_ADDRESS")
     print("-" * 50)
+    标的代码 = 标的代码.replace("{epoch}", 获得当前_时间值(间隔秒=1440))
 
     private_key = _env("POLYMARKET_PRIVATE_KEY")
     relayer_key = _env("POLYMARKET_RELAYER_API_KEY")
@@ -170,10 +178,9 @@ async def F3_市单():
     )
     print(f"2、连接钱包(Relayer Gasless), client = {client}")
 
-    # 获取当前 5min BTC 涨跌市场
-    slug = _current_btc5m_slug()
-    market = await client.get_market(slug=slug)
-    print(f"3、获取市场 slug={slug}")
+    # 获取当前 标的代码对应的盘口 涨跌市场
+    market = await client.get_market(slug=标的代码)  # 标的代码对应的盘口
+    print(f"3、获取市场 slug={标的代码}")
     print(f"   question={market.question}")
     print(f"   condition_id={market.condition_id}")
     print(f"   yes token={market.outcomes.yes.token_id}")
@@ -181,8 +188,8 @@ async def F3_市单():
     # 下市价单（$1 USDC 买 YES/UP）
     response = await client.place_market_order(
         token_id=market.outcomes.yes.token_id,
-        side="BUY",
-        amount="1"
+        side=side,
+        amount=amount
     )
     print(f"4、下市价单 response = {response}")
 

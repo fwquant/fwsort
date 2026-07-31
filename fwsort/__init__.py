@@ -20,7 +20,7 @@ import types as _types
 from fwsort.order_log import es_writer as _es_writer_mod  # noqa: F401
 from fwsort.order_log import outbox as _outbox_mod  # noqa: F401
 from fwsort.gateway import simulator_gateway as _sim_mod  # noqa: F401
-from fwsort.gateway import polymarket_gateway as _pm_mod  # noqa: F401
+from fwsort.gateway.polymarket import polymarket_gateway as _pm_mod
 from fwsort.gateway import okx_gateway as _okx_mod  # noqa: F401
 from fwsort import order_log as _order_log  # noqa: F401
 
