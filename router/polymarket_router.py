@@ -222,8 +222,8 @@ async def btc5m_config(_: User = Depends(require_admin)) -> dict:
             "http_timeout": settings.POLYMARKET_HTTP_TIMEOUT,
             "order_retry": settings.POLYMARKET_ORDER_RETRY,
             "wallet_configured": bool(settings.POLYMARKET_WALLET_ADDRESS),
-            "private_key_configured": bool(settings.POLYMARKET_WALLET_PRIVATE_KEY),
-            "api_key_configured": bool(settings.POLYMARKET_API_KEY),
+            "private_key_configured": bool(settings.POLYMARKET_PRIVATE_KEY),
+            "api_key_configured": bool(settings.POLYMARKET_APIKEY),
             "missing_keys": settings.polymarket_missing_keys,
         },
         "btc5m": {

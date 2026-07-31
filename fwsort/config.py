@@ -89,8 +89,8 @@ class Settings(BaseSettings):
 
     # 交易
     TRADE_MODE: Literal["simulator", "live"] = "simulator"
-    POLYMARKET_API_KEY: str = ""
-    POLYMARKET_WALLET_PRIVATE_KEY: str = ""
+    POLYMARKET_APIKEY: str = ""
+    POLYMARKET_PRIVATE_KEY: str = ""
     POLYMARKET_WALLET_ADDRESS: str = ""
     POLYMARKET_CHAIN: str = "goerli"
     OKX_API_KEY: str = ""
@@ -113,9 +113,9 @@ class Settings(BaseSettings):
     # ---- BTC 5min 子模块（每 5 分钟到期的 BTC 涨跌预测市场）----
     # 是否启用 BTC 5min 自动轮询下单
     POLYMARKET_BTC5M_ENABLED: bool = False
-    # BTC 5min 市场 slug 前缀（用于在 /markets 接口过滤活跃市场）
-    # Polymarket 实际市场形如 "bitcoin-up-or-down-jul-30-2025-13-00-et"
-    POLYMARKET_BTC5M_SLUG_PREFIX: str = "bitcoin-up-or-down"
+    # BTC 5min 市场 tag 前缀（用于在 Gamma /markets 接口通过 tag 参数过滤活跃市场）
+    # Polymarket 实际市场 slug 形如 "btc-updown-5m-1785480300"（末尾为 unix 时间戳）
+    POLYMARKET_BTC5M_SLUG_PREFIX: str = "btc-updown-5m"
     # 轮询/自动下单节奏（秒），300=5分钟
     POLYMARKET_BTC5M_POLL_SECONDS: int = 300
     # 默认下单方向：UP / DOWN
@@ -190,17 +190,17 @@ class Settings(BaseSettings):
     @property
     def polymarket_configured(self) -> bool:
         """Polymarket 网关密钥是否齐备（私钥 + 钱包地址）"""
-        return bool(self.POLYMARKET_WALLET_PRIVATE_KEY and self.POLYMARKET_WALLET_ADDRESS)
+        return bool(self.POLYMARKET_PRIVATE_KEY and self.POLYMARKET_WALLET_ADDRESS)
 
     @property
     def polymarket_missing_keys(self) -> list[str]:
         """Polymarket 网关缺失的密钥列表（用于启动时醒目提醒）"""
         missing: list[str] = []
-        if not self.POLYMARKET_WALLET_PRIVATE_KEY:
+        if not self.POLYMARKET_PRIVATE_KEY:
             missing.append("POLYMARKET_WALLET_PRIVATE_KEY")
         if not self.POLYMARKET_WALLET_ADDRESS:
             missing.append("POLYMARKET_WALLET_ADDRESS")
-        if not self.POLYMARKET_API_KEY:
+        if not self.POLYMARKET_APIKEY:
             missing.append("POLYMARKET_API_KEY")
         return missing
 

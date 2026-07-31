@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from fw_config import 日志目录
+日志目录 = Path("logs")
 
 # 尝试导入 loguru，如果失败则使用标准 logging 模块作为后备
 try:
@@ -191,8 +191,11 @@ class fw_log:
             print(f"日志级别已设置为：{self.level_name}({self.level})（仅打印≥该级别的日志）")
 
     def 设置主引擎(self, 引擎):
-        from fw_core.fuwen_trader.trader.engine import MainEngine
-        self.fuwen主引擎: MainEngine = 引擎
+        try:
+            from fw_core.fuwen_trader.trader.engine import MainEngine
+            self.fuwen主引擎: MainEngine = 引擎
+        except ImportError:
+            print("fuwen_trader 模块未安装，无法设置主引擎")
 
     def _should_print(self, level: str) -> bool:
         return self.LOG_LEVELS[level] >= self.level

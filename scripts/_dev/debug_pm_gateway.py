@@ -34,9 +34,9 @@ async def main():
     print(f"  POLYMARKET_CHAIN = {settings.POLYMARKET_CHAIN}")
     print(f"  POLYMARKET_HOST  = {settings.POLYMARKET_HOST}")
     print(f"  钱包配置: "
-          f"pk={'有' if settings.POLYMARKET_WALLET_PRIVATE_KEY else '无'} "
+          f"pk={'有' if settings.POLYMARKET_PRIVATE_KEY else '无'} "
           f"addr={'有' if settings.POLYMARKET_WALLET_ADDRESS else '无'} "
-          f"api_key={'有' if settings.POLYMARKET_API_KEY else '无'}")
+          f"api_key={'有' if settings.POLYMARKET_APIKEY else '无'}")
 
     hub = get_hub()
 

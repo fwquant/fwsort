@@ -8,6 +8,7 @@
 #   - 业务扩展：子类按平台添加业务方法（如下单/撤单/查持仓）
 #   - 兼容性：与旧 PolymarketClient / OkxClient 保持向后兼容
 import asyncio
+import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
@@ -38,7 +39,7 @@ class GatewayHealth:
     host: str = ""
     chain_id: int = 0
     http_open: bool = False
-    last_ping_ok: bool = False
+    last_ping_success: bool = False
     last_ping_at: str = ""
     last_error: str = ""
     extra: dict = field(default_factory=dict)
@@ -78,7 +79,7 @@ class BaseGateway(ABC):
         self._http: httpx.AsyncClient | None = None
         # 状态
         self._initialized: bool = False
-        self._last_ping_ok: bool = False
+        self._last_ping_success: bool = False
         self._last_ping_at: str = ""
         self._last_error: str = ""
 
@@ -93,7 +94,7 @@ class BaseGateway(ABC):
     #  网关连通性探测
     @abstractmethod
     async def _do_ping(self) -> dict:
-        """平台特定的连通性探测；返回 {ok: bool, ...}"""
+        """平台特定的连通性探测；返回 {"success": bool, "code": int, "msg": str, "data": dict}"""
 
     #  网关配置状态
     def is_configured(self) -> bool:
@@ -118,7 +119,7 @@ class BaseGateway(ABC):
             await self._http.aclose()
         self._http = None
         self._initialized = False
-        self._last_ping_ok = False
+        self._last_ping_success = False
         logger.info(f"[{self.name}-GW] closed")
 
     #  网关获取 HTTP 客户端
@@ -133,16 +134,16 @@ class BaseGateway(ABC):
         """连通性探测（包装 _do_ping）"""
         try:
             res = await self._do_ping()
-            self._last_ping_ok = bool(res.get("ok", False))
+            self._last_ping_success = bool(res.get("success", False))
             self._last_ping_at = datetime.utcnow().isoformat()
-            if not self._last_ping_ok:
-                self._last_error = res.get("error") or res.get("status", "unknown")
+            if not self._last_ping_success:
+                self._last_error = res.get("msg") or res.get("error") or str(res.get("status", "unknown"))
             return res
         except Exception as e:  # noqa: BLE001
-            self._last_ping_ok = False
+            self._last_ping_success = False
             self._last_error = str(e)
             self._last_ping_at = datetime.utcnow().isoformat()
-            return {"ok": False, "error": str(e)}
+            return {"success": False, "code": -1, "msg": str(e), "data": {"traceback": traceback.format_exc()}}
 
     #  网关状态摘要
     def get_status(self) -> dict:
@@ -154,6 +155,7 @@ class BaseGateway(ABC):
         """主动健康检查（ping + 配置 + HTTP 状态）"""
         ping_res = await self.ping()
         return {
+            "success": True,
             "name": self.name,
             "ready": self.is_ready(),
             "configured": self.is_configured(),
@@ -176,7 +178,7 @@ class BaseGateway(ABC):
             host=self.host,
             chain_id=self.chain_id,
             http_open=bool(self._http and not self._http.is_closed),
-            last_ping_ok=self._last_ping_ok,
+            last_ping_success=self._last_ping_success,
             last_ping_at=self._last_ping_at,
             last_error=self._last_error,
             extra=extra or {},

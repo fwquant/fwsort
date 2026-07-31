@@ -525,7 +525,92 @@ async def list_ranking(
 # ========== 接口：策略详情 ==========
 @router.get("/detail/{uid}", response_model=dict)
 async def ranking_detail(uid: str, db: AsyncSession = Depends(get_async_db)) -> dict:
-    """单个执行账户的榜单详情"""
+    """单个执行账户或用户的榜单详情
+    - uid 支持两种格式：账户级 (ACC-DEMO1000) / 用户级 (USER-0001)
+    - 用户级：聚合该用户所有账户的绩效
+    """
+    # 用户级（USER-XXXX）→ 聚合查询
+    if uid.startswith("USER-"):
+        try:
+            user_id = int(uid[5:])
+        except ValueError:
+            raise NotFoundError(f"uid {uid} not found")
+
+        # 查用户
+        user_stmt = select(User).where(User.id == user_id)
+        user_row = (await db.execute(user_stmt)).first()
+        if not user_row:
+            # 兜底 MOCK：找名字匹配
+            mocks = _mock_global_users()
+            for m in mocks:
+                if m["uid"] == uid:
+                    return success(data={
+                        **m,
+                        "rank_history": [
+                            {"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "rank": random.randint(1, 20)}
+                            for i in range(30)
+                        ],
+                    })
+            raise NotFoundError(f"uid {uid} not found")
+        user = user_row[0]
+
+        # 聚合账户+绩效
+        stmt = (
+            select(
+                ExecutionAccount.platform,
+                func.avg(StrategyPerformance.annualized_return).label("avg_return"),
+                func.sum(ExecutionAccount.current_balance).label("total_capital"),
+                func.avg(StrategyPerformance.composite_score).label("avg_score"),
+                func.count(ExecutionAccount.id).label("account_count"),
+                func.sum(StrategyPerformance.trade_count).label("trade_count"),
+                func.avg(StrategyPerformance.max_drawdown).label("avg_drawdown"),
+                func.avg(StrategyPerformance.sharpe_ratio).label("avg_sharpe"),
+                func.avg(StrategyPerformance.profit_loss_ratio).label("avg_plr"),
+                func.avg(StrategyPerformance.execution_score).label("avg_execution"),
+            )
+            .join(StrategyPerformance, StrategyPerformance.account_id == ExecutionAccount.id)
+            .where(ExecutionAccount.owner_id == user_id)
+            .where(ExecutionAccount.deleted_at.is_(None))
+            .where(StrategyPerformance.period_type == 4)
+            .group_by(ExecutionAccount.platform)
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+        if not rows:
+            raise NotFoundError(f"uid {uid} has no performance data")
+
+        # 取第一行（榜单数据通常只展示一个平台代表）
+        row = rows[0]
+        score = float(row.avg_score) if row.avg_score else 0.0
+        return success(
+            data={
+                "uid": uid,
+                "user_id": user_id,
+                "user_name": user.nickname,
+                "name": user.nickname,
+                "platform": row.platform,
+                "tier": _tier(score),
+                "annualized_return": float(row.avg_return) if row.avg_return else 0.0,
+                "max_drawdown": float(row.avg_drawdown) if row.avg_drawdown else 0.0,
+                "calmar_ratio": round(float(row.avg_return) / max(float(row.avg_drawdown) or 0.01, 0.01), 4),
+                "sharpe_ratio": float(row.avg_sharpe) if row.avg_sharpe else 0.0,
+                "win_rate": 0.0,
+                "trade_count": int(row.trade_count or 0),
+                "execution_score": float(row.avg_execution) if row.avg_execution else 0.0,
+                "composite_score": score,
+                "current_balance": float(row.total_capital) if row.total_capital else 0.0,
+                "total_return": float(row.avg_return) if row.avg_return else 0.0,
+                "volatility": 0.0,
+                "max_consecutive_loss": 0,
+                "account_count": int(row.account_count),
+                "rank_history": [
+                    {"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "rank": random.randint(1, 20)}
+                    for i in range(30)
+                ],
+            }
+        )
+
+    # 账户级（ACC-XXXX / MOCK-XXXX）
     stmt = (
         select(ExecutionAccount, StrategyPerformance)
         .join(StrategyPerformance, StrategyPerformance.account_id == ExecutionAccount.id)

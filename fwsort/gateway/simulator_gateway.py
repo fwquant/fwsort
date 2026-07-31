@@ -78,7 +78,7 @@ class SimulatorGateway(BaseGateway):
 
     async def _do_ping(self) -> dict:
         """模拟盘连通性永远 OK"""
-        return {"ok": True, "latency_ms": 0, "note": "simulator always healthy"}
+        return {"success": True, "latency_ms": 0, "note": "simulator always healthy"}
 
     # ===== 业务：模拟下单 =====
     async def submit(

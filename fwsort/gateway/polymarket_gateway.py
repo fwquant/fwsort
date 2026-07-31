@@ -13,6 +13,9 @@
 # 架构：
 #   - 继承 BaseGateway（统一生命周期 / 状态 / 健康检查）
 #   - 实现 _do_ping / is_ready 抽象方法
+import os
+
+mName = os.path.basename(__file__)
 import asyncio
 import base64
 import hashlib
@@ -27,27 +30,98 @@ from typing import Any
 import httpx
 from eth_account import Account
 from eth_account.messages import encode_typed_data
-from loguru import logger
 
 from fwsort.config import settings
+from fwsort.fwlogs import logger
 from fwsort.gateway.base import BaseGateway
 
 # 尝试导入官方统一 SDK polymarket-client（V2 + Relayer + Builder 三合一）
 # 包名：polymarket（新，安装后模块名为 polymarket）/ py-clob-client-v2（旧，已废弃）
-try:
-    from polymarket import (
-        AsyncSecureClient as _SdkClobClient,
-        ApiKeyCreds as _SdkApiCreds,
-        OrderType as _SdkOrderType,
-        OrderSide as _SdkSide,
-    )
 
-    _HAS_SDK = True
-except Exception:  # noqa: BLE001
-    _SdkApiCreds = _SdkClobClient = None  # type: ignore
-    _HAS_SDK = False
-    _SdkOrderType = _SdkSide = _SdkPartialOptions = None  # type: ignore
-    _HAS_SDK = False
+from polymarket import (AsyncSecureClient, ApiKeyCreds, OrderType, OrderSide, )
+
+_HAS_SDK = True
+
+
+# ========== 统一错误码（唯一数字，便于排查）==========
+# 格式：{模块}{功能}{状态}
+# 模块：1=网关基础, 2=认证, 3=市场查询, 4=订单管理, 5=账户持仓, 6=风控监控, 7=BTC5M业务
+# 功能：00-99
+# 状态：0=成功, 1-9=失败原因
+class GatewayCode:
+    # ===== 基础操作 (1000-1099) =====
+    SUCCESS = 1000
+    PING_OK = 1010
+    CONNECT_OK = 1020
+    CLOSE_OK = 1030
+    NOT_READY = 1101
+    PING_FAILED = 1110
+    TIMEOUT = 1120
+    CONNECT_ERROR = 1130
+    NETWORK_ERROR = 1140
+    UNKNOWN_ERROR = 1199
+
+    # ===== 认证 (2000-2099) =====
+    AUTH_L1_SIGNED = 2010
+    AUTH_L2_READY = 2020
+    AUTH_L2_DERIVED = 2030
+    WALLET_NOT_CONFIGURED = 2101
+    L2_CREDS_MISSING = 2110
+    L2_CREATE_FAILED = 2120
+    L2_DERIVE_FAILED = 2130
+    SIGN_FAILED = 2140
+
+    # ===== 市场查询 (3000-3099) =====
+    MARKET_LIST_OK = 3010
+    MARKET_DETAIL_OK = 3020
+    MIDPOINT_OK = 3030
+    PRICE_OK = 3040
+    ORDERBOOK_OK = 3050
+    SPREAD_OK = 3060
+    TICK_SIZE_OK = 3070
+    BTC5M_MARKET_FOUND = 3080
+    MARKET_NOT_FOUND = 3101
+    QUERY_FAILED = 3120
+    INVALID_TOKEN_ID = 3130
+
+    # ===== 订单管理 (4000-4099) =====
+    ORDER_CREATED = 4010
+    ORDER_POSTED = 4020
+    ORDER_CANCELLED = 4030
+    ORDERS_BATCH_POSTED = 4040
+    ORDERS_CANCELLED = 4050
+    ORDERS_ALL_CANCELLED = 4060
+    ORDER_QUERY_OK = 4070
+    OPEN_ORDERS_OK = 4080
+    TRADES_QUERY_OK = 4090
+    INVALID_ORDER_PARAMS = 4101
+    SIGN_ORDER_FAILED = 4110
+    POST_ORDER_FAILED = 4120
+    CANCEL_ORDER_FAILED = 4130
+    ORDER_NOT_FOUND = 4140
+    RISK_LIMIT_EXCEEDED = 4150
+    AMOUNT_TOO_SMALL = 4160
+    PRICE_OUT_OF_RANGE = 4170
+
+    # ===== 账户与持仓 (5000-5099) =====
+    BALANCE_OK = 5010
+    POSITIONS_OK = 5020
+    BALANCE_QUERY_FAILED = 5110
+    POSITIONS_QUERY_FAILED = 5120
+
+    # ===== 风控与监控 (6000-6099) =====
+    RISK_LIMITS_SET = 6010
+    STATUS_OK = 6020
+    HEALTH_CHECK_OK = 6030
+    RISK_CHECK_FAILED = 6110
+
+    # ===== BTC5M 业务快捷方法 (7000-7099) =====
+    BTC5M_ORDER_PLACED = 7010
+    QUICK_BUY_OK = 7020
+    QUICK_SELL_OK = 7030
+    BTC5M_MARKET_NOT_FOUND = 7101
+    BTC5M_ORDER_FAILED = 7120
+
 
 # ========== V2 常量 ==========
 # CLOB V2 Exchange 域 version 已升级到 "2"（订单签名）
@@ -56,14 +130,37 @@ EXCHANGE_DOMAIN_VERSION_V2 = "2"
 ORDER_TIMESTAMP_MS_FALLBACK = 0
 # 批量下单上限（Polymarket 官方约束）
 BATCH_POST_ORDERS_MAX = 15
-# API 主机
+
+# ========== REST API 主机地址 ==========
+# CLOB API 主机（主网）：查看价格和订单簿，下单和管理订单
 POLY_CLOB_HOST_MAINNET = "https://clob.polymarket.com"
+# CLOB API 主机（测试环境）：用于开发和测试
 POLY_CLOB_HOST_STAGING = "https://clob-staging.polymarket.com"
+
+# Gamma API 主机：发现事件和市场，检索相关元数据
 POLY_GAMMA_HOST = "https://gamma-api.polymarket.com"
+
+# Data API 主机：分析仓位、活动和市场参与情况
 POLY_DATA_HOST = "https://data-api.polymarket.com"
-# 链 ID（polygon = 137；amoy 测试网 = 80002）
+
+# Relayer V2 API 主机：提交钱包交易时无需账户持有 POL 作为 gas 费用
+POLY_RELAYER_V2_HOST = "https://relayer-v2.polymarket.com"
+
+# ========== 链 ID 配置 ==========
+# Polygon 主网链 ID
 CHAIN_ID_POLYGON = 137
+# Polygon Amoy 测试网链 ID（用于开发测试）
 CHAIN_ID_AMOY = 80002
+
+# ========== WebSocket 端点配置 ==========
+# CLOB 市场通道：关注公开订单簿、价格和市场生命周期更新
+WS_CLOB_MARKET_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+# CLOB 用户通道：关注账户的已验证订单和交易更新
+WS_CLOB_USER_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
+# 实时数字信号系统：实时显示公开参考价格、评论和交易活动
+WS_LIVE_DATA_URL = "wss://ws-live-data.polymarket.com"
+# 体育 WebSocket：关注公开的实时比赛状态和比分
+WS_SPORTS_API_URL = "wss://sports-api.polymarket.com/ws"
 # CLOB V2 合约地址（主网）
 CTF_EXCHANGE_V2 = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
 USDC_E_POLYGON = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
@@ -83,7 +180,7 @@ class GatewayStatus:
     wallet_address: str = ""
     l2_creds_configured: bool = False
     http_client_open: bool = False
-    last_ping_ok: bool = False
+    last_ping_success: bool = False
     last_ping_at: str = ""
     last_error: str = ""
     sdk_version: str = "n/a"
@@ -166,9 +263,9 @@ class PolymarketGateway(BaseGateway):
             http_timeout=timeout,
         )
         # 钱包与认证
-        self.private_key = private_key or settings.POLYMARKET_WALLET_PRIVATE_KEY
+        self.private_key = private_key or settings.POLYMARKET_PRIVATE_KEY
         self.wallet_address = wallet_address or settings.POLYMARKET_WALLET_ADDRESS
-        self.api_key = api_key or settings.POLYMARKET_API_KEY
+        self.api_key = api_key or settings.POLYMARKET_APIKEY
         self.api_secret = api_secret or ""
         self.api_passphrase = api_passphrase or ""
         self.signature_type = signature_type
@@ -213,11 +310,60 @@ class PolymarketGateway(BaseGateway):
         """Polymarket 特定连通性探测（GET /markets?limit=1）"""
         try:
             client = await self._get_http()
-            resp = await client.get(f"{self.host}/markets", params={"limit": 1})
-            ok = resp.status_code == 200
-            return {"ok": ok, "status": resp.status_code, "at": datetime.utcnow().isoformat()}
+            url = f"{self.host}/markets"
+            logger.debug(f"[POLY-GW] ping → GET {url}?limit=1")
+            resp = await client.get(url, params={"limit": 1}, timeout=10)
+            if resp.status_code == 200:
+                logger.info(f"[POLY-GW] ping OK (HTTP {resp.status_code})")
+                return {
+                    "success": True,
+                    "code": GatewayCode.PING_OK,
+                    "msg": "ping successful",
+                    "data": {
+                        "status": resp.status_code,
+                        "at": datetime.utcnow().isoformat(),
+                        "host": self.host
+                    }
+                }
+            else:
+                err_msg = f"[{mName}]HTTP {resp.status_code}: {resp.text[:200] if hasattr(resp, 'text') else 'no text'}"
+                logger.warning(f"[POLY-GW] ping failed: {err_msg}")
+                return {
+                    "success": False,
+                    "code": GatewayCode.PING_FAILED,
+                    "msg": err_msg,
+                    "data": {
+                        "status": resp.status_code,
+                        "at": datetime.utcnow().isoformat()
+                    }
+                }
+        except httpx.TimeoutException as e:
+            err_msg = f"[{mName}]timeout: {e}"
+            logger.error(f"[POLY-GW] ping {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.TIMEOUT,
+                "msg": err_msg,
+                "data": {"status": 408, "at": datetime.utcnow().isoformat(), "host": self.host}
+            }
+        except httpx.ConnectError as e:
+            err_msg = f"[{mName}]connect error: {e}"
+            logger.error(f"[POLY-GW] ping {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.CONNECT_ERROR,
+                "msg": err_msg,
+                "data": {"status": 503, "at": datetime.utcnow().isoformat(), "host": self.host}
+            }
         except Exception as e:  # noqa: BLE001
-            return {"ok": False, "error": str(e)}
+            err_msg = str(e) or type(e).__name__
+            logger.error(f"[POLY-GW] ping exception: {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.UNKNOWN_ERROR,
+                "msg": err_msg,
+                "data": {"status": 500, "at": datetime.utcnow().isoformat(), "host": self.host}
+            }
 
     # 初始化连接（建 HTTP 客户端 + 加载 SDK）
     async def connect(self) -> None:
@@ -226,12 +372,12 @@ class PolymarketGateway(BaseGateway):
         # 尝试加载 SDK（不强制）
         if _HAS_SDK and self._sdk_client is None and self._account:
             try:
-                creds = _SdkApiCreds(
-                    api_key=self.api_key or "",
-                    api_secret=self.api_secret or "",
-                    api_passphrase=self.api_passphrase or "",
+                creds = ApiKeyCreds(
+                    apiKey=self.api_key or "",
+                    secret=self.api_secret or "",
+                    passphrase=self.api_passphrase or "",
                 )
-                self._sdk_client = _SdkClobClient(
+                self._sdk_client = AsyncSecureClient(
                     host=self.host,
                     chain_id=self.chain_id,
                     key=self.private_key,
@@ -320,6 +466,7 @@ class PolymarketGateway(BaseGateway):
             }
         return self._l2_creds
 
+    # 对外暴露：创建或派生 L2 API Key（返回 {apiKey, secret, passphrase}）
     async def create_or_derive_api_key(self) -> dict:
         """对外暴露：创建或派生 L2 API Key（返回 {apiKey, secret, passphrase}）"""
         self._l2_creds = None
@@ -383,39 +530,92 @@ class PolymarketGateway(BaseGateway):
             auth_l1: bool = False,
             need_l2: bool = True,
     ) -> dict:
-        """统一 Polymarket 请求封装"""
-        body_str = json.dumps(body, separators=(",", ":")) if body else ""
-        client = await self._get_http()  # 用基类方法
-        if auth_l1:
-            headers = {
-                "POLY_ADDRESS": self.wallet_address or "",
-                "POLY_SIGNATURE": self._sign_l1() if self._account else "",
-                "POLY_TIMESTAMP": str(int(time.time())),
-                "POLY_NONCE": "0",
-                "Content-Type": "application/json",
-            }
-        elif need_l2:
-            await self._ensure_l2_creds()
-            headers = self._l2_headers(method, path, body_str)
-        else:
-            headers = {"Content-Type": "application/json"}
-        url = f"{self.host}{path}"
-        if method == "GET":
-            resp = await client.get(url, headers=headers, params=body or None)
-        elif method == "POST":
-            resp = await client.post(url, headers=headers, content=body_str)
-        elif method == "DELETE":
-            resp = await client.delete(url, headers=headers, params=body or None)
-        else:
-            raise ValueError(f"unsupported method: {method}")
+        """统一 Polymarket 请求封装（返回统一格式：success/code/msg/data）"""
         try:
-            data = resp.json()
-        except Exception:
-            data = {"error": resp.text[:300], "status": resp.status_code}
-        if resp.status_code >= 400:
-            logger.warning(f"[POLY-GW] {method} {path} HTTP {resp.status_code}: {data}")
-            self._last_error = f"HTTP {resp.status_code}: {data}"
-        return data
+            body_str = json.dumps(body, separators=(",", ":")) if body else ""
+            client = await self._get_http()  # 用基类方法
+            if auth_l1:
+                headers = {
+                    "POLY_ADDRESS": self.wallet_address or "",
+                    "POLY_SIGNATURE": self._sign_l1() if self._account else "",
+                    "POLY_TIMESTAMP": str(int(time.time())),
+                    "POLY_NONCE": "0",
+                    "Content-Type": "application/json",
+                }
+            elif need_l2:
+                await self._ensure_l2_creds()
+                headers = self._l2_headers(method, path, body_str)
+            else:
+                headers = {"Content-Type": "application/json"}
+            url = f"{self.host}{path}"
+            if method == "GET":
+                resp = await client.get(url, headers=headers, params=body or None)
+            elif method == "POST":
+                resp = await client.post(url, headers=headers, content=body_str)
+            elif method == "DELETE":
+                resp = await client.delete(url, headers=headers, params=body or None)
+            else:
+                return {
+                    "success": False,
+                    "code": GatewayCode.UNKNOWN_ERROR,
+                    "msg": f"unsupported HTTP method: {method}",
+                    "data": {"method": method, "path": path}
+                }
+            try:
+                result_data = resp.json()
+            except Exception:
+                result_data = {"raw_response": resp.text[:300], "status": resp.status_code}
+
+            if resp.status_code >= 400:
+                err_msg = f"[{mName}]HTTP {resp.status_code}: {result_data}"
+                logger.warning(f"[POLY-GW] {method} {path} {err_msg}")
+                self._last_error = err_msg
+                return {
+                    "success": False,
+                    "code": GatewayCode.NETWORK_ERROR + (resp.status_code % 100),
+                    "msg": err_msg,
+                    "data": {
+                        "status": resp.status_code,
+                        "response": result_data,
+                        "method": method,
+                        "path": path
+                    }
+                }
+
+            return {
+                "success": True,
+                "code": GatewayCode.SUCCESS,
+                "msg": f"{method} {path} successful",
+                "data": result_data
+            }
+
+        except httpx.TimeoutException as e:
+            err_msg = f"[{mName}]timeout: {e}"
+            logger.error(f"[POLY-GW] {method} {path} {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.TIMEOUT,
+                "msg": err_msg,
+                "data": {"method": method, "path": path}
+            }
+        except httpx.ConnectError as e:
+            err_msg = f"[{mName}]connect error: {e}"
+            logger.error(f"[POLY-GW] {method} {path} {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.CONNECT_ERROR,
+                "msg": err_msg,
+                "data": {"method": method, "path": path}
+            }
+        except Exception as e:  # noqa: BLE001
+            err_msg = str(e) or type(e).__name__
+            logger.error(f"[POLY-GW] {method} {path} exception: {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.UNKNOWN_ERROR,
+                "msg": err_msg,
+                "data": {"method": method, "path": path}
+            }
 
     # ===== 4. 市场查询 =====
     pass
@@ -441,98 +641,192 @@ class PolymarketGateway(BaseGateway):
             params["next_cursor"] = next_cursor
         if tag_slug:
             params["tag_slug"] = tag_slug
-        return await self._request("GET", "/markets", body=params, need_l2=False)
+        result = await self._request("GET", "/markets", body=params, need_l2=False)
+        if result.get("success"):
+            result["code"] = GatewayCode.MARKET_LIST_OK
+            result["msg"] = f"got {len(result.get('data', {}).get('data', []))} markets"
+        else:
+            result["code"] = GatewayCode.QUERY_FAILED
+        return result
 
     # 查询单个市场详情（GET /markets/{condition_id}）
     async def get_market(self, condition_id: str) -> dict:
         """查询单个市场详情（GET /markets/{condition_id}）"""
-        return await self._request("GET", f"/markets/{condition_id}", need_l2=False)
+        result = await self._request("GET", f"/markets/{condition_id}", need_l2=False)
+        if result.get("success"):
+            result["code"] = GatewayCode.MARKET_DETAIL_OK
+            result["msg"] = f"market {condition_id[:12]}... found"
+        else:
+            result["code"] = GatewayCode.MARKET_NOT_FOUND
+        return result
 
     # 按 slug 查市场（GET /markets?slug=...)
     async def get_market_by_slug(self, slug: str) -> dict:
         """按 slug 查市场（GET /markets?slug=...）"""
-        return await self._request(
+        result = await self._request(
             "GET", "/markets", body={"slug": slug}, need_l2=False
         )
+        if result.get("success"):
+            result["code"] = GatewayCode.MARKET_DETAIL_OK
+            result["msg"] = f"market slug '{slug}' found"
+        else:
+            result["code"] = GatewayCode.MARKET_NOT_FOUND
+        return result
 
     # 查询 token 中间价（GET /midpoint）
-    async def get_midpoint(self, token_id: str) -> float:
+    async def get_midpoint(self, token_id: str) -> dict:
         """查询 token 中间价（GET /midpoint）"""
-        resp = await self._request(
+        result = await self._request(
             "GET", "/midpoint", body={"token_id": token_id}, need_l2=False
         )
-        try:
-            return float((resp or {}).get("mid", 0.0))
-        except Exception:  # noqa: BLE001
-            return 0.0
+        if result.get("success"):
+            result["code"] = GatewayCode.MIDPOINT_OK
+            midpoint = float((result.get("data") or {}).get("mid", 0.0))
+            result["data"] = {"token_id": token_id, "midpoint": midpoint}
+        else:
+            result["code"] = GatewayCode.INVALID_TOKEN_ID
+        return result
 
     # 查询 token 单边价格（GET /price）
-    async def get_price(self, token_id: str, side: str = "BUY") -> float:
+    async def get_price(self, token_id: str, side: str = "BUY") -> dict:
         """查询 token 单边价格（GET /price）"""
-        resp = await self._request(
+        result = await self._request(
             "GET",
             "/price",
             body={"token_id": token_id, "side": side.upper()},
             need_l2=False,
         )
-        try:
-            return float((resp or {}).get("price", 0.0))
-        except Exception:  # noqa: BLE001
-            return 0.0
+        if result.get("success"):
+            result["code"] = GatewayCode.PRICE_OK
+            price = float((result.get("data") or {}).get("price", 0.0))
+            result["data"] = {"token_id": token_id, "side": side.upper(), "price": price}
+        else:
+            result["code"] = GatewayCode.INVALID_TOKEN_ID
+        return result
 
     # 查询订单簿（GET /book）
-    async def get_order_book(self, token_id: str) -> OrderBookSnapshot:
-        """查询订单簿（GET /book）"""
-        resp = await self._request(
+    async def get_order_book(self, token_id: str) -> dict:
+        """查询订单簿（GET /book，返回统一格式 + OrderBookSnapshot 数据）"""
+        result = await self._request(
             "GET", "/book", body={"token_id": token_id}, need_l2=False
         )
-        snap = OrderBookSnapshot(
-            token_id=token_id,
-            bids=resp.get("bids", []) if isinstance(resp, dict) else [],
-            asks=resp.get("asks", []) if isinstance(resp, dict) else [],
-            midpoint=float(resp.get("midpoint", 0)) if isinstance(resp, dict) else 0.0,
-            spread=float(resp.get("spread", 0)) if isinstance(resp, dict) else 0.0,
-            tick_size=str(resp.get("tick_size", "0.01")) if isinstance(resp, dict) else "0.01",
-            neg_risk=bool(resp.get("neg_risk", False)) if isinstance(resp, dict) else False,
-            fetched_at=datetime.utcnow().isoformat(),
-        )
-        return snap
+        if result.get("success"):
+            data = result.get("data") or {}
+            snap = OrderBookSnapshot(
+                token_id=token_id,
+                bids=data.get("bids", []),
+                asks=data.get("asks", []),
+                midpoint=float(data.get("midpoint", 0)),
+                spread=float(data.get("spread", 0)),
+                tick_size=str(data.get("tick_size", "0.01")),
+                neg_risk=bool(data.get("neg_risk", False)),
+                fetched_at=datetime.utcnow().isoformat(),
+            )
+            result["code"] = GatewayCode.ORDERBOOK_OK
+            result["msg"] = f"orderbook for {token_id[:16]}... retrieved"
+            result["snapshot"] = asdict(snap)
+        else:
+            result["code"] = GatewayCode.INVALID_TOKEN_ID
+        return result
 
     # 查询买卖价差（GET /spread）
-    async def get_spread(self, token_id: str) -> float:
+    async def get_spread(self, token_id: str) -> dict:
         """查询买卖价差（GET /spread）"""
-        resp = await self._request(
+        result = await self._request(
             "GET", "/spread", body={"token_id": token_id}, need_l2=False
         )
-        try:
-            return float((resp or {}).get("spread", 0.0))
-        except Exception:  # noqa: BLE001
-            return 0.0
+        if result.get("success"):
+            result["code"] = GatewayCode.SPREAD_OK
+            spread = float((result.get("data") or {}).get("spread", 0.0))
+            result["data"] = {"token_id": token_id, "spread": spread}
+        else:
+            result["code"] = GatewayCode.INVALID_TOKEN_ID
+        return result
 
     # 查询 token 最小变动单位（GET /tick-size）
-    async def get_tick_size(self, token_id: str) -> str:
+    async def get_tick_size(self, token_id: str) -> dict:
         """查询 token 最小变动单位（GET /tick-size）"""
-        resp = await self._request(
+        result = await self._request(
             "GET", "/tick-size", body={"token_id": token_id}, need_l2=False
         )
-        return str((resp or {}).get("minimum_tick_size", "0.01"))
+        if result.get("success"):
+            result["code"] = GatewayCode.TICK_SIZE_OK
+            tick_size = str((result.get("data") or {}).get("minimum_tick_size", "0.01"))
+            result["data"] = {"token_id": token_id, "tick_size": tick_size}
+        else:
+            result["code"] = GatewayCode.INVALID_TOKEN_ID
+        return result
 
-    # 查询当前活跃的 BTC 5min 涨跌市场（Gamma API）
-    async def get_active_btc5m_market(self, slug_prefix: str | None = None) -> dict:
-        """查询当前活跃的 BTC 5min 涨跌市场（Gamma API）"""
+    # 查询当前活跃的 BTC 5min 涨跌市场（Gamma API，通过 tag 过滤 + slug 前缀二次筛选）
+    async def get_active_btc5m_market(
+            self,
+            slug_prefix: str | None = None,
+            target_epoch: int | None = None,
+    ) -> dict:
+        """查询当前活跃的 BTC 5min 涨跌市场（Gamma API）
+
+        Args:
+            slug_prefix: slug 前缀（默认取 settings.POLYMARKET_BTC5M_SLUG_PREFIX）
+            target_epoch: 目标 5 分钟窗口的 Unix 时间戳（秒）。
+                - None（默认）: 拉取当前最活跃市场（原有行为）
+                - 精确时间戳: 用 slug=前缀-时间戳 精确定位该窗口，
+                  例如 target_epoch=1785399000 → slug=btc-updown-5m-1785399000
+                - 未来时间戳同理（市场尚未开始也可查询到，前提是 Gamma 已收录）
+        """
         prefix = slug_prefix or settings.POLYMARKET_BTC5M_SLUG_PREFIX
-        path = (
-            f"/markets?slug={prefix}"
-            "&active=true&closed=false&archived=false"
-            "&order=startDate&ascending=false&limit=20"
-        )
+        if target_epoch:
+            # 精确模式：按完整 slug 查询（如 btc-updown-5m-1785399000）
+            full_slug = f"{prefix}-{target_epoch}"
+            path = (
+                f"/markets?slug={full_slug}"
+                "&active=true&closed=false&archived=false&limit=5"
+            )
+        else:
+            # 默认模式：按 tag 模糊查询，取最近活跃
+            path = (
+                f"/markets?tag={prefix}"
+                "&active=true&closed=false&archived=false"
+                "&order=startDate&ascending=false&limit=50"
+            )
         client = await self._get_http()
         try:
             resp = await client.get(POLY_GAMMA_HOST + path, headers={"Content-Type": "application/json"})
-            return resp.json()
+            data = resp.json()
+            if isinstance(data, list) and len(data) > 0:
+                if not target_epoch:
+                    # 默认模式二次筛选：确保 slug 匹配前缀
+                    data = [m for m in data if (m.get("slug") or "").startswith(prefix)]
+                if not data:
+                    return {
+                        "success": False,
+                        "code": GatewayCode.BTC5M_MARKET_NOT_FOUND,
+                        "msg": f"no BTC 5min market found (slug={full_slug if target_epoch else prefix})",
+                        "data": {"slug_prefix": prefix, "target_epoch": target_epoch}
+                    }
+                return {
+                    "success": True,
+                    "code": GatewayCode.BTC5M_MARKET_FOUND,
+                    "msg": f"found {len(data)} BTC 5min market(s) (target_epoch={target_epoch})",
+                    "data": data[0] if len(data) == 1 else data,
+                    "count": len(data),
+                    "target_epoch": target_epoch,
+                }
+            else:
+                return {
+                    "success": False,
+                    "code": GatewayCode.BTC5M_MARKET_NOT_FOUND,
+                    "msg": f"no BTC 5min market found (slug={full_slug if target_epoch else prefix})",
+                    "data": {"slug_prefix": prefix, "target_epoch": target_epoch}
+                }
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"[POLY-GW] get_active_btc5m_market failed: {e}")
-            return {"error": str(e)}
+            err_msg = f"[{mName}]get_active_btc5m_market failed: {e}"
+            logger.warning(f"[POLY-GW] {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.QUERY_FAILED,
+                "msg": err_msg,
+                "data": {"slug_prefix": prefix, "target_epoch": target_epoch}
+            }
 
     # ===== 5. 订单管理（V2 风格）=====
     pass
@@ -635,38 +929,72 @@ class PolymarketGateway(BaseGateway):
             metadata: str = "",
     ) -> dict:
         """创建 V2 已签名订单（不提交，便于上层 pre-check）"""
-        return self._sign_order_v2(
-            token_id=token_id,
-            price=price,
-            side=side,
-            size=size,
-            expiration=expiration,
-            metadata=metadata,
-        )
+        try:
+            if not self._account:
+                return {
+                    "success": False,
+                    "code": GatewayCode.WALLET_NOT_CONFIGURED,
+                    "msg": "wallet not configured for signing"
+                }
+            signed = self._sign_order_v2(
+                token_id=token_id,
+                price=price,
+                side=side,
+                size=size,
+                expiration=expiration,
+                metadata=metadata,
+            )
+            return {
+                "success": True,
+                "code": GatewayCode.ORDER_CREATED,
+                "msg": f"order created for {token_id[:16]}... {side} {size}@{price}",
+                "data": signed
+            }
+        except Exception as e:  # noqa: BLE001
+            err_msg = f"[{mName}]create_order failed: {e}"
+            logger.error(f"[POLY-GW] {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.SIGN_ORDER_FAILED,
+                "msg": err_msg,
+                "data": {"token_id": token_id, "side": side}
+            }
 
     # 提交单个已签名订单（POST /order）
     async def post_order(self, signed_order: dict, order_type: str = "GTC") -> dict:
         """提交单个已签名订单（POST /order）"""
         body = {"order": signed_order, "owner": self.wallet_address, "orderType": order_type}
-        return await self._request("POST", "/order", body=body)
+        result = await self._request("POST", "/order", body=body)
+        if result.get("success"):
+            result["code"] = GatewayCode.ORDER_POSTED
+            result["msg"] = f"order posted (type={order_type})"
+        else:
+            result["code"] = GatewayCode.POST_ORDER_FAILED
+        return result
 
     # 批量提交订单（POST /orders，单批上限 15）
-    async def post_orders(self, signed_orders: list[dict], order_type: str = "GTC") -> list[dict]:
+    async def post_orders(self, signed_orders: list[dict], order_type: str = "GTC") -> dict:
         """批量提交订单（POST /orders，单批上限 15）"""
         if len(signed_orders) > BATCH_POST_ORDERS_MAX:
-            raise ValueError(
-                f"batch size {len(signed_orders)} > max {BATCH_POST_ORDERS_MAX}"
-            )
+            return {
+                "success": False,
+                "code": GatewayCode.INVALID_ORDER_PARAMS,
+                "msg": f"batch size {len(signed_orders)} > max {BATCH_POST_ORDERS_MAX}",
+                "data": {"batch_size": len(signed_orders), "max": BATCH_POST_ORDERS_MAX}
+            }
         body = {
             "orders": [
                 {"order": so, "owner": self.wallet_address, "orderType": order_type}
                 for so in signed_orders
             ]
         }
-        resp = await self._request("POST", "/orders", body=body)
-        if isinstance(resp, list):
-            return resp
-        return [resp]
+        result = await self._request("POST", "/orders", body=body)
+        if result.get("success"):
+            result["code"] = GatewayCode.ORDERS_BATCH_POSTED
+            result["msg"] = f"{len(signed_orders)} orders posted (type={order_type})"
+        else:
+            result["code"] = GatewayCode.POST_ORDER_FAILED
+        return result
 
     # 一步限价下单（创建签名 + 提交）
     async def place_limit_order(
@@ -678,10 +1006,15 @@ class PolymarketGateway(BaseGateway):
             order_type: str = "GTC",
             expiration: int = 0,
             metadata: str = "",
-    ) -> PlaceOrderResult:
-        """一步限价下单（创建签名 + 提交）"""
+    ) -> dict:
+        """一步限价下单（创建签名 + 提交，返回统一格式）"""
         if not self._account:
-            return PlaceOrderResult(success=False, error_msg="wallet not configured")
+            return {
+                "success": False,
+                "code": GatewayCode.WALLET_NOT_CONFIGURED,
+                "msg": "wallet not configured",
+                "data": {"token_id": token_id}
+            }
         try:
             signed = self._sign_order_v2(
                 token_id=token_id,
@@ -691,16 +1024,22 @@ class PolymarketGateway(BaseGateway):
                 expiration=expiration,
                 metadata=metadata,
             )
-            resp = await self.post_order(signed, order_type=order_type)
-            return PlaceOrderResult(
-                success=bool(resp.get("success", True)),
-                order_id=resp.get("orderID") or resp.get("id", ""),
-                status=resp.get("status", ""),
-                error_msg=resp.get("errorMsg", ""),
-                raw=resp if isinstance(resp, dict) else {"data": resp},
-            )
+            result = await self.post_order(signed, order_type=order_type)
+            if result.get("success"):
+                result["code"] = GatewayCode.ORDER_POSTED
+                result["msg"] = f"limit order placed: {side} {size}@{price}"
+            else:
+                result["code"] = GatewayCode.POST_ORDER_FAILED
+            return result
         except Exception as e:  # noqa: BLE001
-            return PlaceOrderResult(success=False, error_msg=str(e))
+            err_msg = f"[{mName}]place_limit_order failed: {e}"
+            logger.error(f"[POLY-GW] {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.SIGN_ORDER_FAILED,
+                "msg": err_msg,
+                "data": {"token_id": token_id, "side": side}
+            }
 
     # 市价下单（FOK=全部成交或撤 / FAK=部分成交）
     async def place_market_order(
@@ -709,23 +1048,38 @@ class PolymarketGateway(BaseGateway):
             side: str,
             amount: float,
             order_type: str = "FOK",
-    ) -> PlaceOrderResult:
-        """市价下单（FOK=全部成交或撤 / FAK=部分成交）"""
-        # V2 市价单：amount 为 USDC 数量（不是份额）
+    ) -> dict:
+        """市价下单（FOK=全部成交或撤 / FAK=部分成交，V2 市价单 amount 为 USDC 数量）"""
         return await self.place_limit_order(
-            token_id=token_id, side=side, price=0.99 if side.upper() == "BUY" else 0.01,
-            size=amount, order_type=order_type,
+            token_id=token_id,
+            side=side,
+            price=0.99 if side.upper() == "BUY" else 0.01,
+            size=amount,
+            order_type=order_type,
+            metadata=f"market_order:{side}",
         )
 
     # 撤单（DELETE /order/{order_id}）
     async def cancel_order(self, order_id: str) -> dict:
         """撤单（DELETE /order/{order_id}）"""
-        return await self._request("DELETE", f"/order/{order_id}")
+        result = await self._request("DELETE", f"/order/{order_id}")
+        if result.get("success"):
+            result["code"] = GatewayCode.ORDER_CANCELLED
+            result["msg"] = f"order {order_id[:12]}... cancelled"
+        else:
+            result["code"] = GatewayCode.CANCEL_ORDER_FAILED
+        return result
 
     # 批量撤单
     async def cancel_orders(self, order_ids: list[str]) -> dict:
         """批量撤单（DELETE /orders）"""
-        return await self._request("DELETE", "/orders", body={"orderIds": order_ids})
+        result = await self._request("DELETE", "/orders", body={"orderIds": order_ids})
+        if result.get("success"):
+            result["code"] = GatewayCode.ORDERS_CANCELLED
+            result["msg"] = f"{len(order_ids)} orders cancel requested"
+        else:
+            result["code"] = GatewayCode.CANCEL_ORDER_FAILED
+        return result
 
     # 全撤指定市场的挂单（DELETE /cancel-all）
     async def cancel_all_orders(self, market: str | None = None) -> dict:
@@ -733,34 +1087,62 @@ class PolymarketGateway(BaseGateway):
         body = {}
         if market:
             body["market"] = market
-        return await self._request("DELETE", "/cancel-all", body=body or None)
+        result = await self._request("DELETE", "/cancel-all", body=body or None)
+        if result.get("success"):
+            result["code"] = GatewayCode.ORDERS_ALL_CANCELLED
+            result["msg"] = f"all orders cancelled" + (f" for market {market}" if market else "")
+        else:
+            result["code"] = GatewayCode.CANCEL_ORDER_FAILED
+        return result
 
     # 查询单笔订单（GET /order/{order_id}）
     async def get_order(self, order_id: str) -> dict:
         """查询单笔订单（GET /order/{order_id}）"""
-        return await self._request("GET", f"/order/{order_id}")
+        result = await self._request("GET", f"/order/{order_id}")
+        if result.get("success"):
+            result["code"] = GatewayCode.ORDER_QUERY_OK
+            result["msg"] = f"order {order_id[:12]}... found"
+        else:
+            result["code"] = GatewayCode.ORDER_NOT_FOUND
+        return result
 
     # 查询当前挂单（GET /orders）
-    async def get_open_orders(self, market: str | None = None) -> list[dict]:
+    async def get_open_orders(self, market: str | None = None) -> dict:
         """查询当前挂单（GET /orders）"""
         params: dict[str, Any] = {}
         if market:
             params["market"] = market
-        resp = await self._request("GET", "/orders", body=params)
-        return resp if isinstance(resp, list) else [resp]
+        result = await self._request("GET", "/orders", body=params)
+        if result.get("success"):
+            data = result.get("data") or []
+            orders = data if isinstance(data, list) else [data]
+            result["code"] = GatewayCode.OPEN_ORDERS_OK
+            result["msg"] = f"{len(orders)} open orders found"
+            result["data"] = orders
+        else:
+            result["code"] = GatewayCode.QUERY_FAILED
+        return result
 
     # 查询成交历史（GET /trades）
     async def get_trades(
             self,
             market: str | None = None,
             limit: int = 100,
-    ) -> list[dict]:
+    ) -> dict:
         """查询成交历史（GET /trades）"""
         params: dict[str, Any] = {"limit": min(limit, 100)}
         if market:
             params["market"] = market
-        resp = await self._request("GET", "/trades", body=params)
-        return resp if isinstance(resp, list) else [resp]
+        result = await self._request("GET", "/trades", body=params)
+        if result.get("success"):
+            data = result.get("data") or []
+            trades = data if isinstance(data, list) else [data]
+            result["code"] = GatewayCode.TRADES_QUERY_OK
+            result["msg"] = f"{len(trades)} trades found"
+            result["data"] = trades
+        else:
+            result["code"] = GatewayCode.QUERY_FAILED
+        return result
 
     # ===== 6. 账户与持仓 =====
     pass
@@ -769,49 +1151,75 @@ class PolymarketGateway(BaseGateway):
     async def get_balance(self) -> dict:
         """查询钱包余额（V2 兼容：data-api 持仓 + CLOB 旧 /collateral 尝试）"""
         if not self.wallet_address:
-            raise RuntimeError("wallet address not configured")
-        # 1) CLOB 旧 /collateral 端点（V1 兼容）
-        coll = await self._request(
-            "GET", f"/collateral?user={self.wallet_address}"
-        )
-        # 2) data-api 持仓汇总
-        client = await self._get_http()
+            return {
+                "success": False,
+                "code": GatewayCode.WALLET_NOT_CONFIGURED,
+                "msg": "wallet address not configured"
+            }
         try:
-            r = await client.get(
-                f"{POLY_DATA_HOST}/positions",
-                params={
-                    "user": self.wallet_address,
-                    "sizeGreaterThan": 0,
-                    "limit": 100,
-                },
+            # 1) CLOB 旧 /collateral 端点（V1 兼容）
+            coll = await self._request(
+                "GET", f"/collateral?user={self.wallet_address}"
             )
-            positions = r.json() if r.status_code == 200 else []
-        except Exception:  # noqa: BLE001
-            positions = []
-        # 持仓 USD 价值汇总
-        positions_value = 0.0
-        if isinstance(positions, list):
-            for p in positions:
-                try:
-                    size = float(p.get("size") or 0)
-                    price = float(p.get("curPrice") or p.get("avgPrice") or 0)
-                    positions_value += size * price
-                except Exception:  # noqa: BLE001
-                    continue
-        return {
-            "wallet_address": self.wallet_address,
-            "collateral_endpoint": coll,
-            "positions_count": len(positions) if isinstance(positions, list) else 0,
-            "positions_value_usd": round(positions_value, 4),
-        }
+            # 2) data-api 持仓汇总
+            client = await self._get_http()
+            try:
+                r = await client.get(
+                    f"{POLY_DATA_HOST}/positions",
+                    params={
+                        "user": self.wallet_address,
+                        "sizeGreaterThan": 0,
+                        "limit": 100,
+                    },
+                )
+                positions = r.json() if r.status_code == 200 else []
+            except Exception:  # noqa: BLE001
+                positions = []
+            # 持仓 USD 价值汇总
+            positions_value = 0.0
+            if isinstance(positions, list):
+                for p in positions:
+                    try:
+                        size = float(p.get("size") or 0)
+                        price = float(p.get("curPrice") or p.get("avgPrice") or 0)
+                        positions_value += size * price
+                    except Exception:  # noqa: BLE001
+                        continue
+
+            return {
+                "success": True,
+                "code": GatewayCode.BALANCE_OK,
+                "msg": f"balance retrieved for {self.wallet_address[:12]}...",
+                "data": {
+                    "wallet_address": self.wallet_address,
+                    "collateral_endpoint": coll,
+                    "positions_count": len(positions) if isinstance(positions, list) else 0,
+                    "positions_value_usd": round(positions_value, 4),
+                }
+            }
+        except Exception as e:  # noqa: BLE001
+            err_msg = f"[{mName}]get_balance failed: {e}"
+            logger.error(f"[POLY-GW] {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.BALANCE_QUERY_FAILED,
+                "msg": err_msg,
+                "data": {"wallet_address": self.wallet_address}
+            }
 
     # 查询钱包持仓（GET data-api/positions，公开端点）
     async def get_positions(
             self,
             market: str | None = None,
             size_greater_than: float = 0.0,
-    ) -> list[dict]:
+    ) -> dict:
         """查询钱包持仓（GET data-api/positions，公开端点）"""
+        if not self.wallet_address:
+            return {
+                "success": False,
+                "code": GatewayCode.WALLET_NOT_CONFIGURED,
+                "msg": "wallet address not configured"
+            }
         params: dict[str, Any] = {
             "user": self.wallet_address,
             "limit": 100,
@@ -823,10 +1231,30 @@ class PolymarketGateway(BaseGateway):
         client = await self._get_http()
         try:
             r = await client.get(f"{POLY_DATA_HOST}/positions", params=params)
-            return r.json() if r.status_code == 200 else []
+            if r.status_code == 200:
+                positions = r.json()
+                return {
+                    "success": True,
+                    "code": GatewayCode.POSITIONS_OK,
+                    "msg": f"{len(positions)} positions found",
+                    "data": positions
+                }
+            else:
+                return {
+                    "success": False,
+                    "code": GatewayCode.POSITIONS_QUERY_FAILED,
+                    "msg": f"HTTP {r.status_code}: {r.text[:200]}",
+                    "data": {"status": r.status_code}
+                }
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"[POLY-GW] get_positions failed: {e}")
-            return []
+            err_msg = f"[{mName}]get_positions failed: {e}"
+            logger.warning(f"[POLY-GW] {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.POSITIONS_QUERY_FAILED,
+                "msg": err_msg,
+                "data": {"wallet_address": self.wallet_address}
+            }
 
     # ===== 7. 风控与监控 =====
     pass
@@ -838,8 +1266,8 @@ class PolymarketGateway(BaseGateway):
             price_floor: float | None = None,
             price_cap: float | None = None,
             max_open_orders: int | None = None,
-    ) -> None:
-        """设置风控上限（None 表示不修改）"""
+    ) -> dict:
+        """设置风控上限（None 表示不修改，返回统一格式）"""
         if max_amount_usd is not None:
             self._risk_max_amount_usd = float(max_amount_usd)
         if price_floor is not None:
@@ -849,9 +1277,21 @@ class PolymarketGateway(BaseGateway):
         if max_open_orders is not None:
             self._risk_max_open_orders = int(max_open_orders)
 
+        return {
+            "success": True,
+            "code": GatewayCode.RISK_LIMITS_SET,
+            "msg": "risk limits updated",
+            "data": {
+                "max_amount_usd": self._risk_max_amount_usd,
+                "price_floor": self._risk_price_floor,
+                "price_cap": self._risk_price_cap,
+                "max_open_orders": self._risk_max_open_orders
+            }
+        }
+
     # 获取网关状态（健康摘要，Polymarket 特定字段）
     def get_status(self) -> dict:
-        """获取网关状态（健康摘要，Polymarket 特定字段）"""
+        """获取网关状态（健康摘要，Polymarket 特定字段，返回统一格式）"""
         st = GatewayStatus(
             name=self.name,
             ready=self.is_ready(),
@@ -861,12 +1301,18 @@ class PolymarketGateway(BaseGateway):
             wallet_address=(self.wallet_address[:10] + "...") if self.wallet_address else "",
             l2_creds_configured=bool(self._l2_creds),
             http_client_open=bool(self._http and not self._http.is_closed),
-            last_ping_ok=self._last_ping_ok,
+            last_ping_success=self._last_ping_success,
             last_ping_at=self._last_ping_at,
             last_error=self._last_error,
             sdk_version="polymarket-client" if _HAS_SDK else "n/a",
         )
-        return asdict(st)
+        status_dict = asdict(st)
+        return {
+            "success": st.ready,
+            "code": GatewayCode.STATUS_OK if st.ready else GatewayCode.NOT_READY,
+            "msg": "gateway ready" if st.ready else "gateway not ready",
+            "data": status_dict
+        }
 
     # ===== 8. 业务快捷方法 =====
     pass
@@ -897,94 +1343,103 @@ class PolymarketGateway(BaseGateway):
         t = tokens[0]
         return str(t.get("token_id") or t.get("clobTokenId") or ""), (t.get("outcome") or "?")
 
+    # 对外暴露：BTC 5min 市场一键下单（自动风控 + 中间价兜底，返回统一格式）
     async def place_btc5m_order(
             self,
             side: str,
             amount_usd: float | None = None,
             token_id: str | None = None,
             price: float | None = None,
+            target_epoch: int | None = None,
             metadata: str = "",
-    ) -> PlaceOrderResult:
-        """BTC 5min 市场一键下单（自动风控 + 中间价兜底）"""
-        if not self._account:
-            return PlaceOrderResult(success=False, error_msg="wallet not configured")
-        # 1) 风控：金额上限
-        amt = float(
-            amount_usd if amount_usd is not None else settings.POLYMARKET_BTC5M_DEFAULT_AMOUNT_USD
-        )
-        if amt <= 0:
-            return PlaceOrderResult(success=False, error_msg=f"invalid amount_usd: {amt}")
-        if amt > self._risk_max_amount_usd:
-            logger.warning(
-                f"[POLY-GW] amount {amt} > MAX {self._risk_max_amount_usd}, clamp"
-            )
-            amt = self._risk_max_amount_usd
-        # 2) 解析 token_id
-        if not token_id:
-            market_resp = await self.get_active_btc5m_market()
-            token_id, _ = self._pick_token_for_side(market_resp, side)
-        # 3) 价格
-        if price is None:
-            price = await self.get_midpoint(token_id)
-        price = max(self._risk_price_floor, min(self._risk_price_cap, float(price or 0.5)))
-        if price <= 0:
-            price = 0.5
-        # 4) 份额
-        size = round(amt / price, 4)
-        side_str = "BUY"  # BTC 5min 买 UP/DOWN token 都视为 BUY
-        return await self.place_limit_order(
-            token_id=token_id,
-            side=side_str,
-            price=price,
-            size=size,
-            order_type="GTC",
-            metadata=metadata or f"btc5m:{side}",
-        )
+    ) -> dict:
+        """BTC 5min 市场一键下单（自动风控 + 中间价兜底，返回统一格式）
 
-    # BTC 5min 市场一键下单（自动风控 + 中间价兜底）
-    async def place_btc5m_order(
-            self,
-            side: str,
-            amount_usd: float | None = None,
-            token_id: str | None = None,
-            price: float | None = None,
-            metadata: str = "",
-    ) -> PlaceOrderResult:
-        """BTC 5min 市场一键下单（自动风控 + 中间价兜底）"""
+        Args:
+            side: UP / DOWN（买涨/买跌 token）
+            amount_usd: 下单金额（USD），默认取 settings.POLYMARKET_BTC5M_DEFAULT_AMOUNT_USD
+            token_id: 直接指定 token（跳过市场查询），一般留 None 自动解析
+            price: 限价，默认取中间价 midpoint
+            target_epoch: 目标 5 分钟窗口 Unix 时间戳（秒）。
+                - None（默认）: 当前最活跃市场（即时成交）
+                - 精确时间戳: 下注未来某 5 分钟窗口的趋势，
+                  例如 target_epoch=1785399000 → 下 btc-updown-5m-1785399000
+            metadata: 订单备注
+        """
         if not self._account:
-            return PlaceOrderResult(success=False, error_msg="wallet not configured")
-        # 1) 风控：金额上限
-        amt = float(
-            amount_usd if amount_usd is not None else settings.POLYMARKET_BTC5M_DEFAULT_AMOUNT_USD
-        )
-        if amt <= 0:
-            return PlaceOrderResult(success=False, error_msg=f"invalid amount_usd: {amt}")
-        if amt > self._risk_max_amount_usd:
-            logger.warning(
-                f"[POLY-GW] amount {amt} > MAX {self._risk_max_amount_usd}, clamp"
+            return {
+                "success": False,
+                "code": GatewayCode.WALLET_NOT_CONFIGURED,
+                "msg": "wallet not configured for BTC5M order"
+            }
+        try:
+            # 1) 风控：金额上限
+            amt = float(
+                amount_usd if amount_usd is not None else settings.POLYMARKET_BTC5M_DEFAULT_AMOUNT_USD
             )
-            amt = self._risk_max_amount_usd
-        # 2) 解析 token_id
-        if not token_id:
-            market_resp = await self.get_active_btc5m_market()
-            token_id, _ = self._pick_token_for_side(market_resp, side)
-        # 3) 价格
-        if price is None:
-            price = await self.get_midpoint(token_id)
-        price = max(self._risk_price_floor, min(self._risk_price_cap, float(price or 0.5)))
-        if price <= 0:
-            price = 0.5
-        # 4) 份额
-        size = round(amt / price, 4)
-        side_str = "BUY"  # BTC 5min 买 UP/DOWN token 都视为 BUY
-        return await self.place_limit_order(
-            token_id=token_id,
-            side=side_str,
-            price=price,
-            size=size,
-            order_type="GTC",
-            metadata=metadata or f"btc5m:{side}",
-        )
+            if amt <= 0:
+                return {
+                    "success": False,
+                    "code": GatewayCode.AMOUNT_TOO_SMALL,
+                    "msg": f"invalid amount_usd: {amt}",
+                    "data": {"amount_usd": amt}
+                }
+            if amt > self._risk_max_amount_usd:
+                logger.warning(
+                    f"[POLY-GW] amount {amt} > MAX {self._risk_max_amount_usd}, clamp"
+                )
+                amt = self._risk_max_amount_usd
+
+            # 2) 解析 token_id
+            if not token_id:
+                market_resp = await self.get_active_btc5m_market(target_epoch=target_epoch)
+                if not market_resp.get("success"):
+                    return {
+                        "success": False,
+                        "code": GatewayCode.BTC5M_MARKET_NOT_FOUND,
+                        "msg": f"failed to get BTC5M market (target_epoch={target_epoch})",
+                        "data": market_resp
+                    }
+                token_id, _ = self._pick_token_for_side(market_resp.get("data"), side)
+
+            # 3) 价格
+            if price is None:
+                mid_resp = await self.get_midpoint(token_id)
+                price = (mid_resp.get("data") or {}).get("midpoint", 0.5)
+            price = max(self._risk_price_floor, min(self._risk_price_cap, float(price or 0.5)))
+            if price <= 0:
+                price = 0.5
+
+            # 4) 份额
+            size = round(amt / price, 4)
+            side_str = "BUY"  # BTC 5min 买 UP/DOWN token 都视为 BUY
+
+            result = await self.place_limit_order(
+                token_id=token_id,
+                side=side_str,
+                price=price,
+                size=size,
+                order_type="GTC",
+                metadata=metadata or f"btc5m:{side}",
+            )
+
+            if result.get("success"):
+                result["code"] = GatewayCode.BTC5M_ORDER_PLACED
+                result["msg"] = f"BTC5M {side} order placed: {size}@{price}"
+            else:
+                result["code"] = GatewayCode.BTC5M_ORDER_FAILED
+
+            return result
+
+        except Exception as e:  # noqa: BLE001
+            err_msg = f"[{mName}]place_btc5m_order failed: {e}"
+            logger.error(f"[POLY-GW] {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.BTC5M_ORDER_FAILED,
+                "msg": err_msg,
+                "data": {"side": side}
+            }
 
     # 快捷买入（限价 GTC）
     async def quick_buy(
@@ -992,11 +1447,15 @@ class PolymarketGateway(BaseGateway):
             token_id: str,
             price: float,
             size: float,
-    ) -> PlaceOrderResult:
+    ) -> dict:
         """快捷买入（限价 GTC）"""
-        return await self.place_limit_order(
+        result = await self.place_limit_order(
             token_id=token_id, side="BUY", price=price, size=size
         )
+        if result.get("success"):
+            result["code"] = GatewayCode.QUICK_BUY_OK
+            result["msg"] = f"quick buy {size}@{price}"
+        return result
 
     # 快捷卖出（限价 GTC）
     async def quick_sell(
@@ -1004,11 +1463,15 @@ class PolymarketGateway(BaseGateway):
             token_id: str,
             price: float,
             size: float,
-    ) -> PlaceOrderResult:
+    ) -> dict:
         """快捷卖出（限价 GTC）"""
-        return await self.place_limit_order(
+        result = await self.place_limit_order(
             token_id=token_id, side="SELL", price=price, size=size
         )
+        if result.get("success"):
+            result["code"] = GatewayCode.QUICK_SELL_OK
+            result["msg"] = f"quick sell {size}@{price}"
+        return result
 
 
 # ============================================================
@@ -1079,9 +1542,9 @@ class PolymarketV1Client(BaseGateway):
             chain_id=CHAIN_ID_V1,
             http_timeout=settings.POLYMARKET_HTTP_TIMEOUT,
         )
-        self.private_key = settings.POLYMARKET_WALLET_PRIVATE_KEY
+        self.private_key = settings.POLYMARKET_PRIVATE_KEY
         self.wallet_address = settings.POLYMARKET_WALLET_ADDRESS
-        self.api_key = settings.POLYMARKET_API_KEY
+        self.api_key = settings.POLYMARKET_APIKEY
         # EIP-712 派生 L2 API Key（首次调用时初始化）
         self._l2_keys: dict | None = None
         self._account = None
@@ -1110,16 +1573,27 @@ class PolymarketV1Client(BaseGateway):
 
     # Polymarket 公开端点连通性探测（GET /markets）
     async def _do_ping(self) -> dict:
-        """Polymarket 公开端点连通性探测（GET /markets，公开端点）"""
+        """Polymarket 公开端点连通性探测（GET /markets，公开端点）
+
+        返回统一格式：{"success": bool, "code": int, "msg": str, "data": dict}
+        """
         try:
             client = await self._get_http()
             resp = await client.get(f"{self.host}/markets?limit=1")
+            ok = resp.status_code == 200
             return {
-                "ok": resp.status_code == 200,
-                "status": resp.status_code,
+                "success": ok,
+                "code": GatewayCode.PING_OK if ok else GatewayCode.PING_FAILED,
+                "msg": "ping successful" if ok else f"HTTP {resp.status_code}",
+                "data": {"status": resp.status_code, "host": self.host},
             }
         except Exception as e:  # noqa: BLE001
-            return {"ok": False, "error": str(e)}
+            return {
+                "success": False,
+                "code": GatewayCode.UNKNOWN_ERROR,
+                "msg": str(e),
+                "data": {"host": self.host},
+            }
 
     # L1 认证签名：用于创建/派生 L2 API Key（EIP-712）
     def _sign_l1(self, nonce: int = 0) -> str:
@@ -1244,31 +1718,56 @@ class PolymarketV1Client(BaseGateway):
         try:
             data = resp.json()
         except Exception:
-            data = {"error": resp.text[:200]}
+            data = {"msg": resp.text[:200]}
 
         if resp.status_code >= 400:
             logger.warning(f"[POLY] {method} {path} HTTP {resp.status_code}: {data}")
         return data
 
     # ========== 公共 API：市场/订单 ==========
-    # 获取市场列表
+    # 获取市场列表（V1 客户端，返回统一格式）
     async def get_markets(self) -> dict:
         """获取市场列表"""
-        return await self._request("GET", "/markets", auth_l1=True)
+        result = await self._request("GET", "/markets", auth_l1=True)
+        if result.get("success"):
+            result["code"] = GatewayCode.MARKET_LIST_OK
+            result["msg"] = "V1 markets retrieved"
+        else:
+            result["code"] = GatewayCode.QUERY_FAILED
+        return result
 
     # 获取单个市场（V1 客户端）
     async def get_market(self, condition_id: str) -> dict:
         """获取单个市场"""
-        return await self._request("GET", f"/markets/{condition_id}", auth_l1=True)
+        result = await self._request("GET", f"/markets/{condition_id}", auth_l1=True)
+        if result.get("success"):
+            result["code"] = GatewayCode.MARKET_DETAIL_OK
+            result["msg"] = f"V1 market {condition_id[:12]}... found"
+        else:
+            result["code"] = GatewayCode.MARKET_NOT_FOUND
+        return result
 
     # 获取 token 中间价（公开）
     async def get_midpoint(self, token_id: str) -> dict:
         """获取 token 中间价（公开）"""
-        return await self._request("GET", f"/midpoint?token_id={token_id}", auth_l1=True)
+        result = await self._request("GET", f"/midpoint?token_id={token_id}", auth_l1=True)
+        if result.get("success"):
+            result["code"] = GatewayCode.MIDPOINT_OK
+            midpoint = float((result.get("data") or {}).get("mid", 0.0))
+            result["data"] = {"token_id": token_id, "midpoint": midpoint}
+        else:
+            result["code"] = GatewayCode.INVALID_TOKEN_ID
+        return result
 
     async def get_order_book(self, token_id: str) -> dict:
         """获取订单簿（公开）"""
-        return await self._request("GET", f"/book?token_id={token_id}", auth_l1=True)
+        result = await self._request("GET", f"/book?token_id={token_id}", auth_l1=True)
+        if result.get("success"):
+            result["code"] = GatewayCode.ORDERBOOK_OK
+            result["msg"] = f"V1 orderbook for {token_id[:16]}... retrieved"
+        else:
+            result["code"] = GatewayCode.INVALID_TOKEN_ID
+        return result
 
     # ========== 下单 ==========
     # EIP-712 订单签名（V1 域 version="1"）
@@ -1382,10 +1881,10 @@ class PolymarketV1Client(BaseGateway):
             try:
                 return resp.json()
             except Exception:
-                return {"error": resp.text[:200], "status": resp.status_code}
+                return {"msg": resp.text[:200], "status": resp.status_code}
         except Exception as e:  # noqa: BLE001
             logger.warning(f"[POLY] public GET {host}{path} failed: {e}")
-            return {"error": str(e)}
+            return {"msg": str(e)}
 
     # 查询钱包余额（V1 兼容：data-api 持仓 + CLOB 旧 /collateral 尝试）
     async def get_balance(self) -> dict:
@@ -1443,20 +1942,40 @@ class PolymarketV1Client(BaseGateway):
         return await self._request("GET", path)
 
     # ========== BTC 5min 市场：查询活跃市场 + 一键下单 ==========
-    # 查询当前活跃的 BTC 5min 涨跌市场（按 slug 前缀模糊匹配）
-    async def get_active_btc_market(self, slug_prefix: str | None = None) -> dict:
-        """查询当前活跃的 BTC 5min 涨跌市场（按 slug 前缀模糊匹配）
+    # 查询当前活跃的 BTC 5min 涨跌市场（通过 Gamma tag 过滤 + slug 前缀二次筛选）
+    async def get_active_btc_market(
+            self,
+            slug_prefix: str | None = None,
+            target_epoch: int | None = None,
+    ) -> dict:
+        """查询当前活跃的 BTC 5min 涨跌市场（通过 Gamma tag 过滤 + slug 前缀二次筛选）
 
-        - slug_prefix 不传则用 settings.POLYMARKET_BTC5M_SLUG_PREFIX
+        Args:
+            slug_prefix: slug 前缀（默认取 settings.POLYMARKET_BTC5M_SLUG_PREFIX）
+            target_epoch: 目标 5 分钟窗口 Unix 时间戳（秒）。
+                None=当前最活跃，精确时间戳=按 slug 精确定位
         - 走 Gamma API（公开端点，无需签名），返回市场列表
         """
         prefix = slug_prefix or settings.POLYMARKET_BTC5M_SLUG_PREFIX
-        path = (
-            f"/markets?slug={prefix}"
-            "&active=true&closed=false&archived=false"
-            "&order=startDate&ascending=false&limit=20"
-        )
-        return await self._get_public(POLY_GAMMA_HOST, path)
+        if target_epoch:
+            full_slug = f"{prefix}-{target_epoch}"
+            path = (
+                f"/markets?slug={full_slug}"
+                "&active=true&closed=false&archived=false&limit=5"
+            )
+        else:
+            path = (
+                f"/markets?tag={prefix}"
+                "&active=true&closed=false&archived=false"
+                "&order=startDate&ascending=false&limit=50"
+            )
+        raw = await self._get_public(POLY_GAMMA_HOST, path)
+        if isinstance(raw, list):
+            if not target_epoch:
+                filtered = [m for m in raw if (m.get("slug") or "").startswith(prefix)]
+                return filtered
+            return raw
+        return raw
 
     # 从市场结构中按方向挑出 token_id + outcomes 标签（V1 客户端静态方法）
     @staticmethod
@@ -1491,8 +2010,18 @@ class PolymarketV1Client(BaseGateway):
             amount_usd: float | None = None,
             token_id: str | None = None,
             price: float | None = None,
+            target_epoch: int | None = None,
     ) -> dict:
-        """在 BTC 5min 市场下单（集中应用风控配置）"""
+        """在 BTC 5min 市场下单（集中应用风控配置）
+
+        Args:
+            side: UP / DOWN
+            amount_usd: 下单金额（USD）
+            token_id: 直接指定 token（跳过市场查询）
+            price: 限价，默认取中间价
+            target_epoch: 目标 5 分钟窗口 Unix 时间戳（秒）。
+                None=当前市场，精确时间戳=未来窗口
+        """
         if not self.is_configured():
             raise RuntimeError("Polymarket wallet not configured (need PRIVATE_KEY + ADDRESS)")
 
@@ -1512,7 +2041,7 @@ class PolymarketV1Client(BaseGateway):
         # 解析 token_id
         market_meta: dict = {}
         if not token_id:
-            market_resp = await self.get_active_btc_market()
+            market_resp = await self.get_active_btc_market(target_epoch=target_epoch)
             data = (
                 market_resp if isinstance(market_resp, list)
                 else market_resp.get("data", market_resp)
@@ -1521,6 +2050,7 @@ class PolymarketV1Client(BaseGateway):
             market_meta = {
                 "resolved_token_label": label,
                 "market_resp_head": str(data)[:200] if data else "",
+                "target_epoch": target_epoch,
             }
         else:
             token_id = str(token_id)
@@ -1576,98 +2106,120 @@ PolymarketClient = PolymarketV1Client  # 别名（之前叫 PolymarketClient）
 # 注：全局单例 get_polymarket_gateway() 由 gateway.py 的 GatewayHub 统一管理
 pass
 
-
 # 业务层请统一用：from fwsort.gateway import get_hub; hub.polymarket_v2
 pass
 
-
 # ========== 菜单式调试入口 ==========
-# 调试菜单 - ping 网关连通性
+pass
+
+
+# 调试菜单 - ping 网关连通性（适配统一返回格式）
 async def _menu_ping(gw: PolymarketGateway) -> None:
     """菜单 - ping 网关连通性"""
-    res = await gw.ping()
-    print(f"  ping → {res}")
+    result = await gw.ping()
+    print(f"  result={result}")
 
 
-# 调试菜单 - 显示网关状态
+# 调试菜单 - 显示网关状态（适配统一返回格式）
 async def _menu_status(gw: PolymarketGateway) -> None:
     """菜单 - 显示网关状态"""
-    print("  status:", json.dumps(gw.get_status(), ensure_ascii=False, indent=2))
+    result = gw.get_status()
+    print(f"  result={result}")
 
 
 # 调试菜单 - 主动健康检查
 async def _menu_health(gw: PolymarketGateway) -> None:
     """菜单 - 主动健康检查"""
-    res = await gw.health_check()
-    print("  health:", json.dumps(res, ensure_ascii=False, indent=2))
+    result = await gw.health_check()
+    print(f"  result={result}")
 
 
 # 调试菜单 - 创建或派生 L2 API Key
 async def _menu_l2(gw: PolymarketGateway) -> None:
     """菜单 - 创建或派生 L2 API Key"""
-    res = await gw.create_or_derive_api_key()
-    print("  l2 creds:", res)
+    result = await gw.create_or_derive_api_key()
+    print(f"  result={result}")
 
 
-# 调试菜单 - 列出市场（前 5 条）
+# 调试菜单 - 列出市场（前 5 条，适配统一返回格式）
 async def _menu_markets(gw: PolymarketGateway) -> None:
     """菜单 - 列出市场（前 5 条）"""
-    res = await gw.get_markets(limit=5)
-    if isinstance(res, list):
-        for m in res[:5]:
-            print(f"    - {m.get('question', '?')[:60]} | condId={m.get('condition_id', '?')[:20]}")
-    else:
-        print(f"  markets → {str(res)[:300]}")
+    result = await gw.get_markets(limit=5)
+    print(f"  result={result}")
 
 
-# 调试菜单 - 查 token 中间价
+# 调试菜单 - 查 token 中间价（适配统一返回格式）
 async def _menu_midpoint(gw: PolymarketGateway) -> None:
     """菜单 - 查 token 中间价"""
     tid = input("  token_id: ").strip()
     if not tid:
         print("  已取消")
         return
-    mid = await gw.get_midpoint(tid)
-    print(f"  midpoint({tid[:16]}...) = {mid}")
+    mid_res = await gw.get_midpoint(tid)
+    if isinstance(mid_res, dict) and mid_res.get("success"):
+        data = mid_res.get("data", {})
+        print(f"  midpoint({tid[:16]}...) = {data.get('midpoint')} (code={mid_res.get('code')})")
+    else:
+        print(
+            f"  midpoint failed → code={mid_res.get('code') if isinstance(mid_res, dict) else 'unknown'} msg={mid_res.get('msg') if isinstance(mid_res, dict) else str(mid_res)}")
 
 
-# 调试菜单 - 查订单簿
+# 调试菜单 - 查订单簿（适配统一返回格式）
 async def _menu_book(gw: PolymarketGateway) -> None:
     """菜单 - 查订单簿"""
     tid = input("  token_id: ").strip()
     if not tid:
         print("  已取消")
         return
-    snap = await gw.get_order_book(tid)
-    print(f"  bids={len(snap.bids)} asks={len(snap.asks)} midpoint={snap.midpoint} spread={snap.spread}")
-    print(f"    best bid: {snap.bids[-1] if snap.bids else 'n/a'}")
-    print(f"    best ask: {snap.asks[-1] if snap.asks else 'n/a'}")
+    book_res = await gw.get_order_book(tid)
+    if isinstance(book_res, dict) and book_res.get("success"):
+        snapshot = book_res.get("snapshot", {})
+        bids = snapshot.get("bids", [])
+        asks = snapshot.get("asks", [])
+        print(
+            f"  orderbook → bids={len(bids)} asks={len(asks)} midpoint={snapshot.get('midpoint')} spread={snapshot.get('spread')}")
+        if bids:
+            print(f"           best bid: {bids[-1]}")
+        if asks:
+            print(f"           best ask: {asks[0]}")
+    else:
+        print(f"  orderbook failed → code={book_res.get('code') if isinstance(book_res, dict) else 'unknown'}")
 
 
-# 调试菜单 - 查当前活跃 BTC 5min 市场
+# 调试菜单 - 查当前活跃 BTC 5min 市场（适配统一返回格式）
 async def _menu_btc5m_market(gw: PolymarketGateway) -> None:
     """菜单 - 查当前活跃 BTC 5min 市场"""
     res = await gw.get_active_btc5m_market()
-    if isinstance(res, list) and res:
-        m = res[0]
-        print(f"  第一个: question={m.get('question', '?')[:80]}")
-        print(f"          slug={m.get('slug', '?')}")
-        print(f"          condition_id={m.get('condition_id', '?')[:20]}...")
-        print(f"          tokens={len(m.get('tokens', []))}")
+    if isinstance(res, dict) and res.get("success"):
+        data = res.get("data")
+        if isinstance(data, list) and data:
+            m = data[0]
+            print(f"  第一个: question={m.get('question', '?')[:80]}")
+            print(f"          slug={m.get('slug', '?')}")
+            print(f"          condition_id={m.get('condition_id', '?')[:20]}...")
+            print(f"          tokens={len(m.get('tokens', []))}")
+        elif isinstance(data, dict):
+            print(f"  market: question={data.get('question', '?')[:80]}")
+        else:
+            print(f"  resp data: {str(data)[:200]}")
     else:
-        print(f"  resp: {str(res)[:300]}")
+        print(f"  resp: success={res.get('success') if isinstance(res, dict) else False} "
+              f"code={res.get('code') if isinstance(res, dict) else 'unknown'} "
+              f"msg={res.get('msg') if isinstance(res, dict) else str(res)[:200]}")
 
 
-# 调试菜单 - BTC 5min 一键下单
+# 调试菜单 - BTC 5min 一键下单（适配统一返回格式）
 async def _menu_btc5m_order(gw: PolymarketGateway) -> None:
     """菜单 - BTC 5min 一键下单"""
     side = input("  side (UP/DOWN) [默认 UP]: ").strip().upper() or "UP"
     amt = input("  amount_usd [默认 5]: ").strip() or "5"
-    res = await gw.place_btc5m_order(side=side, amount_usd=float(amt))
-    print(f"  result: success={res.success} order_id={res.order_id} status={res.status} err={res.error_msg[:100]}")
+    epoch_str = input("  target_epoch (回车=当前市场, 或未来5min窗口时间戳): ").strip()
+    target_epoch = int(epoch_str) if epoch_str else None
+    result = await gw.place_btc5m_order(side=side, amount_usd=float(amt), target_epoch=target_epoch)
+    print(f"  result={result}")
 
 
-# 调试菜单 - 手动限价下单
+# 调试菜单 - 手动限价下单（适配统一返回格式）
 async def _menu_place_order(gw: PolymarketGateway) -> None:
     """菜单 - 手动限价下单"""
     tid = input("  token_id: ").strip()
@@ -1680,10 +2232,18 @@ async def _menu_place_order(gw: PolymarketGateway) -> None:
     res = await gw.place_limit_order(
         token_id=tid, side=side, price=float(price), size=float(size)
     )
-    print(f"  result: success={res.success} order_id={res.order_id} status={res.status} err={res.error_msg[:200]}")
+    if isinstance(res, dict):
+        print(f"  result → success={res.get('success')} code={res.get('code')} msg={res.get('msg')}")
+        if res.get("success"):
+            data = res.get("data", {})
+            print(f"          order_id={data.get('orderID', data.get('id', 'n/a'))}")
+        else:
+            print(f"          error: {json.dumps(res.get('data'), ensure_ascii=False)[:200]}")
+    else:
+        print(f"  result: {res}")
 
 
-# 调试菜单 - 撤单
+# 调试菜单 - 撤单（适配统一返回格式）
 async def _menu_cancel(gw: PolymarketGateway) -> None:
     """菜单 - 撤单"""
     oid = input("  order_id: ").strip()
@@ -1691,43 +2251,69 @@ async def _menu_cancel(gw: PolymarketGateway) -> None:
         print("  已取消")
         return
     res = await gw.cancel_order(oid)
-    print(f"  cancel: {str(res)[:300]}")
+    if isinstance(res, dict):
+        print(f"  cancel → success={res.get('success')} code={res.get('code')} msg={res.get('msg')}")
+    else:
+        print(f"  cancel: {str(res)[:300]}")
 
 
-# 调试菜单 - 查挂单
+# 调试菜单 - 查挂单（适配统一返回格式）
 async def _menu_open_orders(gw: PolymarketGateway) -> None:
     """菜单 - 查挂单"""
     res = await gw.get_open_orders()
-    if isinstance(res, list):
-        print(f"  挂单数: {len(res)}")
-        for o in res[:5]:
-            print(f"    - {o.get('id', '?')[:20]} {o.get('side', '?')} {o.get('price', '?')}x{o.get('size', '?')}")
+    if isinstance(res, dict) and res.get("success"):
+        orders = res.get("data", [])
+        if isinstance(orders, list):
+            print(f"  挂单数: {len(orders)}")
+            for o in orders[:5]:
+                print(f"    - {o.get('id', '?')[:20]} {o.get('side', '?')} {o.get('price', '?')}x{o.get('size', '?')}")
+        else:
+            print(f"  {str(orders)[:300]}")
+    elif isinstance(res, dict):
+        print(f"  failed → code={res.get('code')} msg={res.get('msg')}")
     else:
         print(f"  {str(res)[:300]}")
 
 
-# 调试菜单 - 查余额
+# 调试菜单 - 查余额（适配统一返回格式）
 async def _menu_balance(gw: PolymarketGateway) -> None:
     """菜单 - 查余额"""
     res = await gw.get_balance()
-    print("  balance:", json.dumps(res, ensure_ascii=False, indent=2))
+    if isinstance(res, dict):
+        print(f"  balance → success={res.get('success')} code={res.get('code')} msg={res.get('msg')}")
+        data = res.get("data", {})
+        if data:
+            print(f"           positions_count={data.get('positions_count')}")
+            print(f"           positions_value_usd=${data.get('positions_value_usd')}")
+    else:
+        print("  balance:", json.dumps(res, ensure_ascii=False, indent=2))
 
 
-# 调试菜单 - 查持仓
+# 调试菜单 - 查持仓（适配统一返回格式）
 async def _menu_positions(gw: PolymarketGateway) -> None:
     """菜单 - 查持仓"""
     res = await gw.get_positions()
-    print(f"  持仓数: {len(res)}")
-    for p in res[:5]:
-        try:
-            size = float(p.get("size", 0))
-            price = float(p.get("curPrice", 0))
-            print(f"    - market={p.get('market', '?')[:30]} size={size} price={price} value=${size * price:.2f}")
-        except Exception:  # noqa: BLE001
-            pass
+    if isinstance(res, dict) and res.get("success"):
+        positions = res.get("data", [])
+        if isinstance(positions, list):
+            print(f"  持仓数: {len(positions)}")
+            for p in positions[:5]:
+                try:
+                    size = float(p.get("size", 0))
+                    price = float(p.get("curPrice", 0))
+                    print(
+                        f"    - market={p.get('market', '?')[:30]} size={size} price={price} value=${size * price:.2f}")
+                except Exception:  # noqa: BLE001
+                    pass
+        else:
+            print(f"  positions → {str(positions)[:300]}")
+    elif isinstance(res, dict):
+        print(f"  positions failed → code={res.get('code')} msg={res.get('msg')}")
+    else:
+        print(f"  positions: {str(res)[:300]}")
 
 
-# 调试菜单 - 设置风控上限
+# 调试菜单 - 设置风控上限（适配统一返回格式）
 async def _menu_risk(gw: PolymarketGateway) -> None:
     """菜单 - 设置风控上限"""
     print("  当前风控:", json.dumps({
@@ -1740,13 +2326,21 @@ async def _menu_risk(gw: PolymarketGateway) -> None:
     fl = input("  新 price_floor (回车跳过): ").strip()
     cap = input("  新 price_cap (回车跳过): ").strip()
     moo = input("  新 max_open_orders (回车跳过): ").strip()
-    gw.set_risk_limits(
+    res = gw.set_risk_limits(
         max_amount_usd=float(amt) if amt else None,
         price_floor=float(fl) if fl else None,
         price_cap=float(cap) if cap else None,
         max_open_orders=int(moo) if moo else None,
     )
-    print("  ✅ 已更新风控")
+    if isinstance(res, dict):
+        print(f"  risk limits updated → success={res.get('success')} code={res.get('code')} msg={res.get('msg')}")
+        data = res.get("data", {})
+        if data:
+            print(f"                       max_amount_usd={data.get('max_amount_usd')}")
+            print(f"                       price_range=[{data.get('price_floor')}, {data.get('price_cap')}]")
+            print(f"                       max_open_orders={data.get('max_open_orders')}")
+    else:
+        print("  ✅ 已更新风控")
 
 
 # 调试菜单 - 菜单列表
@@ -1759,7 +2353,7 @@ _MENU = [
     ("6", "查 token 中间价", _menu_midpoint),
     ("7", "查 token 订单簿", _menu_book),
     ("8", "查当前活跃 BTC 5min 市场", _menu_btc5m_market),
-    ("9", "BTC 5min 一键下单", _menu_btc5m_order),
+    ("9", "BTC5min一键下单", _menu_btc5m_order),
     ("10", "手动限价下单", _menu_place_order),
     ("11", "撤单", _menu_cancel),
     ("12", "查挂单", _menu_open_orders),
@@ -1805,6 +2399,7 @@ async def _run_menu() -> None:
                 await match[2](gw)
             except Exception as e:  # noqa: BLE001
                 print(f"  [err] {e}")
+            input("  按任意键继续...")
     finally:
         await gw.close()
 

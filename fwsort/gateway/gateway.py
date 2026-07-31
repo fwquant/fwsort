@@ -87,24 +87,24 @@ class ExecutionGateway(BaseGateway):
     async def _do_ping(self) -> dict:
         """聚合探测：依次 ping 已初始化的实盘网关"""
         results: dict[str, Any] = {}
-        overall_ok = True
+        overall_success = True
         if self._okx:
             try:
                 results["okx"] = await self._okx.ping()
-                if not results["okx"].get("ok"):
-                    overall_ok = False
+                if not results["okx"].get("success"):
+                    overall_success = False
             except Exception as e:  # noqa: BLE001
-                results["okx"] = {"ok": False, "error": str(e)}
-                overall_ok = False
+                results["okx"] = {"success": False, "msg": str(e)}
+                overall_success = False
         if self._polymarket:
             try:
                 results["polymarket_v1"] = await self._polymarket.ping()
-                if not results["polymarket_v1"].get("ok"):
-                    overall_ok = False
+                if not results["polymarket_v1"].get("success"):
+                    overall_success = False
             except Exception as e:  # noqa: BLE001
-                results["polymarket_v1"] = {"ok": False, "error": str(e)}
-                overall_ok = False
-        return {"ok": overall_ok, "children": results, "simulator": True}
+                results["polymarket_v1"] = {"success": False, "msg": str(e)}
+                overall_success = False
+        return {"success": overall_success, "children": results, "simulator": True}
 
     def get_status(self) -> dict:
         """Hub 状态摘要（聚合所有子网关）"""
@@ -116,7 +116,7 @@ class ExecutionGateway(BaseGateway):
             "polymarket_v1": self._polymarket.get_status() if self._polymarket else {"configured": False},
             "polymarket_v2": self._polymarket_v2.get_status() if self._polymarket_v2 else {"configured": False},
             "simulator": self._simulator.get_status(),
-            "last_ping_ok": self._last_ping_ok,
+            "last_ping_success": self._last_ping_success,
             "last_ping_at": self._last_ping_at,
             "last_error": self._last_error,
         }

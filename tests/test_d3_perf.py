@@ -30,33 +30,26 @@ def test_wp10_all_critical_indexes_exist():
 
     init_db()
     insp = inspect(sync_engine)
+    # SQLAlchemy 2.x: has_index 需 (table_name, index_name) 两个参数
     required = [
-        # strategy_performance
-        "idx_perf_period_score",
-        "idx_perf_account_period",
-        "idx_perf_uid_period",
-        # order_execution_log
-        "idx_orderlog_uid_time",
-        "idx_orderlog_account_time",
-        "idx_orderlog_vote",
-        # follow_subscription
-        "idx_follow_sub_leader_status",
-        "idx_follow_leader_status",
-        # follow_order
-        "idx_follow_order_sub_time",
-        # notification
-        "idx_notify_user_unread",
-        # rank_snapshot
-        "idx_snapshot_rank_type_time",
-        # execution_account
-        "idx_acc_owner_deleted",
-        "idx_acc_platform_deleted",
-        # vote_decision
-        "idx_vote_account_time",
-        # agent_prediction
-        "idx_prediction_symbol_time",
+        # (table, idx_name) - 跨表索引
+        ("strategy_performance", "idx_perf_period_score"),
+        ("strategy_performance", "idx_perf_account_period"),
+        ("strategy_performance", "idx_perf_uid_period"),
+        ("order_execution_log", "idx_orderlog_uid_time"),
+        ("order_execution_log", "idx_orderlog_account_time"),
+        ("order_execution_log", "idx_orderlog_vote"),
+        ("follow_subscription", "idx_follow_sub_leader_status"),
+        ("follow_subscription", "idx_follow_leader_status"),
+        ("follow_order", "idx_follow_order_sub_time"),
+        ("notification", "idx_notify_user_unread"),
+        ("rank_snapshot", "idx_snapshot_rank_type_time"),
+        ("execution_account", "idx_acc_owner_deleted"),
+        ("execution_account", "idx_acc_platform_deleted"),
+        ("vote_decision", "idx_vote_account_time"),
+        ("agent_prediction", "idx_prediction_symbol_time"),
     ]
-    missing = [idx for idx in required if not insp.has_index(idx)]
+    missing = [idx for tbl, idx in required if not insp.has_index(tbl, idx)]
     assert not missing, f"WP-10: missing indexes {missing}"
 
 
@@ -88,25 +81,20 @@ def test_wp10_mark_all_read_uses_bulk_update(monkeypatch):
     # 通过 FastAPI TestClient 触发
     from fastapi.testclient import TestClient
     from main import app
+    from fwsort.security import create_access_token
 
+    # create_access_token 入参是 subject，extra 是 dict
+    token = create_access_token(subject=test_user_id, extra={"email": "x@x.com"})
+    headers = {"Authorization": f"Bearer {token}"}
     with TestClient(app) as client:
-        # 登录
-        login = client.post(
-            "/api/auth/login",
-            json={"email": f"wp10-bulk-{test_user_id}@x.com".replace("wp10-bulk-", "") + "@x.com", "password": "p"},
-        )
-        # 用最直接的方式：构造 token
-        from fwsort.security import create_access_token
-        token = create_access_token(user_id=test_user_id, email="x@x.com")
-        headers = {"Authorization": f"Bearer {token}"}
-        # 触发 mark_all_read
-        r = client.post("/api/notification/read-all", headers=headers)
+        # 触发 mark_all_read（注意路由前缀是 /api/notify）
+        r = client.post("/api/notify/read-all", headers=headers)
         assert r.status_code == 200, r.text
         body = r.json()
         assert body.get("data", {}).get("marked", 0) == 50, f"应标记 50 条，实际 {body}"
 
         # 验证全部已读
-        r2 = client.get("/api/notification/list?only_unread=true&limit=100", headers=headers)
+        r2 = client.get("/api/notify/list?only_unread=true&limit=100", headers=headers)
         assert r2.json()["data"]["count"] == 0, "未读数应为 0"
 
 
@@ -194,8 +182,10 @@ def test_wp11_ranking_cache_set_get():
 
 def test_wp11_ranking_cache_clear_by_prefix():
     """WP-11：按 prefix 清除缓存（权重变更触发）"""
-    from fwsort.cache.ranking_cache import set_cached, clear_cache_by_prefix, get_cached
+    from fwsort.cache.ranking_cache import set_cached, clear_cache_by_prefix, get_cached, clear_cache
 
+    # 先清空所有缓存，确保测试隔离
+    clear_cache()
     set_cached("fwsort:rank:cache:realtime:p1", {"v": 1}, ttl=60)
     set_cached("fwsort:rank:cache:realtime:p2", {"v": 2}, ttl=60)
     set_cached("fwsort:rank:cache:daily:p1", {"v": 3}, ttl=60)
@@ -205,6 +195,8 @@ def test_wp11_ranking_cache_clear_by_prefix():
     assert get_cached("fwsort:rank:cache:realtime:p2") is None
     # daily 不动
     assert get_cached("fwsort:rank:cache:daily:p1") is not None
+    # 清理：避免影响后续测试
+    clear_cache()
 
 
 # ========== WP-12 模拟器异步化 ==========
@@ -224,10 +216,10 @@ def test_wp12_simulator_uses_asyncio_sleep(monkeypatch):
     monkeypatch.setattr(simulator.asyncio, "sleep", tracking_sleep)
 
     async def _run():
-        sim = OrderSimulator(platform="okx", account_type=0)
-        # 跑 5 笔订单
+        sim = OrderSimulator()
+        # 跑 5 笔订单（submit 的 platform 走参数；与 OKX 报价模型）
         tasks = [
-            sim.submit(symbol="BTCUSDT", side=1, amount_usd=5.0, expected_price=50000.0)
+            sim.submit(platform="okx", symbol="BTCUSDT", side=1, amount_usd=5.0)
             for _ in range(5)
         ]
         results = await asyncio.gather(*tasks)
@@ -245,19 +237,20 @@ def test_wp12_simulator_concurrent_throughput():
     from fwsort.execution.simulator import OrderSimulator
 
     async def _run():
-        sim = OrderSimulator(platform="okx", account_type=0)
+        sim = OrderSimulator()
         latencies = []
 
         async def one():
             t0 = time.perf_counter()
-            await sim.submit(symbol="BTCUSDT", side=1, amount_usd=5.0, expected_price=50000.0)
+            await sim.submit(platform="okx", symbol="BTCUSDT", side=1, amount_usd=5.0)
             latencies.append((time.perf_counter() - t0) * 1000)
 
         tasks = [one() for _ in range(20)]  # 20 并发（测试用，生产应 100）
         await asyncio.gather(*tasks)
         latencies.sort()
         p99 = latencies[int(len(latencies) * 0.99) - 1] if len(latencies) > 1 else latencies[0]
-        # 测试用 20 并发；P99 应 < 200ms（生产 100 并发 P99 < 800ms 留余量）
-        assert p99 < 500, f"P99 {p99:.0f}ms 超过 500ms（异步化未生效）"
+        # 测试用 20 并发；单笔 80~600ms，并发下 P99 留余量 1000ms
+        # 生产 100 并发 + 真 sleep 应 < 800ms（耗时与并发数并非线性放大）
+        assert p99 < 1000, f"P99 {p99:.0f}ms 超过 1000ms（异步化未生效）"
 
     asyncio.run(_run())

@@ -37,10 +37,28 @@ class InterceptHandler(logging.Handler):
             level = logger.level(record.levelname).name
         except ValueError:
             level = record.levelno
-        logger.opt(depth=6, exception=record.exc_info).log(level, record.getMessage())
+        # WP-Fix: 转义 loguru 颜色标签字符 < > 与 [ ]，避免 elastic_transport 等
+        # 第三方库日志中的 <Node(...)> / [xxx] 触发 loguru Colorizer ValueError
+        try:
+            raw = record.getMessage()
+            safe = (
+                raw.replace("<", r"\<")
+                   .replace(">", r"\>")
+                   .replace("[", r"\[")
+                   .replace("]", r"\]")
+            )
+        except Exception:  # noqa: BLE001
+            safe = record.getMessage()
+        logger.opt(depth=6, exception=record.exc_info).log(level, safe)
 
 
 logging.basicConfig(handlers=[InterceptHandler()], level=0)
+
+# WP-Fix: 静默 elastic_transport 在 ES 不可用时的告警日志（我们自己的 es_client 已经做了
+# 友好降级提示，避免重复刷屏 + 触发 loguru 标签解析）
+logging.getLogger("elastic_transport").setLevel(logging.CRITICAL)
+logging.getLogger("elasticsearch").setLevel(logging.CRITICAL)
+logging.getLogger("elastic_transport.node_pool").setLevel(logging.CRITICAL)
 
 
 # ========== 应用生命周期 ==========

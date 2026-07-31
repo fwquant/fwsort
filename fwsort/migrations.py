@@ -11,6 +11,7 @@ _PATCHES = [
     # ===== 20260729 交易员需求 =====
     ("user", "share_to_global", "BOOLEAN", "1"),
     ("user", "allow_follow", "BOOLEAN", "1"),
+    ("user", "token_ttl_minutes", "INTEGER", "10080"),
     ("execution_account", "target_url", "VARCHAR(512)", None),
     ("execution_account", "target_symbol", "VARCHAR(64)", None),
     ("execution_account", "order_amount_usd", "NUMERIC(18,6)", "50.0"),

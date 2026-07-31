@@ -277,9 +277,9 @@ class OkxGateway(BaseGateway):
                 f"{self.host}/api/v5/public/time",
                 headers={"Content-Type": "application/json"},
             )
-            return {"ok": resp.status_code == 200, "status": resp.status_code}
+            return {"success": resp.status_code == 200, "status": resp.status_code}
         except Exception as e:  # noqa: BLE001
-            return {"ok": False, "error": str(e)}
+            return {"success": False, "msg": str(e)}
 
     def _symbol_to_inst_id(self, symbol: str) -> tuple[str, float]:
         """BTCUSDT → BTC-USDT, 取 lot_size"""
