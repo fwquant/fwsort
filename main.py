@@ -398,6 +398,10 @@ async def lifespan(app: FastAPI):
         except Exception as e:  # noqa: BLE001
             logger.warning(f"ES init failed (ignored, will run without ES): {type(e).__name__}: {e}")
 
+    # 主数据库建表（幂等，首次启动必须）
+    from fwsort.database import init_db
+    asyncio.create_task(asyncio.to_thread(init_db))
+
     if settings.APP_DEMO_MODE:
         # 演示模式：数据库初始化放到后台线程池（含 bcrypt 同步阻塞操作）
         asyncio.create_task(asyncio.to_thread(_init_demo_db_sync))

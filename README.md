@@ -172,7 +172,7 @@ open http://localhost:8000
 
 ## 🧠 V1.0 投票规则 - 完整闭环
 
-```python
+```text
 # 3 智能体预测（Hermes MoA 聚合）
 moa_result = await hermes.aggregate("BTCUSDT", "15m")
 # → layer1_results: [AgentPrediction(direction, confidence, reasoning, ...), x3]
@@ -319,7 +319,7 @@ curl -X POST "http://localhost:8000/api/agent/predict-and-vote?account_id=$ACC_I
 
 预期响应（无 API key 时降级 MOCK）：
 
-```json
+```text
 {
   "success": true,
   "data": {
