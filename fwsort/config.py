@@ -54,9 +54,9 @@ class Settings(BaseSettings):
     APP_REGISTER_RATE_LIMIT: int = 3        # 同 IP 3 次/小时
 
     # 轻量模式（无外部服务时使用 SQLite + 内存 Redis）
-    USE_SQLITE: bool = False
+    USE_SQLITE: bool = True
     SQLITE_PATH: str = "./data/fwsort.db"
-    USE_FAKE_REDIS: bool = False
+    USE_FAKE_REDIS: bool = True
 
     # PostgreSQL
     POSTGRES_HOST: str = "localhost"
@@ -88,16 +88,21 @@ class Settings(BaseSettings):
     HERMES_MOA_LAYERS: int = 2
 
     # 交易
-    TRADE_MODE: Literal["simulator", "live"] = "simulator"
+    TRADE_MODE: Literal["simulator", "live"] = "live"
     POLYMARKET_APIKEY: str = ""
     POLYMARKET_PRIVATE_KEY: str = ""
     POLYMARKET_WALLET_ADDRESS: str = ""
-    POLYMARKET_CHAIN: str = "goerli"
+    POLYMARKET_CHAIN: str = "polygon"
     OKX_API_KEY: str = ""
     OKX_SECRET: str = ""
     OKX_PASSPHRASE: str = ""
     OKX_FLAG: int = 1  # 0=实盘 1=模拟盘
     OKX_SERVER: str = "DEMO"  # DEMO=演示, LIVE=实盘
+
+    # Polymarket F3 Relayer Gasless 密钥（⚠️ 敏感信息，仅在 .env 中配置）
+    POLYMARKET_RELAYER_API_KEY_ADDRESS: str = ""
+    POLYMARKET_RELAYER_API_KEY: str = ""
+    POLYMARKET_RELAYER_PRIVATE_KEY: str = ""
 
     # ====== Polymarket 网关模块（BTC 5min 短期涨跌市场）集中配置 ======
     # 说明：所有 Polymarket 网关相关参数集中在此区段，便于统一管理

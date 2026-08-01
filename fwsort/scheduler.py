@@ -1,5 +1,6 @@
 # Celery 定时任务：榜单刷新 / 日榜快照 / 数据清理（架构文档 4.3.6）
 import random
+import time
 from datetime import datetime, timedelta
 
 from celery import Celery
@@ -141,29 +142,33 @@ def daily_cleanup() -> int:
 # ========== 任务 4：数据归档（90 天热→冷）==========
 @celery_app.task(name="fwsort.scheduler.archive_hot_to_cold")
 def archive_hot_to_cold() -> dict:
-    """订单执行日志归档：把超过 ORDER_LOG_HOT_DAYS 的旧数据从 PG 迁到 ES（冷存）
-
-    真实生产环境应写到 S3 / OSS，本 MVP 直接把过期数据 DELETE 之前先批量
-    dump 到 ES（冷存），PG 保留近 90 天热数据。
-    """
+    """订单执行日志归档：把超过 ORDER_LOG_HOT_DAYS 的旧数据从 PG 迁到 ES（冷存）"""
+    import asyncio
     from datetime import datetime
 
     from fwsort.es_client import get_es_client
 
+    es = get_es_client()
+    if es is None:
+        return {"archived": 0, "failed": 0, "error": "ES client not initialized"}
+
     cutoff = datetime.now() - timedelta(days=settings.ORDER_LOG_HOT_DAYS)
-    archived = 0
-    failed = 0
-    try:
-        es = get_es_client()
+
+    async def _run():
+        archived = 0
+        failed = 0
         with get_sync_db() as db:
             from fwsort.models import OrderExecutionLog
 
             old_rows = (
-                db.query(OrderExecutionLog).filter(OrderExecutionLog.created_at < cutoff).limit(5000).all()
+                db.query(OrderExecutionLog)
+                .filter(OrderExecutionLog.created_at < cutoff)
+                .limit(5000)
+                .all()
             )
             for r in old_rows:
                 try:
-                    es.index(
+                    await es.index(
                         index=f"{settings.ES_INDEX_ORDER_LOG}_archive",
                         id=r.order_id,
                         document={
@@ -185,9 +190,16 @@ def archive_hot_to_cold() -> dict:
                 except Exception as e:  # noqa: BLE001
                     failed += 1
                     logger.warning(f"archive row {r.order_id} failed: {e}")
+            db.commit()
+        return archived, failed
+
+    try:
+        archived, failed = asyncio.run(_run())
         logger.info(f"[scheduler] archive done: {archived} ok, {failed} failed")
     except Exception as e:  # noqa: BLE001
         logger.error(f"[scheduler] archive failed: {e}")
+        return {"archived": 0, "failed": 0, "error": str(e)}
+
     return {"archived": archived, "failed": failed}
 
 
@@ -463,7 +475,7 @@ def flush_outbox() -> dict:
     - 失败重试：指数退避（1 / 2 / 4 分钟），最多 3 次后转长退避
     - 进程崩溃恢复：重启后从 status=0/2 继续消费
     """
-    from fwsort.execution.outbox import flush_outbox_sync
+    from fwsort.order_log.outbox import flush_outbox_sync
 
     result = flush_outbox_sync()
     # flush_outbox_sync 内部已写 Redis HASH，这里再调用一次 _record_task_status 保持统一格式

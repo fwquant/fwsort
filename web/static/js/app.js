@@ -139,15 +139,37 @@
     return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // 登录弹框
+  // 登录弹框：打开时探测 has-admin，未播种时高亮引导 + 登录失败时提供跳转
   function openLoginModal() {
     const form = document.createElement("div");
     form.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:12px;">
+        <div id="login-hint" style="display:none;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.6;"></div>
         <label>邮箱 <input class="fwui-input" name="email" type="email" placeholder="email@example.com" required value="admin@fwquant.com"></label>
-        <label>密码 <input class="fwui-input" name="password" type="password" placeholder="≥ 1 位" required></label>
+        <label>密码 <input class="fwui-input" name="password" type="password" placeholder="≥ 1 位" required autocomplete="current-password"></label>
+        <div style="font-size:11px;color:var(--fwui-text-muted);line-height:1.5;">
+          · 默认管理员：<code>admin@fwquant.com</code> / <code>admin123456</code>（需先播种）<br>
+          · 想先体验？<a href="/demo" style="color:var(--fwui-primary);font-weight:600;">进入演示模式 →</a>
+        </div>
       </div>
     `;
+    const hint = form.querySelector("#login-hint");
+    // 打开时先检查是否已播种 admin（无副作用公开接口）
+    let hasAdmin = true;
+    FWUI.api.hasAdmin({ silent401: true }).then((d) => {
+      hasAdmin = !!(d && d.has_admin);
+      if (!hasAdmin) {
+        hint.style.display = "";
+        hint.style.background = "rgba(239,68,68,0.1)";
+        hint.style.border = "1px solid rgba(239,68,68,0.3)";
+        hint.style.color = "var(--fwui-danger)";
+        hint.innerHTML =
+          '⚠️ <strong>尚未创建管理员账户</strong>，首次使用请先：' +
+          '<a href="/admin" style="color:var(--fwui-danger);font-weight:700;margin:0 4px;">前往 /admin →</a>' +
+          "点击『一键初始化 + 播种』或『创建管理员』。也可直接进入<a href=\"/demo\" style=\"color:var(--fwui-primary);font-weight:700;margin:0 4px;\">演示模式</a>无需注册。";
+      }
+    }).catch(() => { /* 忽略探测失败 */ });
+
     FWUI.modal.confirm({
       title: "登录",
       content: form,
@@ -162,7 +184,34 @@
           localStorage.setItem("fwsort.refresh", data.refresh_token);
           FWUI.toast.success("登录成功");
           setTimeout(() => location.reload(), 600);
-        } catch (e) { FWUI.toast.error(e.message || "登录失败"); throw e; }
+        } catch (e) {
+          const msg = (e && e.message) || "登录失败";
+          // 如果之前探测到没 admin / 错误是 invalid credentials，给出引导跳转
+          const isInvalid = /invalid|邮箱|密码|credential/i.test(msg);
+          if (isInvalid || !hasAdmin) {
+            FWUI.modal.confirm({
+              title: "登录失败：未创建管理员",
+              content: (function () {
+                const wrap = document.createElement("div");
+                wrap.style.cssText = "font-size:13px;line-height:1.7;";
+                wrap.innerHTML =
+                  "<p>检测到系统可能还未初始化管理员账号（默认 <code>admin@fwquant.com</code> / <code>admin123456</code> 需先播种）。</p>" +
+                  '<ul style="margin:8px 0 8px 20px;">' +
+                  '<li><a href="/admin" style="color:var(--fwui-primary);font-weight:700;">前往控制台 /admin →</a> 点击『一键初始化 + 播种』</li>' +
+                  '<li><a href="/demo" style="color:var(--fwui-primary);font-weight:700;">进入演示模式 /demo →</a>（内置演示数据，无需注册）</li>' +
+                  "</ul>";
+                return wrap;
+              })(),
+              okText: "前往控制台",
+              cancelText: "再试一次",
+              showCancel: true,
+              onOk: () => { location.href = "/admin"; },
+            });
+            throw e; // 让外层保持不关闭原弹窗的习惯（虽然已经打开了新 modal）
+          }
+          FWUI.toast.error(msg);
+          throw e;
+        }
       },
     });
   }

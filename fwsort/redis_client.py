@@ -6,6 +6,7 @@ from datetime import timezone
 from typing import Any
 
 from fastapi import Request
+from loguru._datetime import datetime
 
 from fwsort.config import settings
 

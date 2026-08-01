@@ -77,6 +77,7 @@
     },
 
     // 认证
+    hasAdmin: (opts) => request("GET", "/api/auth/has-admin", null, opts),
     register: (payload) => request("POST", "/api/auth/register", payload),
     login:    (payload) => {
       // 演示模式：忽略 payload，直接走 demo-login（不需要密码）

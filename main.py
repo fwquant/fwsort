@@ -728,7 +728,7 @@ _DEMO_INJECT_BODY = """
 <script>
   // 演示模式下：导航链接自动重写为 /demo/ 前缀
   document.body.classList.add("fw-demo-body");
-  var _demoNavMap={"/":"demo","/detail":"demo/detail","/accounts":"demo/accounts","/accounts/tasks":"demo/accounts/tasks","/accounts/execution":"demo/accounts/execution","/follow":"demo/follow","/follow/my":"demo/follow/my","/rental":"demo/rental","/admin":"demo/admin","/profile":"demo/profile"};
+  var _demoNavMap={"/":"demo","/detail":"demo/detail","/accounts":"demo/accounts","/accounts/tasks":"demo/accounts/tasks","/accounts/execution":"demo/accounts/execution","/follow":"demo/follow","/follow/my":"demo/follow/my","/rental":"demo/rental","/admin":"demo/admin","/profile":"demo/profile","/polymarket":"demo/polymarket"};
   document.querySelectorAll(".fwui-nav__link").forEach(function(a){
     var h=a.getAttribute("href");
     if(h&&_demoNavMap[h]) a.setAttribute("href","/"+_demoNavMap[h]);
@@ -773,6 +773,7 @@ _PAGE_TEMPLATES = {
     "admin": "web/templates/admin.html",
     "guide": "web/templates/guide.html",
     "profile": "web/templates/profile.html",
+    "polymarket_debug": "web/templates/polymarket_debug.html",
 }
 
 def _render_page_sync(name: str, demo: bool = False, initial_tab: str = "global") -> HTMLResponse:
@@ -853,6 +854,11 @@ async def admin_page() -> HTMLResponse:
 async def profile_page() -> HTMLResponse:
     return await _render_page("profile")
 
+@app.get("/polymarket", response_class=HTMLResponse)
+async def polymarket_debug_page() -> HTMLResponse:
+    """Polymarket F3 调试页面"""
+    return await _render_page("polymarket_debug")
+
 
 # --- 演示模式路由（/demo/ 前缀，独立路由地址）---
 @app.get("/demo", response_class=HTMLResponse)
@@ -911,6 +917,11 @@ async def demo_profile_page() -> HTMLResponse:
 @app.get("/demo/guide", response_class=HTMLResponse)
 async def demo_guide_page() -> HTMLResponse:
     return await _render_page("guide", demo=True)
+
+@app.get("/demo/polymarket", response_class=HTMLResponse)
+async def demo_polymarket_debug_page() -> HTMLResponse:
+    """演示模式 Polymarket F3 调试页面"""
+    return await _render_page("polymarket_debug", demo=True)
 
 
 @app.get("/api/info", response_model=dict)

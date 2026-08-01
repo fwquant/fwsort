@@ -27,6 +27,14 @@ def init_es_client() -> None:
         logger.warning(f"ES client initialization failed: {e}")
 
 
+def get_es_client() -> Optional[AsyncElasticsearch]:
+    """获取 ES 客户端（延迟初始化，返回 AsyncElasticsearch 或 None）"""
+    global async_es
+    if async_es is None:
+        init_es_client()
+    return async_es
+
+
 # ES 索引映射（订单执行日志）
 ORDER_LOG_MAPPING = {
     "mappings": {

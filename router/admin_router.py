@@ -20,13 +20,13 @@ from fwsort.models import (
 from fwsort.ranking_engine import composite_score
 from fwsort.response import success
 from fwsort.security import hash_password
-from fwsort.execution.simulator import OrderSimulator
+from fwsort.gateway.simulator_gateway import SimulatorGateway
 from router.auth_router import current_user, current_user_optional
 
 router = APIRouter()
 
 _moa = build_hermes_moa()
-_simulator = OrderSimulator()
+_simulator = SimulatorGateway()
 
 
 async def require_admin(user: User = Depends(current_user)) -> User:
@@ -218,7 +218,7 @@ async def seed_mock(
         await db.flush()
         # 模拟下单
         if v.final_direction != 0 and v.order_amount_usd > 0:
-            sim = _simulator.submit(
+            sim = await _simulator.submit(
                 platform=acc.platform, symbol="BTCUSDT",
                 side=v.final_direction, amount_usd=v.order_amount_usd,
             )

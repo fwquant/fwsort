@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fwsort.agents.hermes_moa import build_hermes_moa
 from fwsort.database import get_async_db
 from fwsort.exceptions import NotFoundError, ParamError, RiskControlError
+from fwsort.fwlogs import logger
 from fwsort.gateway.gateway import ExecutionResult, get_gateway
 from fwsort.models import (
     AgentPrediction,
@@ -156,8 +157,8 @@ async def predict_and_vote(
         # WP-09：双重保障写入 ES
         # 1) outbox：同事务入库，进程崩溃也能恢复
         # 2) fire-and-forget：健康情况下立即投递，outbox flush 时会跳过 status=1 的事件
-        from fwsort.execution.es_writer import schedule_index_order_log
-        from fwsort.execution.outbox import build_order_log_event
+        from fwsort.order_log.es_writer import schedule_index_order_log
+        from fwsort.order_log.outbox import build_order_log_event
 
         try:
             db.add(build_order_log_event(log))
@@ -574,7 +575,7 @@ async def es_search_logs(
     _user: User = Depends(current_user),
 ) -> dict:
     """通过 ES 检索某账户的订单日志（高并发场景用，DB 兜底）"""
-    from fwsort.execution.es_writer import search_order_logs
+    from fwsort.order_log.es_writer import search_order_logs
 
     res = await search_order_logs(uid=uid, platform=platform, status=status, size=size)
     return success(data=res)

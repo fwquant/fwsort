@@ -93,6 +93,21 @@ async def current_user_optional(
     return user
 
 
+# ========== 接口：是否已有管理员（公开端点，方便前端首次启动引导）==========
+@router.get("/has-admin", response_model=dict)
+async def has_admin(db: AsyncSession = Depends(get_async_db)) -> dict:
+    """公开：查询系统是否已经存在管理员（role>=3）
+    - 用于前端登录弹窗：如果没有管理员，提示"请先去 /admin 播种"或"进入演示模式"
+    - 无鉴权、无副作用，仅返回 bool
+    """
+    from sqlalchemy import select, func
+    cnt = (await db.execute(select(func.count(User.id)).where(User.role >= 3))).scalar_one() or 0
+    return success(
+        {"has_admin": cnt > 0, "count": int(cnt)},
+        message="has-admin check ok",
+    )
+
+
 # ========== 接口：注册 ==========
 @router.post("/register", response_model=dict)
 async def register(
