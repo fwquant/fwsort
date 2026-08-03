@@ -22,6 +22,10 @@ _PATCHES = [
     ("execution_account", "public_enabled", "BOOLEAN", "1"),
     # ===== WP-05 软删除字段补列（老库升级）=====
     ("execution_account", "deleted_at", "DATETIME", None),
+    # ===== 20260803 自动任务日志增强 =====
+    ("auto_task_log", "log_type", "SMALLINT", "0"),
+    ("auto_task_log", "action_type", "VARCHAR(32)", "''"),
+    ("auto_task_log", "detail_json", "TEXT", "'{}'"),
 ]
 
 
@@ -121,6 +125,8 @@ _INDEX_DDL: list[tuple[str, str]] = [
     ("idx_vote_account_time", "CREATE INDEX IF NOT EXISTS idx_vote_account_time ON vote_decision (account_id, created_at DESC)"),
     # agent_prediction: 智能体预测按 (symbol, timeframe, created_at DESC)
     ("idx_prediction_symbol_time", "CREATE INDEX IF NOT EXISTS idx_prediction_symbol_time ON agent_prediction (symbol, timeframe, created_at DESC)"),
+    # auto_task_log: 任务日志按 (task_id, log_type, created_at DESC)
+    ("idx_auto_task_log_task_type", "CREATE INDEX IF NOT EXISTS idx_auto_task_log_task_type ON auto_task_log (task_id, log_type, created_at DESC)"),
 ]
 
 

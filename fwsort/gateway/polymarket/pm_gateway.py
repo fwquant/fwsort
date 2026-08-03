@@ -9,10 +9,26 @@ from polymarket.auth import RelayerApiKey
 
 load_dotenv()
 
+# 延迟导入避免循环依赖：通过 settings 单例读取配置（settings 已通过数据库/ENV 加载完毕）
+def _get_settings():
+    from fwsort.config import settings as _s
+    return _s
+
 
 # 辅助：从环境变量读取必填项，缺失时给出清晰提示
+# 同时支持从 settings 单例读取（settings 已从 DB/ENV 同步）
 def _env(key: str, required: bool = True) -> str:
     val = os.environ.get(key, "")
+    # 如果 ENV 没有，尝试从 settings 单例取（可能已从 DB 或上次 ENV 同步）
+    if not val:
+        try:
+            s = _get_settings()
+            val = getattr(s, key, "") or ""
+            if val:
+                # 回填到 os.environ，保证后续同进程调用直接命中
+                os.environ[key] = val
+        except Exception:
+            pass
     if required and not val:
         raise RuntimeError(f"环境变量 {key} 未设置，请检查 .env 文件")
     return val

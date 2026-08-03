@@ -89,12 +89,13 @@ class _FakeAsyncZSet:
 
 
 class _FakeAsyncRedis:
-    """最小化 async Redis 客户端：实现 zadd/zcard/zrevrange/zremrangebyscore/expire/delete/get/setex/scan_iter"""
+    """最小化 async Redis 客户端：实现 zadd/zcard/zrevrange/zremrangebyscore/expire/delete/get/setex/scan_iter + hash ops"""
 
     def __init__(self) -> None:
         self._zsets: dict[str, _FakeAsyncZSet] = {}
         self._kv: dict[str, str] = {}
         self._kv_ttls: dict[str, int] = {}
+        self._hashes: dict[str, dict[str, str]] = {}
 
     def zset(self, key: str) -> _FakeAsyncZSet:
         if key not in self._zsets:
@@ -159,6 +160,32 @@ class _FakeAsyncRedis:
             if match is None or match.replace("*", "") in k:
                 yield k
 
+    async def hget(self, key: str, field: str) -> str | None:
+        """获取 hash 中的字段值"""
+        hash_data = self._hashes.get(key, {})
+        return hash_data.get(field)
+
+    async def hset(self, key: str, field: str, value: str) -> int:
+        """设置 hash 中的字段值"""
+        if key not in self._hashes:
+            self._hashes[key] = {}
+        self._hashes[key][field] = value
+        return 1
+
+    async def hdel(self, key: str, *fields: str) -> int:
+        """删除 hash 中的字段"""
+        hash_data = self._hashes.get(key, {})
+        count = 0
+        for field in fields:
+            if field in hash_data:
+                del hash_data[field]
+                count += 1
+        return count
+
+    async def hgetall(self, key: str) -> dict[str, str]:
+        """获取 hash 中的所有字段"""
+        return self._hashes.get(key, {})
+
 
 class _FakeSyncRedis:
     """同步版 fake redis（给 Celery 任务使用）"""
@@ -166,6 +193,7 @@ class _FakeSyncRedis:
     def __init__(self) -> None:
         self._zsets: dict[str, dict[str, float]] = {}
         self._kv: dict[str, str] = {}
+        self._hashes: dict[str, dict[str, str]] = {}
 
     def zadd(self, key: str, mapping: dict[str, float]) -> int:
         self._zsets.setdefault(key, {}).update(mapping)
@@ -192,6 +220,9 @@ class _FakeSyncRedis:
             if k in self._kv:
                 self._kv.pop(k, None)
                 n += 1
+            if k in self._hashes:
+                self._hashes.pop(k, None)
+                n += 1
         return n
 
     def get(self, key: str) -> str | None:
@@ -199,6 +230,32 @@ class _FakeSyncRedis:
 
     def setex(self, key: str, ttl: int, value: str) -> None:
         self._kv[key] = value
+
+    def hget(self, key: str, field: str) -> str | None:
+        """获取 hash 中的字段值"""
+        hash_data = self._hashes.get(key, {})
+        return hash_data.get(field)
+
+    def hset(self, key: str, field: str, value: str) -> int:
+        """设置 hash 中的字段值"""
+        if key not in self._hashes:
+            self._hashes[key] = {}
+        self._hashes[key][field] = value
+        return 1
+
+    def hdel(self, key: str, *fields: str) -> int:
+        """删除 hash 中的字段"""
+        hash_data = self._hashes.get(key, {})
+        count = 0
+        for field in fields:
+            if field in hash_data:
+                del hash_data[field]
+                count += 1
+        return count
+
+    def hgetall(self, key: str) -> dict[str, str]:
+        """获取 hash 中的所有字段"""
+        return self._hashes.get(key, {})
 
     def scan_iter(self, match: str | None = None, count: int = 100):
         for k in list(self._kv.keys()):

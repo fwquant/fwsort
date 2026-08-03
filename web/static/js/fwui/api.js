@@ -75,6 +75,12 @@
     async post(path, body = {}, opts) {
       return request("POST", path, body, opts);
     },
+    async put(path, body = {}, opts) {
+      return request("PUT", path, body, opts);
+    },
+    async del(path, opts) {
+      return request("DELETE", path, null, opts);
+    },
 
     // 认证
     hasAdmin: (opts) => request("GET", "/api/auth/has-admin", null, opts),

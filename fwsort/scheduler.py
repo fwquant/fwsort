@@ -71,6 +71,11 @@ celery_app.conf.update(
             "task": "fwsort.scheduler.flush_outbox",
             "schedule": crontab(minute="*"),
         },
+        # 自动任务调度器：每分钟扫描一次，根据任务 interval 触发
+        "auto-task-dispatcher": {
+            "task": "fwsort.scheduler.auto_task_dispatcher",
+            "schedule": crontab(minute="*"),
+        },
     },
 )
 
@@ -514,6 +519,7 @@ def get_all_task_status() -> list[dict]:
         "refresh_account_signals",
         "auto_predict_vote_trade",
         "flush_outbox",  # WP-09
+        "auto_task_dispatcher",  # 自动任务调度器
     ]
     result: list[dict] = []
     try:
@@ -582,3 +588,75 @@ def mock_fill_rankings(n: int = 30) -> None:
                     )
                 )
     logger.info(f"[mock] filled rankings for {len(accounts)} accounts")
+
+
+# ========== 任务 10：自动任务调度器（信号管理器 + 自动下单）==========
+@celery_app.task(name="fwsort.scheduler.auto_task_dispatcher")
+def auto_task_dispatcher() -> dict:
+    """每分钟扫描所有活跃的自动任务，根据 interval 触发执行
+
+    使用 Redis 记录每个任务的上次执行时间戳，实现多任务独立调度。
+    """
+    import json as _json
+
+    from fwsort.models import AutoTask
+
+    dispatcher_key = "fwsort:auto_task:last_run"
+    now = int(time.time())
+    triggered: list[int] = []
+    skipped: list[int] = []
+
+    with get_sync_db() as db:
+        active_tasks = db.query(AutoTask).filter(
+            AutoTask.is_active == True,
+            AutoTask.deleted_at.is_(None),
+        ).all()
+
+        for task in active_tasks:
+            # 读取上次执行时间
+            last_run = 0
+            try:
+                raw = sync_redis.hget(dispatcher_key, str(task.id))
+                if raw:
+                    last_run = int(raw)
+            except Exception:
+                pass
+
+            interval_seconds = task.interval * 60
+            if last_run == 0 or (now - last_run) >= interval_seconds:
+                # 触发执行
+                sync_redis.hset(dispatcher_key, str(task.id), str(now))
+                triggered.append(task.id)
+
+                # 异步投递到独立的执行任务（多任务多进程并发）
+                try:
+                    execute_auto_task.delay(task.id)
+                except Exception as e:
+                    logger.error(f"[auto_task_dispatcher] failed to dispatch task {task.id}: {e}")
+            else:
+                skipped.append(task.id)
+
+    result = {
+        "triggered": triggered,
+        "skipped": skipped,
+        "active_count": len(active_tasks) if 'active_tasks' in dir() else 0,
+    }
+    _record_task_status("auto_task_dispatcher", "ok", result)
+    return result
+
+
+@celery_app.task(name="fwsort.scheduler.execute_auto_task", bind=True, max_retries=0)
+def execute_auto_task(self, task_id: int) -> dict:
+    """执行单个自动任务（独立 Celery 任务，多进程并发）
+
+    流程：获取信号 → 风控检查 → 下单 → 记录日志
+    """
+    from fwsort.tasks.service import execute_task
+
+    try:
+        result = execute_task(task_id)
+        logger.info(f"[execute_auto_task] task={task_id} result={result.get('status')}")
+        return result
+    except Exception as e:
+        logger.error(f"[execute_auto_task] task={task_id} failed: {e}")
+        return {"task_id": task_id, "status": "error", "error": str(e)}

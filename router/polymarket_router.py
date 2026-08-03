@@ -12,7 +12,7 @@ from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fwsort.config import settings
+from fwsort.config import settings, reload_env
 from fwsort.database import get_async_db
 from fwsort.models import User
 from fwsort.response import fail, success
@@ -482,7 +482,7 @@ class F3LiquidityRequest(BaseModel):
 def _get_pm():
     global _pm_instance
     if _pm_instance is None:
-        from fwsort.gateway.polymarket.最简类_下单代码 import pm类
+        from fwsort.gateway.polymarket.F3.最简类_下单代码 import pm类
         _pm_instance = pm类()
     return _pm_instance
 
@@ -492,6 +492,9 @@ async def f3_init(request: Request, _: User = Depends(require_admin)) -> dict:
     """初始化 F3 Relayer Gasless 客户端"""
     if _is_demo_request(request):
         return _demo_init_response()
+
+    reload_env()
+
     pm = _get_pm()
     try:
         async with _pm_lock:
@@ -543,13 +546,152 @@ async def f3_status(request: Request, __=Depends(_bootstrap_or_readonly)) -> dic
     }, message="F3 status")
 
 
+def _mask_secret(val: str, name: str, prefix_len: int = 6, suffix_len: int = 4) -> str:
+    """脱敏处理：有值显示 前缀***后缀，无值显示 [变量名]"""
+    if not val:
+        return f"[{name}]"
+    if len(val) <= prefix_len + suffix_len:
+        return "*" * len(val)
+    return val[:prefix_len] + "*" * 8 + val[-suffix_len:]
+
+
+@router.get("/f3/init-status", response_model=dict)
+async def f3_init_status(request: Request, __=Depends(_bootstrap_or_readonly)) -> dict:
+    """初始化进展详情（脱敏，非敏感数据直接显示，密钥显示星号或[变量名]）
+
+    自动重新加载 .env 文件，修改 .env 后无需重启服务。
+    """
+    if _is_demo_request(request):
+        return success({
+            "demo": True,
+            "trade_mode": "simulator",
+            "config_items": [],
+            "steps": [],
+        }, message="DEMO mode: init-status (simulated)")
+
+    # --- 重新加载 .env（修改后无需重启）---
+    env_changes = reload_env()
+
+    # --- .env 非敏感值 → 数据库同步（仅当 DB 为空时）---
+    try:
+        from fwsort.config_service import save_config, get_all_configs
+        _all_db = await get_all_configs()
+        for _ek in ("POLYMARKET_CHAIN", "POLYMARKET_HOST", "POLYMARKET_BTC5M_ENABLED",
+                     "POLYMARKET_BTC5M_SLUG_PREFIX", "TRADE_MODE"):
+            _ev = getattr(settings, _ek, "")
+            if _ek.lower() not in _all_db and _ev:
+                _vt = "bool" if isinstance(_ev, bool) else "int" if isinstance(_ev, int) else "str"
+                await save_config(_ek, str(_ev), value_type=_vt, group="polymarket", updated_by="env-sync")
+    except Exception:
+        pass
+
+    # --- 配置项详情（脱敏）---
+    config_items = [
+        {
+            "key": "POLYMARKET_RELAYER_API_KEY_ADDRESS",
+            "label": "Relayer 签名者地址",
+            "configured": bool(settings.POLYMARKET_RELAYER_API_KEY_ADDRESS),
+            "value": settings.POLYMARKET_RELAYER_API_KEY_ADDRESS or "[POLYMARKET_RELAYER_API_KEY_ADDRESS]",
+        },
+        {
+            "key": "POLYMARKET_RELAYER_API_KEY",
+            "label": "Relayer API Key",
+            "configured": bool(settings.POLYMARKET_RELAYER_API_KEY),
+            "value": _mask_secret(settings.POLYMARKET_RELAYER_API_KEY, "POLYMARKET_RELAYER_API_KEY"),
+        },
+        {
+            "key": "POLYMARKET_RELAYER_PRIVATE_KEY",
+            "label": "钱包私钥(POLYGON)",
+            "configured": bool(settings.POLYMARKET_RELAYER_PRIVATE_KEY),
+            "value": _mask_secret(settings.POLYMARKET_RELAYER_PRIVATE_KEY, "POLYMARKET_RELAYER_PRIVATE_KEY"),
+        },
+    ]
+
+    # --- 非敏感配置 ---
+    runtime_config = {
+        "POLYMARKET_CHAIN": settings.POLYMARKET_CHAIN,
+        "POLYMARKET_HOST": settings.POLYMARKET_HOST,
+        "TRADE_MODE": settings.TRADE_MODE,
+        "env_reloaded": env_changes,
+    }
+
+    # --- 初始化步骤进度 ---
+    pm = _get_pm()
+    pm_ready = pm is not None and getattr(pm, "_initialized", False)
+
+    # 检查 SDK 可用性
+    sdk_ok = False
+    sdk_error = ""
+    try:
+        from polymarket import AsyncSecureClient  # noqa: F401
+        sdk_ok = True
+    except ImportError as e:
+        sdk_error = str(e)
+
+    # 检查 pm类 可用性
+    pm_ok = False
+    pm_error = ""
+    try:
+        from fwsort.gateway.polymarket.F3.最简类_下单代码 import pm类  # noqa: F401
+        pm_ok = True
+    except Exception as e:
+        pm_error = str(e)
+
+    # 构造步骤列表
+    f3_ready = bool(settings.POLYMARKET_RELAYER_API_KEY and settings.POLYMARKET_RELAYER_API_KEY_ADDRESS and settings.POLYMARKET_RELAYER_PRIVATE_KEY)
+
+    steps = [
+        {
+            "step": 1,
+            "name": "SDK 加载",
+            "status": "ok" if sdk_ok else "error",
+            "detail": "polymarket-client SDK 已加载" if sdk_ok else f"SDK 导入失败: {sdk_error}",
+        },
+        {
+            "step": 2,
+            "name": "pm类 加载",
+            "status": "ok" if pm_ok else "error",
+            "detail": "fwsort.gateway.polymarket.最简类_下单代码.pm类 已加载" if pm_ok else f"pm类 导入失败: {pm_error}",
+        },
+        {
+            "step": 3,
+            "name": "F3 Relayer 凭据",
+            "status": "ok" if f3_ready else "warn",
+            "detail": "RELAYER_API_KEY + ADDRESS + PRIVATE_KEY 齐全" if f3_ready else "[POLYMARKET_RELAYER_*] 未配置",
+        },
+        {
+            "step": 4,
+            "name": "客户端初始化",
+            "status": "ok" if pm_ready else "idle",
+            "detail": "AsyncSecureClient 已创建并验证" if pm_ready else "未初始化（点击「初始化连接」按钮）",
+        },
+    ]
+
+    # --- 可用下单方式 ---
+    available_modes = []
+    if f3_ready:
+        available_modes.append("F3")
+    if not available_modes:
+        available_modes.append("(无可用方式)")
+
+    return success({
+        "config_items": config_items,
+        "runtime_config": runtime_config,
+        "steps": steps,
+        "available_modes": available_modes,
+        "pm_initialized": pm_ready,
+        "total_steps": len(steps),
+        "ok_steps": sum(1 for s in steps if s["status"] == "ok"),
+    }, message="F3 init-status (sanitized)")
+
+
 @router.get("/f3/market", response_model=dict)
 async def f3_market(
     request: Request,
     slug: str = "btc-updown-5m-{epoch}",
     __=Depends(_bootstrap_or_readonly),
 ) -> dict:
-    """查询指定 slug 的市场信息"""
+    """查询指定 slug 的市场信息（需登录，已初始化 admin 后要求认证）"""
     if _is_demo_request(request):
         return _demo_market_response(slug)
     pm = _get_pm()

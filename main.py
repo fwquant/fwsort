@@ -25,6 +25,8 @@ from router import (
     polymarket_router,
     ranking_router,
     rental_router,
+    signal_provider_router,
+    task_router,
 )
 
 
@@ -387,7 +389,7 @@ async def _seed_demo_redis_zset() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动：初始化 ES 索引 + 演示数据库；关闭：清理资源"""
+    """启动：初始化 ES 索引 + 演示数据库 + 加载数据库配置 + 启动自动任务调度器；关闭：清理资源"""
     _validate_production_secret()
     _warn_polymarket_keys()
 
@@ -402,6 +404,28 @@ async def lifespan(app: FastAPI):
     from fwsort.database import init_db
     asyncio.create_task(asyncio.to_thread(init_db))
 
+    # 自动同步内置信号源到数据库
+    async def _sync_signal_providers() -> None:
+        try:
+            await asyncio.sleep(2)
+            from fwsort.signals.config_service import sync_builtin_providers
+            sync_builtin_providers()
+        except Exception as e:
+            logger.warning(f"[signal-providers] sync builtin failed: {e}")
+    asyncio.create_task(_sync_signal_providers())
+
+    # 从数据库加载配置（种子默认值 + 加载当前值覆盖 settings）
+    # 注意：必须用 _load_db_config() 调用 coroutine，否则 create_task 会报错
+    async def _load_db_config() -> None:
+        try:
+            await asyncio.sleep(1)
+            from fwsort.config import init_config_from_db
+            await init_config_from_db()
+        except Exception as e:
+            logger.warning(f"从数据库加载配置失败（将使用代码默认值）: {e}")
+
+    asyncio.create_task(_load_db_config())
+
     if settings.APP_DEMO_MODE:
         # 演示模式：数据库初始化放到后台线程池（含 bcrypt 同步阻塞操作）
         asyncio.create_task(asyncio.to_thread(_init_demo_db_sync))
@@ -411,8 +435,27 @@ async def lifespan(app: FastAPI):
     # ES 连接超时较长（~2s），放到后台不阻塞 server start
     asyncio.create_task(_init_es())
 
+    # 启动内置自动任务调度器（不依赖 Celery，内置轮询机制）
+    async def _start_auto_task_dispatcher() -> None:
+        try:
+            await asyncio.sleep(3)  # 等待数据库和 Redis 初始化完成
+            from fwsort.tasks.dispatcher import start_dispatcher, get_dispatcher_status
+            start_dispatcher()
+            status = get_dispatcher_status()
+            logger.info(f"[AutoTaskDispatcher] 状态: {status}")
+        except Exception as e:
+            logger.warning(f"[AutoTaskDispatcher] 启动失败（非致命）: {e}")
+    asyncio.create_task(_start_auto_task_dispatcher())
+
     logger.info(f"fwsort started | env={settings.APP_ENV} | mode={settings.TRADE_MODE} | demo={settings.APP_DEMO_MODE}")
     yield
+    # 关闭内置自动任务调度器
+    try:
+        from fwsort.tasks.dispatcher import stop_dispatcher
+        stop_dispatcher()
+    except Exception as e:
+        logger.warning(f"[AutoTaskDispatcher] 停止失败: {e}")
+
     try:
         await close_es_client()
     except Exception as e:  # noqa: BLE001
@@ -642,6 +685,8 @@ app.include_router(follow_router.router, prefix="/api/follow", tags=["follow"])
 app.include_router(rental_router.router, prefix="/api/rental", tags=["rental"])
 app.include_router(notification_router.router, prefix="/api/notify", tags=["notify"])
 app.include_router(polymarket_router.router, prefix="/api/polymarket", tags=["polymarket"])
+app.include_router(task_router.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(signal_provider_router.router, tags=["signal-providers"])
 
 
 # ========== WP-06：把所有 /api/* 路由镜像到 /api/demo/*（独立数据通道）==========
@@ -688,6 +733,7 @@ _total_mirrored += _mirror_router_to_demo(follow_router.router, "/api/follow")
 _total_mirrored += _mirror_router_to_demo(rental_router.router, "/api/rental")
 _total_mirrored += _mirror_router_to_demo(notification_router.router, "/api/notify")
 _total_mirrored += _mirror_router_to_demo(polymarket_router.router, "/api/polymarket")
+_total_mirrored += _mirror_router_to_demo(task_router.router, "/api/tasks")
 logger.info(f"WP-06: mirrored {_total_mirrored} /api/* routes to /api/demo/*")
 
 
@@ -962,11 +1008,70 @@ async def demo_health() -> dict:
 
 
 if __name__ == "__main__":
+    import argparse
     import threading
     import time
     import socket
+    import subprocess
+    import sys
     import uvicorn
     import webbrowser
+
+    parser = argparse.ArgumentParser(description="fwsort server")
+    parser.add_argument("--port", type=int, default=None, help="端口号，覆盖配置文件中的 APP_PORT")
+    args = parser.parse_args()
+
+    if args.port is not None:
+        settings.APP_PORT = args.port
+
+    def check_port_conflict(host: str, port: int) -> None:
+        """检查端口是否被占用，若占用则打印友好中文提示并退出"""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1.0)
+                result = s.connect_ex((host if host != "0.0.0.0" else "127.0.0.1", port))
+                if result == 0:
+                    # 端口被占用，尝试查找 PID
+                    pid = _find_pid_on_port(port)
+                    msg = f"\n{'='*60}\n"
+                    msg += f"⚠️  端口 {port} 已被占用！\n"
+                    if pid:
+                        msg += f"   占用进程 PID: {pid}\n"
+                        msg += f"   建议操作：\n"
+                        msg += f"     1. 终止占用进程: taskkill /PID {pid} /F\n"
+                        msg += f"     2. 或使用其他端口: python main.py --port {port+1}\n"
+                    else:
+                        msg += f"   无法识别占用进程 PID\n"
+                        msg += f"   建议操作：\n"
+                        msg += f"     1. 查看占用: netstat -ano | findstr :{port}\n"
+                        msg += f"     2. 或使用其他端口: python main.py --port {port+1}\n"
+                    msg += f"{'='*60}\n"
+                    msg += f"错误码: WinError 10013 / 10048 (端口冲突)\n"
+                    msg += f"进程已退出，请解决端口占用后重试。\n"
+                    msg += f"{'='*60}\n"
+                    print(msg)
+                    sys.exit(1)
+        except Exception:
+            pass
+
+    def _find_pid_on_port(port: int) -> str | None:
+        """Windows 下查找占用指定端口的 PID"""
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            for line in result.stdout.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    if parts:
+                        return parts[-1]
+        except Exception:
+            pass
+        return None
 
     def is_port_open(host: str, port: int, timeout: float = 1.0) -> bool:
         """检查端口是否已开放（服务是否启动）"""
@@ -994,6 +1099,9 @@ if __name__ == "__main__":
             time.sleep(check_interval)
             elapsed += check_interval
 
+    # 启动前检查端口冲突
+    check_port_conflict(settings.APP_HOST, settings.APP_PORT)
+
     # 启动浏览器线程（仅在开发模式下）
     if settings.APP_DEBUG:
         threading.Thread(target=open_browser, daemon=True).start()
@@ -1002,5 +1110,5 @@ if __name__ == "__main__":
         "main:app",
         host=settings.APP_HOST,
         port=settings.APP_PORT,
-        reload=settings.APP_DEBUG,
+        reload=settings.APP_RELOAD,
     )

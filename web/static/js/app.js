@@ -186,9 +186,14 @@
           setTimeout(() => location.reload(), 600);
         } catch (e) {
           const msg = (e && e.message) || "登录失败";
-          // 如果之前探测到没 admin / 错误是 invalid credentials，给出引导跳转
-          const isInvalid = /invalid|邮箱|密码|credential/i.test(msg);
-          if (isInvalid || !hasAdmin) {
+          const status = (e && e.status) || 0;
+          // 区分两种场景：
+          // 1) 密码错误 / 用户名不存在 → 直接提示"用户名或密码错误"，不误导
+          // 2) 系统未播种管理员（401 + 无管理员）→ 给出引导跳转
+          const isCredentialError = /用户名或密码错误|invalid|credential/i.test(msg);
+          const isNeedBootstrap = status === 401 && !hasAdmin;
+          if (isNeedBootstrap) {
+            // 场景2：系统确实没有管理员，引导用户去播种
             FWUI.modal.confirm({
               title: "登录失败：未创建管理员",
               content: (function () {
@@ -207,8 +212,9 @@
               showCancel: true,
               onOk: () => { location.href = "/admin"; },
             });
-            throw e; // 让外层保持不关闭原弹窗的习惯（虽然已经打开了新 modal）
+            throw e;
           }
+          // 场景1：密码错误等常规错误，直接提示真实原因
           FWUI.toast.error(msg);
           throw e;
         }
@@ -256,6 +262,14 @@
       },
     });
   }
+
+  // 暴露登录/注册接口，供 admin.html 等页面在未登录时主动唤起登录框
+  window.FWUI = window.FWUI || {};
+  window.FWUI.auth = {
+    openLoginModal: openLoginModal,
+    openRegisterModal: openRegisterModal,
+    isLoggedIn: () => !!FWUI.api.getToken(),
+  };
 
   // DOM Ready
   if (document.readyState === "loading") {

@@ -5,8 +5,10 @@ import traceback
 from decimal import Decimal
 from typing import Literal, TypeAlias
 
+import httpx
 from dotenv import load_dotenv
-from polymarket import AsyncSecureClient, OrderSide
+from polymarket import AsyncSecureClient
+from polymarket.models import OrderSide
 from polymarket.auth import RelayerApiKey
 
 load_dotenv()
@@ -19,7 +21,7 @@ def 获得当前时间值(周期: int = 4 * 60 * 60):
 
 # F3认证: Relayer Gasless (免Gas费)，无需持有POL  标的代码就是 最后斜线后面的值 ，比如： https://polymarket.com/zh/event/btc-updown-4h-1785456000  值 为：btc-updown-4h-1785456000
 async def F3_市单(标的代码: str = "btc-updown-4h-{epoch}", amount: Decimal = 1,
-                  outcome: Literal["YES", "NO", "Y", "N"] = "YES", side: OrderSide = "BUY"):
+                  outcome: Literal["YES", "NO", "Y", "N", "UP", "DOWN", "U", "D"] = "YES", side: OrderSide = "BUY"):
     try:
         POLYMARKET_RELAYER_API_KEY_ADDRESS = os.environ.get("POLYMARKET_RELAYER_API_KEY_ADDRESS")
         POLYMARKET_RELAYER_PRIVATE_KEY = os.environ.get("POLYMARKET_RELAYER_PRIVATE_KEY")
@@ -34,15 +36,15 @@ async def F3_市单(标的代码: str = "btc-updown-4h-{epoch}", amount: Decimal
         client = await AsyncSecureClient.create(private_key=POLYMARKET_RELAYER_PRIVATE_KEY, api_key=relayer_api_key, )
         print(f"2、【创建客户端】(Relayer Gasless), client = {client}")
 
-        # 获取当前 标的代码对应的盘口 涨跌市场   btc-updown-4h-1785470400
-        market = await client.get_market(
-            slug=标的代码.replace("{epoch}", 获得当前时间值(周期=4 * 60 * 60)))  # 标的代码对应的盘口
+        # 获取当前 标的代码对应的盘口 涨跌市场   btc-updown-4h-1785470400  5*60    4*60 *60  1440
+        slug = 标的代码.replace("{epoch}", 获得当前时间值(周期=4 * 60 * 60))
+        market = await client.get_market(slug=slug)  # 标的代码对应的盘口
         print(f"3、【获取市场】 ，market={market}")
 
         # 下市价单（$1 USDC 买 YES/UP 或 NO/DOWN）
-        selected_token_id = market.outcomes.yes.token_id if outcome.upper() in ("YES",
-                                                                                "Y") else market.outcomes.no.token_id
-        response = await client.place_market_order(token_id=selected_token_id, side=side, amount=amount)
+        token_id = market.outcomes.yes.token_id if outcome.upper() in ("YES", "Y", "UP",
+                                                                       "U") else market.outcomes.no.token_id
+        response = await client.place_market_order(token_id=token_id, side=side, amount=amount)
         print(f"4、【下市价单】 response = {response}")
 
         # 查询持仓验证
@@ -58,6 +60,5 @@ async def F3_市单(标的代码: str = "btc-updown-4h-{epoch}", amount: Decimal
 
 if __name__ == "__main__":
     result = asyncio.run(F3_市单(标的代码="btc-updown-4h-{epoch}", amount=Decimal(1), outcome="YES"))
-    print(
-        f"下单结果 result = {result}，你可以在浏览器打开URL：https://polymarket.com/zh/event/{result.market.condition_id} 查看订单详情")
+    print(        f"下单结果 result = {result}")
     pass

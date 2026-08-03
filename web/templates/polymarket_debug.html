@@ -53,6 +53,36 @@
     .pm-dir-radio.pm-dir-down:has(input:checked){background:rgba(239,68,68,.15);color:var(--fwui-danger);border-color:var(--fwui-danger);}
     .pm-dir-radio:has(input:checked){box-shadow:inset 0 0 0 2px currentColor;}
     @media(max-width:768px){.pm-form-row{flex-direction:column;align-items:stretch;}.pm-form-row label{min-width:auto;}.pm-info-grid{grid-template-columns:1fr;}.pm-tabs-bar{overflow-x:auto;flex-wrap:nowrap;}}
+    .pm-step{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--fwui-radius-sm);font-size:13px;border:1px solid var(--fwui-border);}
+    .pm-step--ok{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.3);}
+    .pm-step--error{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);}
+    .pm-step--warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);}
+    .pm-step--idle{background:var(--fwui-bg);border-color:var(--fwui-border);}
+    .pm-step-icon{font-size:16px;flex-shrink:0;}
+    .pm-step-name{font-weight:600;min-width:120px;}
+    .pm-step-detail{color:var(--fwui-text-secondary);font-size:12px;word-break:break-all;}
+    .pm-mode-tag{padding:6px 14px;border-radius:var(--fwui-radius-sm);font-size:13px;font-weight:600;border:1px solid var(--fwui-border);background:var(--fwui-bg);}
+    .pm-mode-tag--ok{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--fwui-success);}
+    .pm-mode-tag--off{color:var(--fwui-text-muted);}
+    .pm-toggle-row{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:13px;color:var(--fwui-text-secondary);}
+    .pm-toggle-row input{display:none;}
+    .pm-toggle-switch{width:32px;height:18px;background:var(--fwui-border);border-radius:9px;position:relative;transition:background .2s;flex-shrink:0;}
+    .pm-toggle-switch::after{content:"";position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:transform .2s;}
+    .pm-toggle-row:has(input:checked) .pm-toggle-switch{background:var(--fwui-primary);}
+    .pm-toggle-row:has(input:checked) .pm-toggle-switch::after{transform:translateX(14px);}
+    .pm-inline-log{background:var(--fwui-bg-elevated);border:1px solid var(--fwui-border);border-radius:var(--fwui-radius-md);padding:10px;font-family:"Cascadia Code","Fira Code","JetBrains Mono",monospace;font-size:12px;line-height:1.6;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin-top:10px;}
+    .pm-inline-log .log-info{color:var(--fwui-text);}
+    .pm-inline-log .log-success{color:var(--fwui-success);}
+    .pm-inline-log .log-error{color:var(--fwui-danger);}
+    .pm-inline-log .log-warn{color:var(--fwui-warning);}
+    .pm-inline-log .log-dim{color:var(--fwui-text-muted);}
+    .pm-inline-log--hidden{display:none;}
+    .pm-next-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:16px;}
+    .pm-next-step-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 12px;border-radius:var(--fwui-radius-md);border:1px solid var(--fwui-border);background:var(--fwui-bg-elevated);cursor:pointer;color:inherit;transition:all .18s;text-align:center;gap:8px;text-decoration-line:none;}
+    .pm-next-step-card:hover{border-color:var(--fwui-primary);background:var(--fwui-bg-hover);transform:translateY(-1px);}
+    .pm-next-step-icon{font-size:28px;}
+    .pm-next-step-title{font-size:13px;font-weight:700;color:var(--fwui-text);}
+    .pm-next-step-desc{font-size:11px;color:var(--fwui-text-muted);}
   </style>
 </head>
 <body>
@@ -74,6 +104,10 @@
     <h1 class="fwui-page-title">🔮 Polymarket F3 调试</h1>
     <p class="fwui-page-subtitle">Relayer Gasless 免Gas下单 · 持仓查询 · 调用示例</p>
 
+    <div style="margin-bottom:16px;">
+      <a href="/admin#tasks" class="fwui-btn fwui-btn--primary" style="text-decoration:inline-flex;align-items:center;gap:6px;">🤖 前往自动任务管理 →</a>
+    </div>
+
     <!-- Tab 选择器 -->
     <div class="pm-tabs-bar">
       <div class="pm-tab pm-tab--active" data-tab="status">
@@ -90,17 +124,88 @@
 
     <!-- 1. 连接状态 -->
     <div class="pm-panel pm-panel--active" id="panel-status">
-      <div class="pm-tip">初始化 F3 Relayer Gasless 客户端，连接 Polymarket 并获取默认市场。<br>首次使用请先点击「初始化连接」。</div>
+      <div class="pm-tip">初始化 F3 Relayer Gasless 客户端，连接 Polymarket 并获取默认市场。<br>首次使用请先点击「初始化连接」。密钥自动脱敏，未配置项显示 <code>[变量名]</code>。</div>
+
+      <!-- 引导指南（未配置时显示） -->
+      <div id="f3-setup-guide" style="display:none;margin-bottom:16px;padding:16px;border:1px solid var(--fwui-border);border-radius:12px;background:var(--fwui-bg-elevated);">
+        <div id="f3-setup-guide-body" style="font-size:13px;line-height:1.8;color:var(--fwui-text-secondary);"></div>
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="fwui-btn fwui-btn--sm" id="btn-f3-setup-guide-retry">🔄 重新检测</button>
+        </div>
+      </div>
+
       <div class="pm-btn-group">
         <button class="fwui-btn fwui-btn--primary" id="btn-f3-init">🚀 初始化连接</button>
         <button class="fwui-btn" id="btn-f3-status">🔄 刷新状态</button>
+        <button class="fwui-btn" id="btn-f3-setup-guide">📖 配置指南</button>
+        <label class="pm-toggle-row">
+          <input type="checkbox" id="toggle-init-details">
+          <span class="pm-toggle-switch"></span>
+          <span>📋 初始化详情</span>
+        </label>
       </div>
-      <div id="f3-market-info" class="pm-info-grid" style="display:none;"></div>
+      <div id="init-loading-tip" style="display:none;margin-top:8px;padding:10px 14px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:var(--fwui-radius-md);font-size:13px;color:var(--fwui-text-secondary);">
+        ⏳ <strong id="init-loading-text">初始化中，请稍等（首次可能需要20秒~3分钟）...</strong>
+      </div>
+
+      <!-- 初始化步骤进度 -->
+      <div id="f3-init-steps" style="display:none;margin-top:16px;">
+        <h3 style="font-size:14px;margin-bottom:8px;">初始化步骤进度</h3>
+        <div id="f3-steps-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+
+      <!-- 配置项详情（脱敏） -->
+      <div id="f3-config-section" style="display:none;margin-top:16px;">
+        <h3 style="font-size:14px;margin-bottom:8px;">配置项详情（脱敏）</h3>
+        <div id="f3-config-grid" class="pm-info-grid"></div>
+      </div>
+
+      <!-- 运行时配置 -->
+      <div id="f3-runtime-section" style="display:none;margin-top:16px;">
+        <h3 style="font-size:14px;margin-bottom:8px;">运行时配置</h3>
+        <div id="f3-runtime-grid" class="pm-info-grid"></div>
+      </div>
+
+      <!-- 可用下单方式 -->
+      <div id="f3-modes-section" style="display:none;margin-top:16px;">
+        <h3 style="font-size:14px;margin-bottom:8px;">可用下单方式</h3>
+        <div id="f3-modes-list" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- 🎯 下一步引导 -->
+      <div id="f3-next-steps" style="display:none;margin-top:20px;">
+        <h3 style="font-size:14px;margin-bottom:4px;">🎯 可以开始操作了</h3>
+        <div class="pm-next-steps">
+          <a href="#" class="pm-next-step-card" data-goto="market">
+            <span class="pm-next-step-icon">📊</span>
+            <span class="pm-next-step-title">查询市场</span>
+            <span class="pm-next-step-desc">查询合约/价格/流动性</span>
+          </a>
+          <a href="#" class="pm-next-step-card" data-goto="order">
+            <span class="pm-next-step-icon">⚡</span>
+            <span class="pm-next-step-title">F3 下单</span>
+            <span class="pm-next-step-desc">免 Gas Gasless 下单</span>
+          </a>
+          <a href="#" class="pm-next-step-card" data-goto="close">
+            <span class="pm-next-step-icon">🔒</span>
+            <span class="pm-next-step-title">平仓 / 赎回</span>
+            <span class="pm-next-step-desc">一键平掉所有持仓</span>
+          </a>
+          <a href="#" class="pm-next-step-card" data-goto="positions">
+            <span class="pm-next-step-icon">📋</span>
+            <span class="pm-next-step-title">查询持仓</span>
+            <span class="pm-next-step-desc">查看当前仓位盈亏</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- 市场信息 -->
+      <div id="f3-market-info" class="pm-info-grid" style="display:none;margin-top:16px;"></div>
     </div>
 
     <!-- 2. 市场查询 -->
     <div class="pm-panel" id="panel-market">
-      <div class="pm-tip">查询指定 slug 的市场信息，支持 <code>{epoch}</code> 占位符自动替换为当前时间周期。</div>
+      <div class="pm-tip">查询指定 slug 的市场信息，支持 <code>{epoch}</code> 占位符自动替换为当前时间周期。<strong>请先在「连接状态」初始化</strong>。</div>
       <div class="pm-form">
         <div class="pm-form-row">
           <label>标的代码</label>
@@ -111,7 +216,7 @@
           </select>
         </div>
         <div class="pm-btn-group">
-          <button class="fwui-btn fwui-btn--primary" id="btn-f3-market">🔍 查询市场</button>
+          <button class="fwui-btn fwui-btn--primary" id="btn-f3-market">🔍 获取市场</button>
         </div>
       </div>
       <div id="f3-market-result" class="pm-info-grid" style="display:none;"></div>
@@ -289,8 +394,15 @@ asyncio.<span class="fn">run</span>(<span class="fn">main</span>())</div>
 
     <!-- 7. 执行日志 -->
     <div class="pm-panel" id="panel-log">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div class="pm-tip" style="margin:0;">所有操作的实时执行日志，方便调试。</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:gap;">
+        <div class="pm-sub-tabs" id="log-filter-tabs">
+          <div class="pm-sub-tab pm-sub-tab--active" data-log-filter="all">全部</div>
+          <div class="pm-sub-tab" data-log-filter="status">🔗 连接状态</div>
+          <div class="pm-sub-tab" data-log-filter="market">📊 市场查询</div>
+          <div class="pm-sub-tab" data-log-filter="order">⚡ F3 下单</div>
+          <div class="pm-sub-tab" data-log-filter="close">🔒 平仓</div>
+          <div class="pm-sub-tab" data-log-filter="positions">📋 持仓</div>
+        </div>
         <button class="fwui-btn fwui-btn--sm" id="btn-clear-log">🗑️ 清空日志</button>
       </div>
       <div id="f3-console" class="pm-console"><span class="log-dim">等待操作...</span></div>

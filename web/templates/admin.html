@@ -5,6 +5,698 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>控制台 · 福纹排行榜</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    /* ===== 控制台 Tab 布局 ===== */
+    .fw-admin-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .fw-admin-tab-bar {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--fwui-border);
+      flex-wrap: wrap;
+    }
+    .fw-admin-tab-btn {
+      background: none;
+      border: none;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--fwui-text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .fw-admin-tab-btn:hover { color: var(--fwui-text); }
+    .fw-admin-tab-btn--active {
+      color: var(--fwui-primary);
+      border-bottom-color: var(--fwui-primary);
+    }
+    .fw-admin-tab-panel {
+      display: none;
+      animation: fadeIn 0.2s ease;
+    }
+    .fw-admin-tab-panel--active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== 配置管理 ===== */
+    .fw-config-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .fw-config-table th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 2px solid var(--fwui-border);
+      font-weight: 600;
+      color: var(--fwui-text-muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .fw-config-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--fwui-border);
+      vertical-align: top;
+    }
+    .fw-config-table tr:hover td {
+      background: var(--fwui-bg-secondary);
+    }
+    .fw-config-key {
+      font-family: monospace;
+      font-size: 12px;
+      white-space: nowrap;
+      color: var(--fwui-text);
+    }
+    .fw-config-desc {
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+      max-width: 260px;
+      line-height: 1.4;
+    }
+    .fw-config-desc-empty {
+      color: var(--fwui-text-muted);
+      font-style: italic;
+      opacity: 0.5;
+    }
+    .fw-config-val {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-block;
+    }
+    .fw-config-val--overridden {
+      color: var(--fwui-warning);
+      font-weight: 600;
+    }
+    .fw-config-val--sensitive {
+      color: var(--fwui-text-muted);
+      cursor: not-allowed;
+    }
+    .fw-config-val--editable {
+      cursor: pointer;
+      transition: background 0.15s;
+      border-radius: 4px;
+      padding: 2px 4px;
+    }
+    .fw-config-val--editable:hover {
+      background: var(--fwui-bg-hover);
+      box-shadow: 0 0 0 1px var(--fwui-border);
+    }
+    .fw-config-inline-input {
+      width: 100%;
+      min-width: 120px;
+      padding: 4px 8px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--fwui-bg);
+      color: var(--fwui-text);
+      border: 1px solid var(--fwui-primary);
+      border-radius: 6px;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+    }
+    .fw-config-inline-save {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--fwui-primary);
+      margin-left: 4px;
+      vertical-align: middle;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    .fw-config-inline-save:hover {
+      background: var(--fwui-primary);
+      color: #fff;
+    }
+    .fw-config-inline-wrapper {
+      display: inline-flex;
+      align-items: center;
+      width: 100%;
+      gap: 4px;
+    }
+    .fw-config-reset-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--fwui-warning);
+      margin-left: 6px;
+      vertical-align: middle;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    .fw-config-reset-icon:hover {
+      background: var(--fwui-bg-hover);
+      border-color: var(--fwui-warning);
+    }
+    .fw-config-default {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .fw-config-group-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      margin: 2px 3px 2px 0;
+      background: var(--fwui-primary-soft, rgba(139,92,246,.12));
+      color: var(--fwui-primary);
+      border: 1px solid var(--fwui-primary);
+      line-height: 1.4;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .fw-config-group-tag:hover {
+      background: var(--fwui-primary);
+      color: #fff;
+      box-shadow: 0 0 0 2px rgba(139,92,246,.25);
+    }
+    .fw-config-group-tag--active {
+      background: var(--fwui-primary);
+      color: #fff;
+    }
+    .fwui-stat-card[data-filterable="true"] {
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .fwui-stat-card[data-filterable="true"]:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .fwui-stat-card[data-filterable="true"].fwui-stat-card--active {
+      border-color: var(--fwui-primary);
+      background: var(--fwui-primary-soft, rgba(139,92,246,.08));
+    }
+    .fwui-filter-active-bar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 6px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+    .fwui-filter-active-bar span {
+      color: var(--fwui-text-muted);
+    }
+    .fwui-filter-active-bar .fwui-filter-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      background: var(--fwui-primary-soft, rgba(139,92,246,.1));
+      color: var(--fwui-primary);
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .fwui-filter-active-bar .fwui-filter-tag:hover {
+      background: var(--fwui-primary);
+      color: #fff;
+    }
+    .fwui-filter-active-bar .fwui-filter-clear {
+      margin-left: auto;
+      color: var(--fwui-text-muted);
+      cursor: pointer;
+    }
+    .fwui-filter-active-bar .fwui-filter-clear:hover {
+      color: var(--fwui-danger);
+    }
+    .fw-config-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      margin-left: 4px;
+    }
+    .fw-config-badge--overridden {
+      background: var(--fwui-warning);
+      color: #000;
+    }
+    .fw-config-badge--sensitive {
+      background: var(--fwui-text-muted);
+      color: #fff;
+    }
+    .fw-config-badge--readonly {
+      background: #6b7280;
+      color: #fff;
+    }
+    /* ===== 卡片视图（手机端）===== */
+    .fw-config-cards { display: none; }
+    .fw-config-card {
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      transition: box-shadow 0.2s;
+    }
+    .fw-config-card:hover {
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    }
+    .fw-config-card__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .fw-config-card__key {
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .fw-config-card__desc {
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .fw-config-card__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-top: 1px solid var(--fwui-border);
+    }
+    .fw-config-card__label {
+      font-size: 11px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-config-card__value {
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* PC=表格，手机=卡片 */
+    @media (max-width: 768px) {
+      .fw-config-table-wrap { display: none; }
+      .fw-config-cards { display: block; }
+    }
+    @media (min-width: 769px) {
+      .fw-config-table-wrap { display: block; }
+      .fw-config-cards { display: none; }
+    }
+
+    /* ===== 初始化卡片 ===== */
+    .fw-admin-action-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .fw-admin-action-card {
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: box-shadow 0.2s;
+    }
+    .fw-admin-action-card:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    }
+    .fw-admin-action-card__icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .fw-admin-action-card__title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .fw-admin-action-card__desc {
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+    .fw-admin-action-card .fwui-btn { width: 100%; }
+
+    /* ===== 定时任务网格 ===== */
+    .fw-admin-task-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    /* ===== 日志 ===== */
+    .fwui-console {
+      background: var(--fwui-bg-secondary);
+      border: 1px solid var(--fwui-border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .fw-admin-log__info { color: var(--fwui-text); }
+    .fw-admin-log__success { color: var(--fwui-success); }
+    .fw-admin-log__error { color: var(--fwui-danger); }
+    .fw-admin-log__warn { color: var(--fwui-warning); }
+
+    /* ===== 任务日志弹窗（专业控制台风格） ===== */
+    .fw-task-log-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .fw-task-log-modal__content {
+      background: var(--fwui-bg);
+      border: 1px solid var(--fwui-border);
+      border-radius: 16px;
+      min-width: 560px;
+      max-width: 800px;
+      width: 90vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    .fw-task-log-modal__header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--fwui-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .fw-task-log-modal__title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .fw-task-log-modal__tabs {
+      display: flex;
+      gap: 4px;
+      padding: 0 20px;
+      margin-top: 12px;
+      flex-shrink: 0;
+    }
+    .fw-task-log-modal__tab {
+      padding: 6px 14px;
+      font-size: 12px;
+      border: 1px solid var(--fwui-border);
+      background: var(--fwui-bg-secondary);
+      color: var(--fwui-text-muted);
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .fw-task-log-modal__tab:hover {
+      color: var(--fwui-text);
+    }
+    .fw-task-log-modal__tab--active {
+      background: var(--fwui-bg);
+      color: var(--fwui-primary);
+      border-bottom-color: var(--fwui-bg);
+      font-weight: 500;
+    }
+    .fw-task-log-modal__body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 20px 20px;
+      background: var(--fwui-bg-secondary);
+      border-top: 1px solid var(--fwui-border);
+    }
+    .fw-task-log-modal__footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--fwui-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .fw-task-log-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: var(--fwui-bg);
+      border: 1px solid var(--fwui-border);
+      font-size: 12px;
+      line-height: 1.6;
+      transition: all 0.15s;
+    }
+    .fw-task-log-item:hover {
+      border-color: var(--fwui-primary);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .fw-task-log-item__header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .fw-task-log-item__badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .fw-task-log-item__badge--success { background: #10b98122; color: #10b981; }
+    .fw-task-log-item__badge--error { background: #ef444422; color: #ef4444; }
+    .fw-task-log-item__badge--retry { background: #f59e0b22; color: #f59e0b; }
+    .fw-task-log-item__badge--fuse { background: #6b728022; color: #6b7280; }
+    .fw-task-log-item__badge--action { background: #6366f122; color: #6366f1; }
+    .fw-task-log-item__time {
+      color: var(--fwui-text-muted);
+      font-family: monospace;
+      font-size: 11px;
+    }
+    .fw-task-log-item__meta {
+      color: var(--fwui-text-muted);
+      font-size: 11px;
+      margin-left: auto;
+    }
+    .fw-task-log-item__body {
+      color: var(--fwui-text);
+      word-break: break-all;
+    }
+    .fw-task-log-item__error {
+      color: var(--fwui-danger);
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: #ef444411;
+      border-radius: 6px;
+      border-left: 3px solid #ef4444;
+    }
+    .fw-task-log-item__signal {
+      color: var(--fwui-text-muted);
+      margin-top: 6px;
+      font-size: 11px;
+    }
+    .fw-task-log-item__detail {
+      color: var(--fwui-text-muted);
+      margin-top: 6px;
+      font-size: 11px;
+      padding: 6px 10px;
+      background: var(--fwui-bg-secondary);
+      border-radius: 6px;
+    }
+    .fw-task-log-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-log-empty__icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+
+    /* ===== 自动任务响应式设计 ===== */
+    /* PC端：表格布局 */
+    .fw-auto-task-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    .fw-auto-task-table th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 2px solid var(--fwui-border);
+      color: var(--fwui-text-muted);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .fw-auto-task-table th.text-center { text-align: center; }
+    .fw-auto-task-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--fwui-border);
+      font-size: 13px;
+    }
+    .fw-auto-task-table td.text-center { text-align: center; }
+    .fw-auto-task-table .actions-cell {
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    /* 移动端：卡片布局 */
+    .fw-auto-task-cards {
+      display: none;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .fw-task-card {
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 12px;
+      padding: 14px;
+      transition: all 0.2s;
+    }
+    .fw-task-card:hover {
+      border-color: var(--fwui-primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .fw-task-card__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .fw-task-card__title {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .fw-task-card__status {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .fw-task-card__status--active {
+      background: #10b98122;
+      color: #10b981;
+    }
+    .fw-task-card__status--stopped {
+      background: #6b728022;
+      color: #6b7280;
+    }
+    .fw-task-card__meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-card__meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .fw-task-card__meta-label {
+      font-size: 11px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-card__meta-value {
+      font-size: 13px;
+      color: var(--fwui-text);
+      font-weight: 500;
+    }
+    .fw-task-card__stats {
+      display: flex;
+      gap: 16px;
+      padding: 8px 12px;
+      background: var(--fwui-bg-secondary);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .fw-task-card__stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .fw-task-card__stat-value {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .fw-task-card__stat-label {
+      font-size: 10px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-card__actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .fw-task-card__actions .fwui-btn {
+      flex: 1;
+      min-width: 60px;
+      font-size: 12px;
+      padding: 6px 8px;
+    }
+
+    /* 响应式断点 */
+    @media (max-width: 768px) {
+      .fw-auto-task-table { display: none; }
+      .fw-auto-task-cards { display: flex; flex-direction: column; }
+      .fw-task-log-modal__content {
+        min-width: auto;
+        width: 95vw;
+        max-height: 90vh;
+      }
+    }
+    @media (min-width: 769px) {
+      .fw-auto-task-table { display: table; }
+      .fw-auto-task-cards { display: none; }
+    }
+
+    /* ===== 工具栏 ===== */
+    .fw-admin-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .fw-admin-toolbar__spacer { flex: 1; }
+  </style>
 </head>
 <body>
   <nav class="fwui-nav">
@@ -23,78 +715,374 @@
 
   <main class="fwui-main">
     <h1 class="fwui-page-title">⚙️ 系统控制台</h1>
-    <p class="fwui-page-subtitle">数据库初始化 / 管理员 / MOCK 播种 / 任务触发</p>
+    <p class="fwui-page-subtitle">数据库初始化 / 管理员 / MOCK 播种 / 任务触发 / 系统配置</p>
 
-    <div class="fwui-admin-grid">
+    <!-- 未登录警告横幅 -->
+    <div id="login-warning" style="display:none;margin-bottom:16px;padding:14px 18px;border-radius:10px;background:linear-gradient(135deg,rgba(239,68,68,0.12),rgba(239,68,68,0.06));border:1px solid rgba(239,68,68,0.4);color:var(--fwui-danger);">
+      <strong style="font-size:14px;">⚠️ 未登录</strong>
+      <span style="font-size:13px;margin-left:8px;">控制台操作需要管理员权限，请先登录默认账号 </span>
+      <code style="background:rgba(239,68,68,0.15);padding:2px 6px;border-radius:4px;">admin@fwquant.com</code>
+      <code style="background:rgba(239,68,68,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">[admin123456] 或 [1]</code>
+      <button class="fwui-btn fwui-btn--primary fwui-btn--sm" id="btn-goto-login" style="margin-left:12px;">立即登录</button>
+    </div>
 
-      <div class="fwui-card">
-        <div class="fwui-card__title">🛠 初始化</div>
-        <p class="fwui-card__desc">首次启动时执行：创建所有数据库表 + 管理员 + 20 个 MOCK 账户 + 50 条投票记录</p>
-        <button class="fwui-btn fwui-btn--primary" id="btn-init-all">一键初始化 + 播种</button>
+    <!-- Tab 布局 -->
+    <div class="fw-admin-tabs">
+      <!-- Tab 按钮栏 -->
+      <div class="fw-admin-tab-bar">
+        <button class="fw-admin-tab-btn fw-admin-tab-btn--active" data-tab="init">🛠 初始化</button>
+        <button class="fw-admin-tab-btn" data-tab="auto-tasks">📡 信号管理</button>
+        <button class="fw-admin-tab-btn" data-tab="tasks">🤖 自动任务</button>
+        <button class="fw-admin-tab-btn" data-tab="config">⚙️ 系统配置</button>
+        <button class="fw-admin-tab-btn" data-tab="log">📜 执行日志</button>
       </div>
 
-      <div class="fwui-card">
-        <div class="fwui-card__title">🔑 管理员账户</div>
-        <p class="fwui-card__desc">默认：admin@fwquant.com / admin123456</p>
-        <button class="fwui-btn" id="btn-seed-admin">创建管理员</button>
-      </div>
-
-      <div class="fwui-card">
-        <div class="fwui-card__title">📊 MOCK 数据</div>
-        <p class="fwui-card__desc">播种 20 个执行账户 + 50 笔投票 + 50 笔订单</p>
-        <button class="fwui-btn" id="btn-seed-mock">播种 MOCK</button>
-      </div>
-
-      <div class="fwui-card">
-        <div class="fwui-card__title">🤖 智能体租用品类</div>
-        <p class="fwui-card__desc">播种 4 个可租用的智能体（GPT-4o / Claude / Gemini / MoA）</p>
-        <button class="fwui-btn" id="btn-seed-rental">播种租用品类</button>
-      </div>
-
-      <div class="fwui-card">
-        <div class="fwui-card__title">⏰ 定时任务</div>
-        <p class="fwui-card__desc">手动触发榜单刷新/快照/清理/归档/跟单同步/通知扫描</p>
-        <div class="fwui-task-grid">
-          <button class="fwui-btn fwui-btn--sm" data-task="refresh_realtime_rank">刷新实时榜</button>
-          <button class="fwui-btn fwui-btn--sm" data-task="daily_snapshot">日榜快照</button>
-          <button class="fwui-btn fwui-btn--sm" data-task="daily_cleanup">数据清理</button>
-          <button class="fwui-btn fwui-btn--sm" data-task="archive_hot_to_cold">数据归档</button>
+      <!-- Tab 内容 -->
+      <!-- 1. 初始化 -->
+      <div class="fw-admin-tab-panel fw-admin-tab-panel--active" data-tab-panel="init">
+        <div class="fw-admin-action-grid">
+          <div class="fw-admin-action-card">
+            <div class="fw-admin-action-card__icon">🚀</div>
+            <div class="fw-admin-action-card__title">一键初始化 + 播种</div>
+            <div class="fw-admin-action-card__desc">首次启动：创建所有数据库表 + 管理员 + 20 个 MOCK 账户 + 50 条投票记录</div>
+            <button class="fwui-btn fwui-btn--primary" id="btn-init-all">执行初始化</button>
+          </div>
+          <div class="fw-admin-action-card">
+            <div class="fw-admin-action-card__icon">🔑</div>
+            <div class="fw-admin-action-card__title">创建管理员</div>
+            <div class="fw-admin-action-card__desc">默认：admin@fwquant.com / admin123456（已存在则跳过）</div>
+            <button class="fwui-btn" id="btn-seed-admin">创建管理员</button>
+          </div>
+          <div class="fw-admin-action-card">
+            <div class="fw-admin-action-card__icon">🤖</div>
+            <div class="fw-admin-action-card__title">播种租用品类</div>
+            <div class="fw-admin-action-card__desc">播种 4 个可租用的智能体（GPT-4o / Claude / Gemini / MoA）</div>
+            <button class="fwui-btn" id="btn-seed-rental">播种租用品类</button>
+          </div>
+          <div class="fw-admin-action-card">
+            <div class="fw-admin-action-card__icon">📊</div>
+            <div class="fw-admin-action-card__title">播种 MOCK 数据</div>
+            <div class="fw-admin-action-card__desc">播种 20 个执行账户 + 50 笔投票 + 50 笔订单</div>
+            <button class="fwui-btn" id="btn-seed-mock">播种 MOCK</button>
+          </div>
         </div>
       </div>
 
-      <div class="fwui-card fwui-card--wide">
-        <div class="fwui-card__title">📜 执行日志</div>
-        <div id="console-log" class="fwui-console"></div>
+      <!-- 2. 信号管理 (新) -->
+      <div class="fw-admin-tab-panel" data-tab-panel="auto-tasks">
+        <div class="fw-admin-toolbar">
+          <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-signal-provider-new">➕ 新建信号源</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-signal-provider-refresh">🔄 刷新（含同步内置）</button>
+        </div>
+
+        <div id="signal-provider-list" style="margin-top:12px;"></div>
       </div>
 
+      <!-- 2.5 信号源编辑弹窗 -->
+      <div id="signal-provider-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:480px;max-width:560px;">
+          <h3 id="signal-provider-modal-title" style="margin:0 0 16px;">新建信号源</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <!-- 来源类型选择 -->
+            <div id="sp-source-type-row">
+              <label style="font-size:12px;color:var(--fwui-text-muted);">来源类型</label>
+              <select id="sp-source-type" class="fwui-select" onchange="window._onSourceTypeChange()" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+                <option value="python">Python 自定义（可编辑代码）</option>
+                <option value="http_url">HTTP URL（请求外部JSON）</option>
+              </select>
+            </div>
+            <!-- 名称输入 -->
+            <div id="sp-name-row">
+              <label style="font-size:12px;color:var(--fwui-text-muted);">信号源名称（留空自动生成 signal_时间戳）</label>
+              <input id="sp-name" class="fwui-input" placeholder="留空自动生成，如 my_signal" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              <div id="sp-name-hint" style="font-size:11px;color:var(--fwui-text-muted);margin-top:4px;">留空将自动生成 signal_YYYYMMDDhhmm 格式</div>
+            </div>
+            <!-- HTTP URL 配置 -->
+            <div id="sp-url-row" style="display:none;">
+              <label style="font-size:12px;color:var(--fwui-text-muted);">HTTP URL（返回JSON信号）</label>
+              <input id="sp-http-url" class="fwui-input" placeholder="https://example.com/api/signal" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              <div style="font-size:11px;color:var(--fwui-text-muted);margin-top:4px;">URL需返回JSON: {"symbol":"...", "direction":"UP/DOWN", "amount": 1.0}</div>
+            </div>
+            <!-- 高级选项 -->
+            <details id="sp-advanced" style="border:1px solid var(--fwui-border);border-radius:8px;padding:8px 12px;">
+              <summary style="cursor:pointer;font-size:12px;color:var(--fwui-text-muted);">高级选项（手动指定类名/模块路径等）</summary>
+              <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <label style="font-size:12px;color:var(--fwui-text-muted);">显示名称</label>
+                    <input id="sp-display" class="fwui-input" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+                  </div>
+                  <div>
+                    <label style="font-size:12px;color:var(--fwui-text-muted);">类别</label>
+                    <select id="sp-category" class="fwui-select" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+                      <option value="custom">自定义信号</option>
+                      <option value="internal">内部信号</option>
+                      <option value="external">外部信号</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <label style="font-size:12px;color:var(--fwui-text-muted);">Python 类名</label>
+                    <input id="sp-class" class="fwui-input" placeholder="自动生成" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+                  </div>
+                  <div>
+                    <label style="font-size:12px;color:var(--fwui-text-muted);">模块路径</label>
+                    <input id="sp-module" class="fwui-input" placeholder="自动生成" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+                  </div>
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--fwui-text-muted);">描述</label>
+                  <textarea id="sp-desc" rows="2" class="fwui-input" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);resize:vertical;"></textarea>
+                </div>
+                <div id="sp-config-row">
+                  <label style="font-size:12px;color:var(--fwui-text-muted);">初始化参数 JSON</label>
+                  <textarea id="sp-config" rows="2" class="fwui-input" placeholder='{}' style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);resize:vertical;font-family:monospace;font-size:12px;"></textarea>
+                </div>
+              </div>
+            </details>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+            <button class="fwui-btn" id="signal-provider-modal-cancel">取消</button>
+            <button class="fwui-btn fwui-btn--primary" id="signal-provider-modal-save">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 自动任务调度 -->
+      <div class="fw-admin-tab-panel" data-tab-panel="tasks">
+        <div class="fw-admin-toolbar">
+          <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-auto-task-new">➕ 新建任务</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-auto-task-refresh">🔄 刷新列表</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-signal-test">🧪 测试信号</button>
+        </div>
+
+        <div id="auto-task-list" style="margin-top:12px;"></div>
+      </div>
+
+      <!-- 3.5 自动任务编辑弹窗 -->
+      <div id="auto-task-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:420px;max-width:560px;">
+          <h3 id="auto-task-modal-title" style="margin:0 0 16px;">新建自动任务</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <label style="font-size:12px;color:var(--fwui-text-muted);">任务名称</label>
+              <input id="auto-task-name" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;color:var(--fwui-text-muted);">信号来源</label>
+                <select id="auto-task-source" class="fwui-select" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+                  <option value="">-- 请选择信号源 --</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--fwui-text-muted);">调度间隔（分钟）</label>
+                <input id="auto-task-interval" type="number" value="5" min="1" max="1440" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;color:var(--fwui-text-muted);">单日最大金额 (USDC)</label>
+                <input id="auto-task-max-amount" type="number" value="50" step="10" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--fwui-text-muted);">单日最大次数</label>
+                <input id="auto-task-max-count" type="number" value="50" min="1" max="1000" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--fwui-text-muted);">熔断阈值（连续失败）</label>
+                <input id="auto-task-max-fail" type="number" value="5" min="1" max="100" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+            <button class="fwui-btn" id="auto-task-modal-cancel">取消</button>
+            <button class="fwui-btn fwui-btn--primary" id="auto-task-modal-save">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3.6 任务启动进度模态框 -->
+      <div id="task-start-progress-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1001;align-items:center;justify-content:center;">
+        <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:380px;max-width:460px;">
+          <h3 id="task-start-progress-title" style="margin:0 0 16px;font-size:16px;">🚀 启动任务</h3>
+          <div id="task-start-progress-steps" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;"></div>
+          <div style="text-align:center;">
+            <span id="task-start-progress-status" style="color:var(--fwui-text-muted);font-size:13px;">正在初始化...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. 系统配置 -->
+      <div class="fw-admin-tab-panel" data-tab-panel="config">
+        <div class="fw-admin-toolbar">
+          <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-config-load">📋 加载数据库数据</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-config-save">💾 保存</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-config-reset-all" style="color:var(--fwui-danger);">🗑️ 恢复默认</button>
+          <select class="fwui-select fwui-btn--sm" id="config-group-filter" style="min-width:120px;">
+            <option value="">全部分组</option>
+            <option value="app">应用</option>
+            <option value="database">数据库</option>
+            <option value="ai">AI</option>
+            <option value="trading">交易</option>
+            <option value="exchange">交易所</option>
+            <option value="polymarket">Polymarket</option>
+            <option value="weights">权重</option>
+            <option value="retention">数据保留</option>
+            <option value="general">通用</option>
+          </select>
+          <div class="fw-admin-toolbar__spacer"></div>
+          <span style="font-size:12px;color:var(--fwui-text-muted);" id="config-count-label"></span>
+        </div>
+
+        <!-- 统计信息 -->
+        <div id="config-stats" class="fwui-stats-grid" style="margin-bottom:12px;display:none;">
+          <div class="fwui-stat-card">
+            <div class="fwui-stat-card__label">配置总数</div>
+            <div class="fwui-stat-card__value fwui-stat-card__value--primary" id="stat-total">0</div>
+          </div>
+          <div class="fwui-stat-card" data-filterable="true" data-filter-key="overridden">
+            <div class="fwui-stat-card__label">已覆盖</div>
+            <div class="fwui-stat-card__value" id="stat-overridden" style="color:var(--fwui-warning);">0</div>
+          </div>
+          <div class="fwui-stat-card" data-filterable="true" data-filter-key="sensitive">
+            <div class="fwui-stat-card__label">敏感配置</div>
+            <div class="fwui-stat-card__value" id="stat-sensitive" style="color:var(--fwui-text-muted);">0</div>
+          </div>
+          <div class="fwui-stat-card" data-filterable="true" data-filter-key="readonly">
+            <div class="fwui-stat-card__label">只读配置</div>
+            <div class="fwui-stat-card__value" id="stat-readonly" style="color:#6b7280;">0</div>
+          </div>
+          <div class="fwui-stat-card" data-filterable="true" data-filter-key="editable">
+            <div class="fwui-stat-card__label">可编辑</div>
+            <div class="fwui-stat-card__value" id="stat-editable" style="color:var(--fwui-success);">0</div>
+          </div>
+          <div class="fwui-stat-card">
+            <div class="fwui-stat-card__label">分组数</div>
+            <div class="fwui-stat-card__value" id="stat-groups">0</div>
+          </div>
+        </div>
+
+        <!-- 激活的过滤条件 -->
+        <div class="fwui-filter-active-bar" id="config-filter-bar">
+          <span>已应用筛选：</span>
+          <div id="config-filter-tags" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+          <div class="fwui-filter-clear" id="config-filter-clear">✕ 清除全部</div>
+        </div>
+
+        <!-- 表格视图（PC） -->
+        <div class="fw-config-table-wrap">
+          <div style="max-height:600px;overflow-y:auto;border:1px solid var(--fwui-border);border-radius:8px;">
+            <table class="fw-config-table">
+              <thead>
+                <tr>
+                  <th style="width:20%;">配置键</th>
+                  <th style="width:20%;">描述</th>
+                  <th style="width:14%;">默认值</th>
+                  <th style="width:24%;">当前值</th>
+                  <th style="width:12%;">分组</th>
+                </tr>
+              </thead>
+              <tbody id="config-table-body">
+                <tr><td colspan="5" style="text-align:center;color:var(--fwui-text-muted);padding:20px;">点击「加载数据库数据」或切换到此选项卡时自动加载</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 卡片视图（手机） -->
+        <div class="fw-config-cards" id="config-cards-container">
+          <div style="color:var(--fwui-text-muted);text-align:center;padding:20px;">点击「加载数据库数据」或切换到此选项卡时自动加载</div>
+        </div>
+      </div>
+
+      <!-- 5. 执行日志 -->
+      <div class="fw-admin-tab-panel" data-tab-panel="log">
+        <div id="console-log" class="fwui-console"></div>
+      </div>
     </div>
   </main>
 
-  <script src="/static/js/fwui/theme.js"></script>
-  <script src="/static/js/fwui/toast.js"></script>
-  <script src="/static/js/fwui/modal.js"></script>
-  <script src="/static/js/fwui/api.js"></script>
-  <script src="/static/js/fwui/utils.js"></script>
-  <script src="/static/js/app.js"></script>
-  <style>
-    .fw-admin-log__info{color:var(--fwui-text);}
-    .fw-admin-log__success{color:var(--fwui-success);}
-    .fw-admin-log__error{color:var(--fwui-danger);}
-    .fw-admin-log__warn{color:var(--fwui-warning);}
-  </style>
+  <script src="/static/js/fwui/theme.js?v=3"></script>
+  <script src="/static/js/fwui/toast.js?v=3"></script>
+  <script src="/static/js/fwui/modal.js?v=3"></script>
+  <script src="/static/js/fwui/api.js?v=3"></script>
+  <script src="/static/js/fwui/utils.js?v=3"></script>
+  <script src="/static/js/app.js?v=3"></script>
   <script>
-    // 控制台逻辑：避免模板字符串 + 内联 style 嵌套，防止 IDE 解析器误报缺 }
     (function () {
+      // ===== Tab 切换（带 URL hash） =====
+      var tabBtns = document.querySelectorAll(".fw-admin-tab-btn");
+      var tabPanels = document.querySelectorAll(".fw-admin-tab-panel");
+      var TAB_KEYS = ["init", "auto-tasks", "tasks", "config", "log"];
+      var currentConfigs = [];
+      var editingTaskId = null;
+      var editingSignalProviderId = null;
+
+      // #auto-tasks -> 信号管理, #tasks -> 自动任务调度
+      var HASH_ALIAS = {};
+
+      function resolveTab(tab) {
+        return HASH_ALIAS[tab] || tab;
+      }
+
+      function switchTab(tab, updateHash) {
+        tab = resolveTab(tab);
+        if (TAB_KEYS.indexOf(tab) === -1) tab = "init";
+        tabBtns.forEach(function (b) { b.classList.toggle("fw-admin-tab-btn--active", b.dataset.tab === tab); });
+        tabPanels.forEach(function (p) {
+          p.classList.toggle("fw-admin-tab-panel--active", p.dataset.tabPanel === tab);
+        });
+        if (updateHash !== false) {
+          if (window.location.hash !== "#" + tab) {
+            history.replaceState(null, "", "#" + tab);
+          }
+        }
+        // 自动加载：切到 config 且未加载过时自动加载
+        if (tab === "config" && currentConfigs.length === 0 && typeof loadConfigs === "function") {
+          var token = FWUI.api.getToken();
+          if (token) loadConfigs();
+        }
+        // 自动加载：切到 auto-tasks 时加载信号源列表
+        if (tab === "auto-tasks" && typeof loadSignalProviders === "function") {
+          loadSignalProviders();
+        }
+        // 自动加载：切到 tasks 时加载自动任务列表
+        if (tab === "tasks" && typeof loadAutoTasks === "function") {
+          loadAutoTasks();
+        }
+      }
+
+      tabBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          switchTab(btn.dataset.tab);
+        });
+      });
+
+      // 从 URL hash 恢复 Tab
+      var initialTab = resolveTab((window.location.hash || "").replace("#", ""));
+      if (TAB_KEYS.indexOf(initialTab) !== -1) {
+        switchTab(initialTab, false);
+      }
+
+      // 监听 hash 变化（前进/后退）
+      window.addEventListener("hashchange", function () {
+        var h = resolveTab((window.location.hash || "").replace("#", ""));
+        if (TAB_KEYS.indexOf(h) !== -1) switchTab(h, false);
+      });
+
+      // ===== 日志 =====
       var LOG_CLASS = {
         info: "fw-admin-log__info",
         success: "fw-admin-log__success",
         error: "fw-admin-log__error",
         warn: "fw-admin-log__warn"
       };
-
       function log(msg, type) {
         if (!type) type = "info";
         var el = document.getElementById("console-log");
+        if (!el) return;
         var cls = LOG_CLASS[type] || LOG_CLASS.info;
         var ts = new Date().toLocaleTimeString();
         var line = document.createElement("div");
@@ -103,68 +1091,1355 @@
         el.appendChild(line);
         el.scrollTop = el.scrollHeight;
       }
+      // 将 log 暴露给其他脚本
+      window.__fwAdminLog = log;
 
-      async function call(path, method, body) {
+      // ===== 登录检查 =====
+      function checkLoginState() {
+        var token = FWUI.api.getToken();
+        var warning = document.getElementById("login-warning");
+        if (!token) {
+          if (warning) warning.style.display = "";
+          return false;
+        }
+        if (warning) warning.style.display = "none";
+        return true;
+      }
+
+      function promptLogin(actionName) {
+        if (window.FWUI && FWUI.auth && FWUI.auth.openLoginModal) {
+          log("⚠️ " + (actionName || "该操作") + " 需要先登录，已弹出登录框", "warn");
+          FWUI.auth.openLoginModal();
+        } else {
+          log("⚠️ " + (actionName || "该操作") + " 需要先登录，请点击右上角『登录』按钮", "warn");
+          FWUI.toast.warning("请先点击右上角『登录』按钮");
+        }
+      }
+
+      async function call(path, method, body, actionName) {
         if (!method) method = "POST";
-        // 统一走 FWUI.api：支持演示模式前缀 + 401 自动清 token
         try {
           if (method === "GET") {
             return { success: true, data: await FWUI.api.get(path), message: "ok" };
           }
+          if (method === "DELETE" || method === "DEL") {
+            return { success: true, data: await FWUI.api.del(path), message: "ok" };
+          }
+          if (method === "PUT") {
+            return { success: true, data: await FWUI.api.put(path, body || {}), message: "ok" };
+          }
           return { success: true, data: await FWUI.api.post(path, body || {}), message: "ok" };
         } catch (e) {
+          if (e.status === 401) {
+            log("❌ " + (actionName || "操作") + " 被拒绝：需要管理员登录", "error");
+            promptLogin(actionName);
+            return { success: false, message: "需要管理员登录后才能" + (actionName || "操作"), data: null };
+          }
           return { success: false, message: e.message, data: e.data || null };
         }
       }
 
+      // ===== 按钮事件 =====
       document.getElementById("btn-init-all").onclick = async function () {
         log("▶ 开始一键初始化...");
-        try {
-          var r = await call("/api/admin/init-db", "POST");
-          log(r.message || JSON.stringify(r), r.success ? "success" : "error");
-          r = await call("/api/admin/seed-admin?email=admin%40fwquant.com&password=admin123456&nickname=%E7%AE%A1%E7%90%86%E5%91%98", "POST");
-          log(r.message || JSON.stringify(r), r.success ? "success" : "error");
-          r = await call("/api/admin/seed-mock?n_accounts=20&n_votes=50", "POST");
-          log(r.message || JSON.stringify(r), r.success ? "success" : "error");
-          FWUI.toast.success("初始化完成");
-        } catch (e) {
-          log(e.message, "error");
-          FWUI.toast.error(e.message);
-        }
+        var r = await call("/api/admin/init-all?n_accounts=20&n_votes=50", "POST", {}, "一键初始化");
+        log(r.message || JSON.stringify(r), r.success ? "success" : "error");
+        if (r.success) { FWUI.toast.success("初始化完成"); checkLoginState(); }
       };
 
       document.getElementById("btn-seed-admin").onclick = async function () {
-        try {
-          var r = await call("/api/admin/seed-admin?email=admin%40fwquant.com&password=admin123456&nickname=%E7%AE%A1%E7%90%86%E5%91%98", "POST");
-          log(r.message || JSON.stringify(r), r.success ? "success" : "error");
-          FWUI.toast[r.success ? "success" : "error"](r.message);
-        } catch (e) { log(e.message, "error"); }
+        var r = await call("/api/admin/seed-admin?email=admin%40fwquant.com&password=admin123456&nickname=%E7%AE%A1%E7%90%86%E5%91%98", "POST", {}, "创建管理员");
+        log(r.message || JSON.stringify(r), r.success ? "success" : "error");
+        FWUI.toast[r.success ? "success" : "error"](r.message);
       };
 
       document.getElementById("btn-seed-mock").onclick = async function () {
-        try {
-          var r = await call("/api/admin/seed-mock?n_accounts=20&n_votes=50", "POST");
-          log(r.message || JSON.stringify(r), r.success ? "success" : "error");
-          FWUI.toast[r.success ? "success" : "error"](r.message);
-        } catch (e) { log(e.message, "error"); }
+        var r = await call("/api/admin/seed-mock?n_accounts=20&n_votes=50", "POST", {}, "播种 MOCK");
+        log(r.message || JSON.stringify(r), r.success ? "success" : "error");
+        FWUI.toast[r.success ? "success" : "error"](r.message);
       };
 
       document.getElementById("btn-seed-rental").onclick = async function () {
-        try {
-          var r = await call("/api/admin/seed-rental-agents", "POST");
-          log(r.message || JSON.stringify(r), r.success ? "success" : "error");
-          FWUI.toast[r.success ? "success" : "error"](r.message);
-        } catch (e) { log(e.message, "error"); }
+        var r = await call("/api/admin/seed-rental-agents", "POST", {}, "播种租用品类");
+        log(r.message || JSON.stringify(r), r.success ? "success" : "error");
+        FWUI.toast[r.success ? "success" : "error"](r.message);
       };
 
       document.querySelectorAll("[data-task]").forEach(function (b) {
         b.onclick = async function () {
-          try {
-            var r = await call("/api/admin/trigger/" + b.dataset.task, "POST");
-            log("✓ " + b.dataset.task + " 触发: " + JSON.stringify(r.data || r), "success");
-          } catch (e) { log(e.message, "error"); }
+          var r = await call("/api/admin/trigger/" + b.dataset.task, "POST", {}, "触发任务");
+          if (r.success) log("✓ " + b.dataset.task + " 触发: " + JSON.stringify(r.data || r), "success");
         };
       });
+
+      document.getElementById("btn-goto-login").addEventListener("click", function () {
+        promptLogin("登录");
+      });
+
+      // ===== 配置管理 =====
+      var statFilters = {};
+
+      function groupTagsFor(group) {
+        var tags = '';
+        var selectedGroup = document.getElementById("config-group-filter").value;
+        (group || '').split(',').forEach(function (g) {
+          g = g.trim();
+          if (!g) return;
+          var active = (selectedGroup === g) ? ' fw-config-group-tag--active' : '';
+          tags += '<span class="fw-config-group-tag' + active + '" data-group="' + g + '">' + g + '</span>';
+        });
+        return tags;
+      }
+
+      function renderFilterBar() {
+        var bar = document.getElementById("config-filter-bar");
+        var tagsEl = document.getElementById("config-filter-tags");
+        var tags = [];
+        var groupFilter = document.getElementById("config-group-filter").value;
+        if (groupFilter) tags.push({ label: '分组: ' + groupFilter, type: 'group' });
+        Object.keys(statFilters).forEach(function (k) {
+          if (statFilters[k]) tags.push({ label: statFilterLabel(k), type: 'stat', key: k });
+        });
+        if (tags.length) {
+          bar.style.display = "flex";
+          tagsEl.innerHTML = tags.map(function (t, i) {
+            return '<span class="fwui-filter-tag" data-filter-type="' + t.type + '" data-filter-key="' + (t.key || '') + '">' + t.label + ' ✕</span>';
+          }).join("");
+          tagsEl.querySelectorAll(".fwui-filter-tag").forEach(function (el) {
+            el.addEventListener("click", function () {
+              var type = el.dataset.filterType;
+              var key = el.dataset.filterKey;
+              if (type === 'group') {
+                document.getElementById("config-group-filter").value = "";
+              } else if (type === 'stat') {
+                statFilters[key] = false;
+                updateStatCardActive();
+              }
+              renderConfigList();
+            });
+          });
+        } else {
+          bar.style.display = "none";
+        }
+      }
+
+      function statFilterLabel(key) {
+        var labels = { overridden: '已覆盖', sensitive: '敏感', readonly: '只读', editable: '可编辑' };
+        return labels[key] || key;
+      }
+
+      function updateStatCardActive() {
+        document.querySelectorAll(".fwui-stat-card[data-filterable='true']").forEach(function (card) {
+          var key = card.dataset.filterKey;
+          if (statFilters[key]) card.classList.add("fwui-stat-card--active");
+          else card.classList.remove("fwui-stat-card--active");
+        });
+      }
+
+      function initStatFilterClicks() {
+        document.querySelectorAll(".fwui-stat-card[data-filterable='true']").forEach(function (card) {
+          if (card._filterBound) return;
+          card._filterBound = true;
+          card.addEventListener("click", function () {
+            var key = card.dataset.filterKey;
+            statFilters[key] = !statFilters[key];
+            updateStatCardActive();
+            renderConfigList();
+          });
+        });
+        var clearBtn = document.getElementById("config-filter-clear");
+        if (clearBtn && !clearBtn._bound) {
+          clearBtn._bound = true;
+          clearBtn.addEventListener("click", function () {
+            statFilters = {};
+            document.getElementById("config-group-filter").value = "";
+            updateStatCardActive();
+            renderConfigList();
+          });
+        }
+      }
+
+      function applyFilters(configs) {
+        var groupFilter = document.getElementById("config-group-filter").value;
+        if (groupFilter) {
+          configs = configs.filter(function (c) {
+            var groups = (c.group || "general").split(",").map(function (g) { return g.trim(); });
+            return groups.indexOf(groupFilter) >= 0;
+          });
+        }
+        if (statFilters.overridden) configs = configs.filter(function (c) { return c.is_overridden; });
+        if (statFilters.sensitive) configs = configs.filter(function (c) { return c.is_sensitive; });
+        if (statFilters.readonly) configs = configs.filter(function (c) { return c.readonly; });
+        if (statFilters.editable) configs = configs.filter(function (c) { return !c.is_sensitive && !c.readonly; });
+        return configs;
+      }
+
+      async function loadConfigs() {
+        var r = await call("/api/admin/configs", "GET", {}, "加载配置");
+        if (!r.success) return;
+        currentConfigs = r.data || [];
+        renderConfigList();
+      }
+
+      function renderConfigList() {
+        // 统计（基于全量数据，不受过滤影响）
+        var statsEl = document.getElementById("config-stats");
+        if (currentConfigs.length) {
+          statsEl.style.display = "";
+          var total = currentConfigs.length;
+          var overridden = currentConfigs.filter(function (c) { return c.is_overridden; }).length;
+          var sensitive = currentConfigs.filter(function (c) { return c.is_sensitive; }).length;
+          var readonly = currentConfigs.filter(function (c) { return c.readonly; }).length;
+          var editable = currentConfigs.filter(function (c) { return !c.is_sensitive && !c.readonly; }).length;
+          var groups = {};
+          currentConfigs.forEach(function (c) {
+            (c.group || "general").split(",").forEach(function (g) {
+              g = g.trim();
+              if (g) groups[g] = (groups[g] || 0) + 1;
+            });
+          });
+          document.getElementById("stat-total").textContent = total;
+          document.getElementById("stat-overridden").textContent = overridden;
+          document.getElementById("stat-sensitive").textContent = sensitive;
+          document.getElementById("stat-readonly").textContent = readonly;
+          document.getElementById("stat-editable").textContent = editable;
+          document.getElementById("stat-groups").textContent = Object.keys(groups).length;
+        } else {
+          statsEl.style.display = "none";
+        }
+
+        initStatFilterClicks();
+
+        var configs = applyFilters(currentConfigs);
+
+        var groupFilter = document.getElementById("config-group-filter").value;
+        var hasStatFilter = Object.values(statFilters).some(function (v) { return v; });
+        var countLabel = document.getElementById("config-count-label");
+        if (countLabel) {
+          var suffix = (groupFilter || hasStatFilter) ? "（已过滤）" : "";
+          countLabel.textContent = "共 " + configs.length + " 项" + suffix;
+        }
+
+        renderFilterBar();
+
+        // 表格视图
+        var tbody = document.getElementById("config-table-body");
+        if (!configs.length) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--fwui-text-muted);padding:20px;">暂无配置</td></tr>';
+        } else {
+          tbody.innerHTML = configs.map(configRow).join("");
+          tbody.querySelectorAll("[data-reset]").forEach(attachReset);
+          tbody.querySelectorAll("[data-edit-key]").forEach(attachInlineEdit);
+          tbody.querySelectorAll("[data-group]").forEach(attachGroupTagClick);
+        }
+
+        // 卡片视图
+        var cards = document.getElementById("config-cards-container");
+        if (!configs.length) {
+          cards.innerHTML = '<div style="color:var(--fwui-text-muted);text-align:center;padding:20px;">暂无配置</div>';
+        } else {
+          cards.innerHTML = configs.map(configCard).join("");
+          cards.querySelectorAll("[data-reset]").forEach(attachReset);
+          cards.querySelectorAll("[data-edit-key]").forEach(attachInlineEdit);
+          cards.querySelectorAll("[data-group]").forEach(attachGroupTagClick);
+        }
+      }
+
+      function configRow(c) {
+        var isSensitive = c.is_sensitive;
+        var isOverridden = c.is_overridden;
+        var isReadonly = c.readonly;
+        var hasCurrent = c.current_value !== null && c.current_value !== undefined;
+        var currentVal = isSensitive ? "🔒 " + (hasCurrent ? c.current_value : "***") : (hasCurrent ? c.current_value : (c.default_value || ""));
+        var defaultVal = isSensitive ? "🔒 ***" : (c.default_value || "—");
+        var desc = c.description || "";
+        var descClass = desc ? "fw-config-desc" : "fw-config-desc-empty";
+        var badges = "";
+        if (isSensitive) badges += '<span class="fw-config-badge fw-config-badge--sensitive">敏感</span>';
+        if (isReadonly) badges += '<span class="fw-config-badge fw-config-badge--readonly">只读</span>';
+        if (isOverridden) badges += '<span class="fw-config-badge fw-config-badge--overridden">已覆盖</span>';
+
+        var valClass = "fw-config-val";
+        if (isOverridden) valClass += " fw-config-val--overridden";
+        if (isSensitive || isReadonly) valClass += " fw-config-val--sensitive";
+
+        var editable = !isSensitive && !isReadonly;
+        if (editable) valClass += " fw-config-val--editable";
+
+        var valueHtml = '<span class="' + valClass + '"';
+        if (editable) valueHtml += ' data-edit-key="' + c.config_key + '" data-edit-value="' + (hasCurrent ? c.current_value : (c.default_value || "")) + '" title="点击编辑">';
+        else valueHtml += '>';
+        valueHtml += currentVal + '</span>';
+
+        if (!isSensitive && !isReadonly && isOverridden) {
+          valueHtml += '<span class="fw-config-reset-icon" data-reset="' + c.config_key + '" title="重置为默认值">↺</span>';
+        } else if (isReadonly) {
+          valueHtml += '<span style="margin-left:6px;font-size:11px;color:var(--fwui-text-muted);">只读</span>';
+        } else if (isSensitive) {
+          valueHtml += '<span style="margin-left:6px;font-size:11px;color:var(--fwui-text-muted);">.env</span>';
+        }
+
+        var groupTags = '';
+        (c.group || '').split(',').forEach(function (g) {
+          g = g.trim();
+          if (g) groupTags += '<span class="fw-config-group-tag">' + g + '</span>';
+        });
+
+        return '<tr>' +
+          '<td><span class="fw-config-key">' + c.config_key + badges + '</span></td>' +
+          '<td class="' + descClass + '">' + (desc || "无描述") + '</td>' +
+          '<td class="fw-config-default">' + defaultVal + '</td>' +
+          '<td>' + valueHtml + '</td>' +
+          '<td>' + groupTags + '</td>' +
+          '</tr>';
+      }
+
+      function configCard(c) {
+        var isSensitive = c.is_sensitive;
+        var isOverridden = c.is_overridden;
+        var isReadonly = c.readonly;
+        var hasCurrent = c.current_value !== null && c.current_value !== undefined;
+        var currentVal = isSensitive ? "🔒 " + (hasCurrent ? c.current_value : "***") : (hasCurrent ? c.current_value : (c.default_value || ""));
+        var defaultVal = isSensitive ? "🔒 ***" : (c.default_value || "—");
+        var desc = c.description || "无描述";
+        var valClass = "fw-config-val";
+        if (isOverridden) valClass += " fw-config-val--overridden";
+        if (isSensitive || isReadonly) valClass += " fw-config-val--sensitive";
+
+        var editable = !isSensitive && !isReadonly;
+        if (editable) valClass += " fw-config-val--editable";
+
+        var badges = "";
+        if (isSensitive) badges += '<span class="fw-config-badge fw-config-badge--sensitive">敏感</span>';
+        if (isReadonly) badges += '<span class="fw-config-badge fw-config-badge--readonly">只读</span>';
+        if (isOverridden) badges += '<span class="fw-config-badge fw-config-badge--overridden">已覆盖</span>';
+
+        var valueHtml = '<span class="' + valClass + '"';
+        if (editable) valueHtml += ' data-edit-key="' + c.config_key + '" data-edit-value="' + (hasCurrent ? c.current_value : (c.default_value || "")) + '" title="点击编辑">';
+        else valueHtml += '>';
+        valueHtml += currentVal + '</span>';
+
+        if (!isSensitive && !isReadonly && isOverridden) {
+          valueHtml += '<span class="fw-config-reset-icon" data-reset="' + c.config_key + '" title="重置为默认值">↺</span>';
+        }
+
+        return '<div class="fw-config-card">' +
+          '<div class="fw-config-card__header">' +
+            '<span class="fw-config-card__key">' + c.config_key + badges + '</span>' +
+            '<span>' + groupTagsFor(c.group) + '</span>' +
+          '</div>' +
+          '<div class="fw-config-card__desc">' + desc + '</div>' +
+          '<div class="fw-config-card__row">' +
+            '<span class="fw-config-card__label">默认值</span>' +
+            '<span class="fw-config-card__value" style="color:var(--fwui-text-muted);">' + defaultVal + '</span>' +
+          '</div>' +
+          '<div class="fw-config-card__row">' +
+            '<span class="fw-config-card__label">当前值</span>' +
+            valueHtml +
+          '</div>' +
+          '</div>';
+      }
+
+      // ===== 重置 =====
+      function attachReset(el) {
+        if (!el) return;
+        el.addEventListener("click", async function () {
+          var key = el.dataset.reset;
+          if (!(await FWUI.modal.confirm("重置 " + key + " 为默认值？"))) return;
+          var r = await call("/api/admin/configs/" + key + "/reset", "POST", {}, "重置配置");
+          if (r.success) {
+            log("✓ 配置已重置: " + key, "success");
+            FWUI.toast.success("已重置为默认值");
+            loadConfigs();
+          }
+        });
+      }
+
+      // ===== 分组标签点击过滤 =====
+      function attachGroupTagClick(el) {
+        if (!el) return;
+        el.addEventListener("click", function () {
+          var group = el.dataset.group;
+          var filter = document.getElementById("config-group-filter");
+          if (filter.value === group) filter.value = "";
+          else filter.value = group;
+          renderConfigList();
+        });
+      }
+
+      // ===== 内联编辑 =====
+      function attachInlineEdit(el) {
+        if (!el) return;
+        el.addEventListener("click", function () {
+          if (el.classList.contains("fw-config-inline-editing")) return;
+          var key = el.dataset.editKey;
+          var value = el.dataset.editValue || "";
+
+          var input = document.createElement("input");
+          input.type = "text";
+          input.className = "fw-config-inline-input";
+          input.value = value;
+          input.placeholder = "输入新值，按回车保存...";
+
+          var saveIcon = document.createElement("span");
+          saveIcon.className = "fw-config-inline-save";
+          saveIcon.textContent = "✓";
+          saveIcon.title = "保存 (Enter)";
+
+          var wrapper = document.createElement("span");
+          wrapper.className = "fw-config-inline-wrapper";
+          wrapper.appendChild(input);
+          wrapper.appendChild(saveIcon);
+
+          el.replaceWith(wrapper);
+          el.classList.add("fw-config-inline-editing");
+          input.focus();
+          input.select();
+
+          var saved = false;
+
+          function restore() {
+            if (saved) return;
+            wrapper.replaceWith(el);
+            el.classList.remove("fw-config-inline-editing");
+          }
+
+          function doSave() {
+            if (saved) return;
+            var newVal = input.value.trim();
+            if (newVal === value) {
+              restore();
+              return;
+            }
+            saved = true;
+            saveInlineConfig(key, newVal, function () {
+              wrapper.replaceWith(el);
+              el.classList.remove("fw-config-inline-editing");
+            });
+          }
+
+          saveIcon.addEventListener("click", doSave);
+          input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { e.preventDefault(); doSave(); }
+            else if (e.key === "Escape") { e.preventDefault(); restore(); }
+          });
+          input.addEventListener("blur", function () {
+            setTimeout(function () {
+              if (!saved && document.activeElement !== input) doSave();
+            }, 150);
+          });
+        });
+      }
+
+      async function saveInlineConfig(key, value, cb) {
+        var r = await call("/api/admin/configs", "POST", { config_key: key, config_value: value }, "保存配置");
+        if (r.success) {
+          log("✓ 配置已更新: " + key + " = " + value, "success");
+          FWUI.toast.success("已保存");
+          cb();
+          loadConfigs();
+        } else {
+          FWUI.toast.error(r.message || "保存失败");
+        }
+      }
+
+      // ===== 工具栏事件 =====
+      document.getElementById("btn-config-load").addEventListener("click", loadConfigs);
+      document.getElementById("config-group-filter").addEventListener("change", renderConfigList);
+      document.getElementById("btn-config-save").addEventListener("click", async function () {
+        // 1) 保存当前内存中的配置到数据库（先调用 reload 接口让 DB 使用最新值 + 热加载到系统）
+        var r = await call("/api/admin/configs/reload", "POST", {}, "保存配置");
+        if (r.success) {
+          log("✓ 配置已保存并热加载: " + JSON.stringify(r.data), "success");
+          FWUI.toast.success("已保存：数据库已更新 + 配置已热加载");
+          loadConfigs();
+        }
+      });
+      document.getElementById("btn-config-reset-all").addEventListener("click", async function () {
+        if (!(await FWUI.modal.danger({ content: "确定要将所有配置恢复为默认值吗？\n此操作将清空所有已覆盖的当前值，且不可撤销。", okText: "恢复默认" }))) return;
+        var r = await call("/api/admin/configs/reset-all", "POST", {}, "恢复默认");
+        if (r.success) {
+          log("✓ 所有配置已恢复默认: " + JSON.stringify(r.data), "success");
+          FWUI.toast.success("已恢复默认：" + (r.data && r.data.reset_count ? r.data.reset_count : "") + " 项配置已重置");
+          loadConfigs();
+        } else {
+          FWUI.toast.error(r.message || "恢复默认失败");
+        }
+      });
+
+      // ===== 初始化 =====
+      function init() {
+        if (window.FWUI && FWUI.api && FWUI.api.getToken) {
+          checkLoginState();
+          // 如果当前 Tab 是 config 且已登录，自动加载
+          var activeTab = document.querySelector(".fw-admin-tab-panel--active");
+          if (activeTab && activeTab.dataset.tabPanel === "config" && FWUI.api.getToken()) {
+            loadConfigs();
+          }
+          // 如果当前 Tab 是 auto-tasks，自动加载任务列表
+          if (activeTab && activeTab.dataset.tabPanel === "auto-tasks" && FWUI.api.getToken()) {
+            loadAutoTasks();
+          }
+        } else {
+          setTimeout(init, 100);
+        }
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+
+      // ===== 自动任务管理 =====
+      var autoTasks = [];
+      var autoTaskLogsCache = {};
+
+      async function loadAutoTasks() {
+        var listDiv = document.getElementById("auto-task-list");
+        if (!listDiv) return;
+        listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:20px;text-align:center;">加载中...</div>';
+
+        var r = await call("/api/tasks", "GET", null, "加载任务列表");
+        if (!r.success) {
+          listDiv.innerHTML = '<div style="color:var(--fwui-danger);padding:20px;text-align:center;">加载失败: ' + (r.message || '') + '</div>';
+          return;
+        }
+
+        autoTasks = r.data || [];
+        renderAutoTaskList();
+      }
+
+      function renderAutoTaskList() {
+        var listDiv = document.getElementById("auto-task-list");
+        if (!listDiv) return;
+
+        if (autoTasks.length === 0) {
+          listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:40px;text-align:center;"><div style="font-size:48px;">🤖</div><div style="margin-top:8px;">暂无自动任务，点击上方"新建任务"创建</div></div>';
+          return;
+        }
+
+        var html = '';
+
+        // ===== PC端：表格布局 =====
+        html += '<table class="fw-auto-task-table">';
+        html += '<thead><tr>';
+        html += '<th>ID</th>';
+        html += '<th>任务名称</th>';
+        html += '<th>信号来源</th>';
+        html += '<th>间隔</th>';
+        html += '<th class="text-center">状态</th>';
+        html += '<th class="text-center">执行/成功/失败</th>';
+        html += '<th class="text-center">操作</th>';
+        html += '</tr></thead><tbody>';
+
+        autoTasks.forEach(function (task) {
+          var statusBadge = task.is_active
+            ? '<span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:10px;font-size:12px;">运行中</span>'
+            : '<span style="background:#9994;color:#999;padding:2px 8px;border-radius:10px;font-size:12px;">已停止</span>';
+
+          var failWarn = task.consecutive_failures >= task.max_consecutive_failures
+            ? '<span style="color:var(--fwui-danger);">⚠️ 已熔断</span>'
+            : (task.consecutive_failures > 0 ? '<span style="color:#f59e0b;font-size:11px;">连败:' + task.consecutive_failures + '</span>' : '');
+
+          html += '<tr id="auto-task-row-' + task.id + '">';
+          html += '<td>' + task.id + '</td>';
+          html += '<td style="font-weight:500;">' + escapeHtml(task.task_name) + '</td>';
+          html += '<td>' + (task.signal_source === 'random' ? '🎲 随机信号' : '🌐 HTTP 信号') + '</td>';
+          html += '<td>' + task.interval + ' 分钟</td>';
+          html += '<td class="text-center">' + statusBadge + ' ' + failWarn + '</td>';
+          html += '<td class="text-center" style="font-size:12px;color:var(--fwui-text-muted);">'
+            + task.total_executions + ' / '
+            + '<span style="color:#10b981;">' + task.total_success + '</span> / '
+            + '<span style="color:#ef4444;">' + task.total_failed + '</span>'
+            + '</td>';
+          html += '<td class="actions-cell">';
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskEdit(' + task.id + ')" style="margin:2px;">编辑</button>';
+          if (task.is_active) {
+            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskStop(' + task.id + ')" style="margin:2px;color:var(--fwui-danger);">停止</button>';
+            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskExecute(' + task.id + ')" style="margin:2px;">立即执行</button>';
+          } else {
+            html += '<button class="fwui-btn fwui-btn--sm fwui-btn--primary" onclick="window._autoTaskStart(' + task.id + ')" style="margin:2px;">启用</button>';
+          }
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskLogs(' + task.id + ')" style="margin:2px;">日志</button>';
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskDelete(' + task.id + ')" style="margin:2px;color:var(--fwui-danger);">删除</button>';
+          html += '</td></tr>';
+        });
+
+        html += '</tbody></table>';
+
+        // ===== 移动端：卡片布局 =====
+        html += '<div class="fw-auto-task-cards">';
+        autoTasks.forEach(function (task) {
+          var statusClass = task.is_active ? 'fw-task-card__status--active' : 'fw-task-card__status--stopped';
+          var statusText = task.is_active ? '运行中' : '已停止';
+          var failWarn = task.consecutive_failures >= task.max_consecutive_failures
+            ? ' ⚠️ 熔断'
+            : (task.consecutive_failures > 0 ? ' 连败:' + task.consecutive_failures : '');
+
+          html += '<div class="fw-task-card" id="auto-task-card-' + task.id + '">';
+          html += '  <div class="fw-task-card__header">';
+          html += '    <div class="fw-task-card__title">';
+          html += '      <span>#' + task.id + '</span>';
+          html += '      <span>' + escapeHtml(task.task_name) + '</span>';
+          html += '    </div>';
+          html += '    <span class="fw-task-card__status ' + statusClass + '">' + statusText + failWarn + '</span>';
+          html += '  </div>';
+          html += '  <div class="fw-task-card__meta">';
+          html += '    <div class="fw-task-card__meta-item">';
+          html += '      <span class="fw-task-card__meta-label">信号来源</span>';
+          html += '      <span class="fw-task-card__meta-value">' + (task.signal_source === 'random' ? '🎲 随机信号' : '🌐 HTTP 信号') + '</span>';
+          html += '    </div>';
+          html += '    <div class="fw-task-card__meta-item">';
+          html += '      <span class="fw-task-card__meta-label">执行间隔</span>';
+          html += '      <span class="fw-task-card__meta-value">' + task.interval + ' 分钟</span>';
+          html += '    </div>';
+          html += '  </div>';
+          html += '  <div class="fw-task-card__stats">';
+          html += '    <div class="fw-task-card__stat">';
+          html += '      <span class="fw-task-card__stat-value">' + task.total_executions + '</span>';
+          html += '      <span class="fw-task-card__stat-label">总执行</span>';
+          html += '    </div>';
+          html += '    <div class="fw-task-card__stat">';
+          html += '      <span class="fw-task-card__stat-value" style="color:#10b981;">' + task.total_success + '</span>';
+          html += '      <span class="fw-task-card__stat-label">成功</span>';
+          html += '    </div>';
+          html += '    <div class="fw-task-card__stat">';
+          html += '      <span class="fw-task-card__stat-value" style="color:#ef4444;">' + task.total_failed + '</span>';
+          html += '      <span class="fw-task-card__stat-label">失败</span>';
+          html += '    </div>';
+          html += '  </div>';
+          html += '  <div class="fw-task-card__actions">';
+          html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskEdit(' + task.id + ')">✏️ 编辑</button>';
+          if (task.is_active) {
+            html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskStop(' + task.id + ')" style="color:var(--fwui-danger);">⏹ 停止</button>';
+            html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskExecute(' + task.id + ')">▶️ 执行</button>';
+          } else {
+            html += '    <button class="fwui-btn fwui-btn--sm fwui-btn--primary" onclick="window._autoTaskStart(' + task.id + ')">▶️ 启用</button>';
+          }
+          html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskLogs(' + task.id + ')">📜 日志</button>';
+          html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskDelete(' + task.id + ')" style="color:var(--fwui-danger);">🗑 删除</button>';
+          html += '  </div>';
+          html += '</div>';
+        });
+        html += '</div>';
+
+        listDiv.innerHTML = html;
+      }
+
+      function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+      }
+
+      // ===== 自动任务：CRUD 操作 =====
+      window._autoTaskStart = async function (taskId) {
+        var modal = document.getElementById("task-start-progress-modal");
+        var stepsDiv = document.getElementById("task-start-progress-steps");
+        var statusSpan = document.getElementById("task-start-progress-status");
+
+        var task = autoTasks.find(function (t) { return t.id === taskId; });
+        document.getElementById("task-start-progress-title").textContent = "🚀 启动任务" + (task ? ": " + task.task_name : " #" + taskId);
+
+        var defaultSteps = [
+          { step: "查询任务信息", status: "pending" },
+          { step: "准备初始化网关", status: "pending" },
+          { step: "连接网关...", status: "pending" },
+          { step: "标记任务为活跃", status: "pending" },
+        ];
+        var currentSteps = defaultSteps.map(function (s) { return Object.assign({}, s); });
+
+        function renderSteps() {
+          stepsDiv.innerHTML = currentSteps.map(function (s, i) {
+            var icon = s.status === "completed" ? "✅" : s.status === "error" ? "❌" : s.status === "running" ? "🔄" : "⏳";
+            var cls = s.status === "error" ? "color:#ef4444;" : s.status === "completed" ? "color:#10b981;" : s.status === "running" ? "color:#3b82f6;" : "color:var(--fwui-text-muted);";
+            return '<div style="display:flex;align-items:center;gap:10px;font-size:14px;opacity:' + (s.status === "pending" ? "0.5" : "1") + ';">' + icon + '<span style="' + cls + '">' + escapeHtml(s.step) + '</span></div>';
+          }).join("");
+          var hasError = currentSteps.some(function (s) { return s.status === "error"; });
+          var allCompleted = currentSteps.every(function (s) { return s.status === "completed"; });
+          statusSpan.textContent = hasError ? "启动失败" : allCompleted ? "启动成功！" : "正在处理...";
+        }
+
+        modal.style.display = "flex";
+        renderSteps();
+
+        try {
+          var r = await call("/api/tasks/" + taskId + "/start", "POST", {}, "启用任务");
+          modal.style.display = "none";
+
+          if (r.success) {
+            var progress = r.data && r.data.progress;
+            if (progress && progress.length > 0) {
+              currentSteps = progress.map(function (p) { return { step: p.step, status: p.status }; });
+              renderSteps();
+              modal.style.display = "flex";
+              await new Promise(function (resolve) { setTimeout(resolve, 1500); });
+            }
+            modal.style.display = "none";
+            FWUI.toast.success(r.data?.message || "任务已启动");
+            loadAutoTasks();
+          } else {
+            modal.style.display = "none";
+            var errStep = currentSteps.find(function (s) { return s.status === "running" || s.status === "pending"; });
+            if (errStep) { errStep.status = "error"; errStep.step += " - " + (r.message || "启动失败"); }
+            else { currentSteps[currentSteps.length - 1].status = "error"; }
+            renderSteps();
+            modal.style.display = "flex";
+            await new Promise(function (resolve) { setTimeout(resolve, 2000); });
+            modal.style.display = "none";
+            FWUI.toast.error(r.message || "启动失败");
+          }
+        } catch (e) {
+          modal.style.display = "none";
+          FWUI.toast.error("启动失败: " + e.message);
+        }
+      };
+
+      window._autoTaskStop = async function (taskId) {
+        var r = await call("/api/tasks/" + taskId + "/stop", "POST", {}, "停止任务");
+        if (r.success) { FWUI.toast.success("任务已停止"); loadAutoTasks(); }
+        else { FWUI.toast.error(r.message || "停止失败"); }
+      };
+
+      window._autoTaskExecute = async function (taskId) {
+        var r = await call("/api/tasks/" + taskId + "/execute", "POST", {}, "手动执行");
+        if (r.success) {
+          var d = r.data || {};
+          var color = d.status === '成功' || d.status === '重试成功' ? '#10b981' : '#ef4444';
+          FWUI.toast.success('执行完成: ' + d.status + (d.duration_ms ? ' (' + d.duration_ms + 'ms)' : ''));
+          if (d.signal && d.signal.symbol) log('📡 信号: ' + d.signal.symbol + ' dir=' + d.signal.direction + ' amt=' + d.signal.amount);
+          if (d.order_result && d.order_result.order_id) log('✅ 订单: ' + d.order_result.order_id);
+          if (d.error) log('❌ 错误: ' + d.error, 'error');
+          loadAutoTasks();
+        } else { FWUI.toast.error(r.message || "执行失败"); }
+      };
+
+      window._autoTaskDelete = async function (taskId) {
+        if (!(await FWUI.modal.danger({ content: "确定删除此任务吗？（软删除，数据保留）", okText: "删除" }))) return;
+        var r = await call("/api/tasks/" + taskId, "DELETE", {}, "删除任务");
+        if (r.success) { FWUI.toast.success("任务已删除"); loadAutoTasks(); }
+        else { FWUI.toast.error(r.message || "删除失败"); }
+      };
+
+      window._autoTaskEdit = async function (taskId) {
+        var task = autoTasks.find(function (t) { return t.id === taskId; });
+        if (!task) return;
+        editingTaskId = taskId;
+        document.getElementById("auto-task-modal-title").textContent = "编辑任务 #" + taskId;
+        document.getElementById("auto-task-name").value = task.task_name;
+        document.getElementById("auto-task-interval").value = task.interval;
+        document.getElementById("auto-task-max-amount").value = task.max_daily_amount;
+        document.getElementById("auto-task-max-count").value = task.max_daily_count;
+        document.getElementById("auto-task-max-fail").value = task.max_consecutive_failures;
+        document.getElementById("auto-task-modal").style.display = "flex";
+        // 动态加载启用的信号源，然后设置当前值
+        await loadActiveSignalProvidersForSelect();
+        document.getElementById("auto-task-source").value = task.signal_source;
+      };
+
+      window._autoTaskLogs = async function (taskId) {
+        var task = autoTasks.find(function (t) { return t.id === taskId; });
+        var taskName = task ? task.task_name : ('#' + taskId);
+
+        // 创建弹窗
+        var modal = document.createElement("div");
+        modal.className = "fw-task-log-modal";
+
+        // 操作类型映射
+        var actionMap = {
+          'create': { icon: '➕', label: '创建任务' },
+          'update': { icon: '✏️', label: '更新任务' },
+          'delete': { icon: '🗑️', label: '删除任务' },
+          'start': { icon: '▶️', label: '启用任务' },
+          'stop': { icon: '⏹️', label: '停止任务' },
+          'execute_manual': { icon: '🎯', label: '手动执行' },
+          'fuse_triggered': { icon: '🔥', label: '熔断触发' },
+          'init_gateway': { icon: '🔌', label: '网关初始化' },
+        };
+
+        // 状态映射
+        var statusMap = {
+          0: { label: '成功', class: 'fw-task-log-item__badge--success' },
+          1: { label: '失败', class: 'fw-task-log-item__badge--error' },
+          2: { label: '重试成功', class: 'fw-task-log-item__badge--retry' },
+          3: { label: '熔断', class: 'fw-task-log-item__badge--fuse' },
+        };
+
+        var currentTab = 'all'; // all / execution / operation
+        var allLogs = [];
+        var total = 0;
+
+        function renderLogs() {
+          var bodyEl = modal.querySelector('.fw-task-log-modal__body');
+          var filteredLogs = allLogs;
+          if (currentTab === 'execution') {
+            filteredLogs = allLogs.filter(function (l) { return l.log_type === 0; });
+          } else if (currentTab === 'operation') {
+            filteredLogs = allLogs.filter(function (l) { return l.log_type === 1; });
+          }
+
+          if (filteredLogs.length === 0) {
+            bodyEl.innerHTML = '<div class="fw-task-log-empty">' +
+              '<div class="fw-task-log-empty__icon">📭</div>' +
+              '<div>暂无日志记录</div>' +
+              '</div>';
+            return;
+          }
+
+          var html = '';
+          filteredLogs.forEach(function (l) {
+            var isOperation = l.log_type === 1;
+            var statusInfo = statusMap[l.status] || statusMap[0];
+            var timeStr = (l.executed_at || '').replace('T', ' ').replace(/\.\d+Z$/, '');
+
+            html += '<div class="fw-task-log-item">';
+            html += '  <div class="fw-task-log-item__header">';
+
+            if (isOperation) {
+              // 操作日志
+              var actionInfo = actionMap[l.action_type] || { icon: '📋', label: l.action_type || '操作' };
+              html += '    <span class="fw-task-log-item__badge fw-task-log-item__badge--action">' + actionInfo.icon + ' ' + actionInfo.label + '</span>';
+            } else {
+              // 执行日志
+              html += '    <span class="fw-task-log-item__badge ' + statusInfo.class + '">' + statusInfo.label + '</span>';
+            }
+
+            html += '    <span class="fw-task-log-item__time">' + timeStr + '</span>';
+
+            // 右侧元信息
+            var metaParts = [];
+            if (!isOperation && l.duration_ms) {
+              metaParts.push('⏱ ' + l.duration_ms + 'ms');
+            }
+            if (!isOperation && l.order_id) {
+              metaParts.push('📦 ' + l.order_id);
+            }
+            if (metaParts.length > 0) {
+              html += '    <span class="fw-task-log-item__meta">' + metaParts.join(' | ') + '</span>';
+            }
+
+            html += '  </div>';
+
+            // 日志内容
+            html += '  <div class="fw-task-log-item__body">';
+
+            if (isOperation) {
+              // 操作日志详情
+              try {
+                var detail = JSON.parse(l.detail_json || '{}');
+                var detailLines = [];
+
+                if (l.action_type === 'create') {
+                  detailLines.push('任务名称: ' + (detail.task_name || '-'));
+                  detailLines.push('信号来源: ' + (detail.signal_source || '-'));
+                  detailLines.push('网关: ' + (detail.gateway || '-'));
+                  detailLines.push('间隔: ' + (detail.interval || '-') + ' 分钟');
+                } else if (l.action_type === 'update') {
+                  if (detail.changes && Object.keys(detail.changes).length > 0) {
+                    detailLines.push('修改字段: ' + Object.keys(detail.changes).join(', '));
+                  } else {
+                    detailLines.push('无实际变更');
+                  }
+                } else if (l.action_type === 'start') {
+                  detailLines.push('网关初始化: ' + (detail.gateway_initialized ? '成功' : '失败'));
+                  if (detail.error_message) {
+                    detailLines.push('错误: ' + detail.error_message);
+                  }
+                } else if (l.action_type === 'stop') {
+                  detailLines.push('网关清理: ' + (detail.gateway_cleanup_ok ? '成功' : '失败'));
+                  if (detail.gateway_error) {
+                    detailLines.push('错误: ' + detail.gateway_error);
+                  }
+                } else if (l.action_type === 'execute_manual') {
+                  detailLines.push('执行状态: ' + (['成功', '失败', '重试成功', '熔断'][detail.execution_status] || '-'));
+                  if (detail.duration_ms) {
+                    detailLines.push('耗时: ' + detail.duration_ms + 'ms');
+                  }
+                  if (detail.order_id) {
+                    detailLines.push('订单ID: ' + detail.order_id);
+                  }
+                } else if (l.action_type === 'fuse_triggered') {
+                  detailLines.push('连续失败: ' + (detail.consecutive_failures || '-'));
+                  detailLines.push('熔断阈值: ' + (detail.max_consecutive_failures || '-'));
+                } else {
+                  // 通用详情展示
+                  Object.keys(detail).forEach(function (key) {
+                    if (typeof detail[key] === 'object') {
+                      detailLines.push(key + ': ' + JSON.stringify(detail[key]));
+                    } else {
+                      detailLines.push(key + ': ' + detail[key]);
+                    }
+                  });
+                }
+
+                if (detailLines.length > 0) {
+                  html += '    <div class="fw-task-log-item__detail">' + detailLines.join('<br>') + '</div>';
+                }
+              } catch (e) {
+                html += '    操作详情解析失败';
+              }
+            } else {
+              // 执行日志
+              try {
+                var sig = JSON.parse(l.signal_json || '{}');
+                if (sig.symbol) {
+                  html += '    <div class="fw-task-log-item__signal">📡 信号: ' + sig.symbol + ' | ' + (sig.direction || '') + ' | ' + (sig.amount || '') + '</div>';
+                }
+              } catch (e) {}
+
+              try {
+                var orderResult = JSON.parse(l.order_result_json || '{}');
+                if (orderResult && orderResult.status) {
+                  html += '    <div class="fw-task-log-item__signal">📋 订单状态: ' + orderResult.status + '</div>';
+                }
+              } catch (e) {}
+            }
+
+            // 错误信息
+            if (l.error_message) {
+              html += '    <div class="fw-task-log-item__error">❌ ' + escapeHtml(l.error_message) + '</div>';
+            }
+
+            html += '  </div>';
+            html += '</div>';
+          });
+
+          bodyEl.innerHTML = html;
+        }
+
+        function switchTab(tab) {
+          currentTab = tab;
+          // 更新tab样式
+          modal.querySelectorAll('.fw-task-log-modal__tab').forEach(function (t) {
+            t.classList.remove('fw-task-log-modal__tab--active');
+          });
+          modal.querySelector('[data-log-tab="' + tab + '"]').classList.add('fw-task-log-modal__tab--active');
+          renderLogs();
+        }
+
+        // 构建弹窗HTML
+        modal.innerHTML = '<div class="fw-task-log-modal__content">' +
+          '  <div class="fw-task-log-modal__header">' +
+          '    <h3 class="fw-task-log-modal__title">📜 任务日志 - ' + escapeHtml(taskName) + '</h3>' +
+          '    <button class="fwui-btn fwui-btn--sm" id="log-modal-close">关闭</button>' +
+          '  </div>' +
+          '  <div class="fw-task-log-modal__tabs">' +
+          '    <button class="fw-task-log-modal__tab fw-task-log-modal__tab--active" data-log-tab="all">全部</button>' +
+          '    <button class="fw-task-log-modal__tab" data-log-tab="execution">执行日志</button>' +
+          '    <button class="fw-task-log-modal__tab" data-log-tab="operation">操作日志</button>' +
+          '  </div>' +
+          '  <div class="fw-task-log-modal__body">加载中...</div>' +
+          '  <div class="fw-task-log-modal__footer">' +
+          '    <span style="font-size:12px;color:var(--fwui-text-muted);" id="log-count-info">加载中...</span>' +
+          '    <button class="fwui-btn fwui-btn--sm" id="log-refresh-btn">🔄 刷新</button>' +
+          '  </div>' +
+          '</div>';
+
+        document.body.appendChild(modal);
+
+        // 绑定事件
+        modal.querySelector('#log-modal-close').onclick = function () { document.body.removeChild(modal); };
+        modal.onclick = function (e) { if (e.target === modal) document.body.removeChild(modal); };
+
+        modal.querySelectorAll('.fw-task-log-modal__tab').forEach(function (tab) {
+          tab.onclick = function () {
+            switchTab(tab.dataset.logTab);
+          };
+        });
+
+        modal.querySelector('#log-refresh-btn').onclick = async function () {
+          await loadLogs();
+        };
+
+        // 加载日志
+        async function loadLogs() {
+          var bodyEl = modal.querySelector('.fw-task-log-modal__body');
+          bodyEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--fwui-text-muted);">加载中...</div>';
+
+          var r = await call("/api/tasks/" + taskId + "/logs?limit=50", "GET", null, "加载日志");
+          if (!r.success) {
+            bodyEl.innerHTML = '<div class="fw-task-log-empty"><div class="fw-task-log-empty__icon">❌</div><div>加载失败: ' + escapeHtml(r.message || '未知错误') + '</div></div>';
+            return;
+          }
+
+          allLogs = (r.data && r.data.logs) || [];
+          total = (r.data && r.data.total) || 0;
+
+          modal.querySelector('#log-count-info').textContent = '共 ' + total + ' 条记录，显示最近 ' + allLogs.length + ' 条';
+          renderLogs();
+        }
+
+        await loadLogs();
+      };
+
+      // ===== 自动任务：按钮绑定 =====
+      document.getElementById("btn-auto-task-new").onclick = async function () {
+        editingTaskId = null;
+        document.getElementById("auto-task-modal-title").textContent = "新建自动任务";
+        document.getElementById("auto-task-name").value = "";
+        document.getElementById("auto-task-interval").value = "5";
+        document.getElementById("auto-task-max-amount").value = "50";
+        document.getElementById("auto-task-max-count").value = "50";
+        document.getElementById("auto-task-max-fail").value = "5";
+        document.getElementById("auto-task-modal").style.display = "flex";
+        // 动态加载启用的信号源
+        await loadActiveSignalProvidersForSelect();
+      };
+
+      document.getElementById("btn-auto-task-refresh").onclick = function () { loadAutoTasks(); };
+
+      document.getElementById("btn-signal-test").onclick = async function () {
+        var r = await call("/api/tasks/signals/test?provider=random", "GET", null, "测试信号");
+        if (r.success) {
+          var sig = r.data || {};
+          FWUI.toast.success('信号生成成功');
+          log('🧪 测试信号: ' + sig.symbol + ' dir=' + sig.direction + ' amt=' + sig.amount + ' source=' + sig.source);
+        } else {
+          FWUI.toast.error(r.message || "信号测试失败");
+        }
+      };
+
+      document.getElementById("auto-task-modal-cancel").onclick = function () {
+        document.getElementById("auto-task-modal").style.display = "none";
+      };
+
+      document.getElementById("auto-task-modal-save").onclick = async function () {
+        var name = document.getElementById("auto-task-name").value.trim();
+        if (!name) { FWUI.toast.error("请输入任务名称"); return; }
+
+        var source = document.getElementById("auto-task-source").value;
+        if (!source) { FWUI.toast.error("请选择信号源"); return; }
+
+        var payload = {
+          task_name: name,
+          signal_source: source,
+          interval: parseInt(document.getElementById("auto-task-interval").value) || 5,
+          max_daily_amount: parseFloat(document.getElementById("auto-task-max-amount").value) || 50,
+          max_daily_count: parseInt(document.getElementById("auto-task-max-count").value) || 50,
+          max_consecutive_failures: parseInt(document.getElementById("auto-task-max-fail").value) || 5,
+        };
+
+        if (editingTaskId) {
+          var r = await call("/api/tasks/" + editingTaskId, "PUT", payload, "更新任务");
+          if (r.success) { FWUI.toast.success("任务已更新"); document.getElementById("auto-task-modal").style.display = "none"; loadAutoTasks(); }
+          else { FWUI.toast.error(r.message || "更新失败"); }
+        } else {
+          var r = await call("/api/tasks", "POST", payload, "创建任务");
+          if (r.success) {
+            FWUI.toast.success("任务已创建");
+            document.getElementById("auto-task-modal").style.display = "none";
+            loadAutoTasks();
+            // 自动启动
+            if (r.data && r.data.id) {
+              await call("/api/tasks/" + r.data.id + "/start", "POST", {}, "启动任务");
+            }
+          } else {
+            FWUI.toast.error(r.message || "创建失败");
+          }
+        }
+      };
+
+      // ===== 信号源管理 =====
+      var signalProviders = [];
+
+      async function loadSignalProviders() {
+        var listDiv = document.getElementById("signal-provider-list");
+        if (!listDiv) return;
+        listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:20px;text-align:center;">加载中...</div>';
+
+        var r = await call("/api/signal-providers", "GET", null, "加载信号源");
+        if (!r.success) {
+          listDiv.innerHTML = '<div style="color:var(--fwui-danger);padding:20px;text-align:center;">加载失败</div>';
+          return;
+        }
+        signalProviders = r.data || [];
+        renderSignalProviderList();
+      }
+
+      function renderSignalProviderList() {
+        var listDiv = document.getElementById("signal-provider-list");
+        if (!listDiv) return;
+
+        if (signalProviders.length === 0) {
+          listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:40px;text-align:center;"><div style="font-size:48px;">📡</div><div style="margin-top:8px;">暂无信号源，点击"同步内置"加载系统信号，或"新建信号源"添加自定义信号</div></div>';
+          return;
+        }
+
+        var html = '<table style="width:100%;border-collapse:collapse;margin-top:12px;">';
+        html += '<thead><tr style="border-bottom:2px solid var(--fwui-border);">';
+        html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">ID</th>';
+        html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">信号源</th>';
+        html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">类别</th>';
+        html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">类名/模块</th>';
+        html += '<th style="padding:10px;text-align:center;color:var(--fwui-text-muted);font-size:12px;">健康</th>';
+        html += '<th style="padding:10px;text-align:center;color:var(--fwui-text-muted);font-size:12px;">启用</th>';
+        html += '<th style="padding:10px;text-align:center;color:var(--fwui-text-muted);font-size:12px;">操作</th>';
+        html += '</tr></thead><tbody>';
+
+        signalProviders.forEach(function (sp) {
+          var catBadge = '';
+          if (sp.category === 'internal') {
+            catBadge = '<span style="background:#3b82f622;color:#3b82f6;padding:2px 8px;border-radius:10px;font-size:12px;">内部</span>';
+          } else if (sp.category === 'external') {
+            catBadge = '<span style="background:#f59e0b22;color:#f59e0b;padding:2px 8px;border-radius:10px;font-size:12px;">外部</span>';
+          } else if (sp.category === 'custom') {
+            catBadge = '<span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:10px;font-size:12px;">自定义</span>';
+          } else {
+            catBadge = '<span style="background:#6b728022;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:12px;">' + escapeHtml(sp.category) + '</span>';
+          }
+
+          var healthBadge = '❓';
+          if (sp.health_status === 'ok') healthBadge = '✅';
+          else if (sp.health_status === 'fail') healthBadge = '❌';
+
+          // 启用/停用开关
+          var toggleChecked = sp.is_active ? 'checked' : '';
+          var toggleColor = sp.is_active ? '#10b981' : '#999';
+          var builtinTag = sp.is_builtin ? '<span style="color:var(--fwui-text-muted);font-size:11px;">🔒内置</span>' : '';
+
+          html += '<tr style="border-bottom:1px solid var(--fwui-border);">';
+          html += '<td style="padding:10px;font-size:13px;">' + sp.id + '</td>';
+          html += '<td style="padding:10px;"><div style="font-weight:500;">' + escapeHtml(sp.display_name || sp.provider_name) + '</div><div style="color:var(--fwui-text-muted);font-size:11px;">' + escapeHtml(sp.provider_name) + '</div></td>';
+          html += '<td style="padding:10px;">' + catBadge + '</td>';
+          html += '<td style="padding:10px;font-size:12px;color:var(--fwui-text-muted);">' + escapeHtml(sp.class_name) + '<br><span style="font-size:11px;">' + escapeHtml(sp.module_path) + '</span></td>';
+          html += '<td style="padding:10px;text-align:center;">' + healthBadge + '</td>';
+
+          // 启用开关 (toggle switch)
+          html += '<td style="padding:10px;text-align:center;">';
+          html += '<label style="position:relative;display:inline-block;width:42px;height:22px;cursor:pointer;">';
+          html += '<input type="checkbox" ' + toggleChecked + ' onchange="window._spToggle(' + sp.id + ')" style="opacity:0;width:0;height:0;">';
+          html += '<span style="position:absolute;inset:0;background:' + toggleColor + ';border-radius:22px;transition:.3s;"></span>';
+          html += '<span style="position:absolute;height:18px;width:18px;left:' + (sp.is_active ? '22px' : '2px') + ';top:2px;background:#fff;border-radius:50%;transition:.3s;"></span>';
+          html += '</label>';
+          html += '<div style="font-size:10px;color:var(--fwui-text-muted);margin-top:2px;">' + (sp.is_active ? '启用中' : '已停用') + '</div>';
+          html += '</td>';
+
+          html += '<td style="padding:10px;text-align:center;white-space:nowrap;">';
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spEdit(' + sp.id + ')" style="margin:2px;">编辑</button>';
+          if (sp.file_path) {
+            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spOpenFile(' + sp.id + ')" style="margin:2px;">📝IDE</button>';
+          }
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spHealth(' + sp.id + ')" style="margin:2px;">健康</button>';
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spTest(' + sp.id + ')" style="margin:2px;">测试</button>';
+          if (sp.can_delete) {
+            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spDelete(' + sp.id + ')" style="margin:2px;color:var(--fwui-danger);">删除</button>';
+          }
+          html += builtinTag;
+          html += '</td></tr>';
+        });
+
+        html += '</tbody></table>';
+        listDiv.innerHTML = html;
+      }
+
+      // 信号源 CRUD 操作
+      window._spEdit = function (id) {
+        var sp = signalProviders.find(function (x) { return x.id === id; });
+        if (!sp) return;
+        editingSignalProviderId = id;
+        document.getElementById("signal-provider-modal-title").textContent = "编辑信号源 #" + id;
+        document.getElementById("sp-source-type").style.display = "none";
+        document.getElementById("sp-name").value = sp.provider_name;
+        document.getElementById("sp-display").value = sp.display_name || "";
+        document.getElementById("sp-category").value = sp.category;
+        document.getElementById("sp-class").value = sp.class_name;
+        document.getElementById("sp-module").value = sp.module_path;
+        document.getElementById("sp-desc").value = sp.description || "";
+        document.getElementById("sp-config").value = typeof sp.config_json === 'string' ? sp.config_json : JSON.stringify(sp.config_json || {}, null, 2);
+
+        // 检测是否为 HTTP URL 信号源
+        var cfg = sp.config_json || {};
+        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch(e) { cfg = {}; } }
+        if (cfg.http_url) {
+          document.getElementById("sp-http-url").value = cfg.http_url;
+          document.getElementById("sp-url-row").style.display = "block";
+          document.getElementById("sp-source-type").value = "http_url";
+        } else {
+          document.getElementById("sp-http-url").value = "";
+          document.getElementById("sp-url-row").style.display = "none";
+          document.getElementById("sp-source-type").value = "python";
+        }
+
+        document.getElementById("sp-name").disabled = sp.is_builtin;
+        document.getElementById("sp-class").disabled = sp.is_builtin;
+        document.getElementById("sp-module").disabled = sp.is_builtin;
+        document.getElementById("sp-category").disabled = sp.is_builtin || !sp.can_delete;
+        document.getElementById("sp-advanced").open = true;
+        document.getElementById("signal-provider-modal").style.display = "flex";
+      };
+
+      window._spToggle = async function (id) {
+        var sp = signalProviders.find(function (x) { return x.id === id; });
+        if (!sp) return;
+        var r = await call("/api/signal-providers/" + id + "/toggle", "POST", {}, "切换状态");
+        if (r.success) {
+          sp.is_active = r.data.is_active;
+          FWUI.toast.success(r.message);
+          renderSignalProviderList();
+        } else {
+          FWUI.toast.error(r.message || "操作失败");
+          renderSignalProviderList(); // 刷新UI恢复
+        }
+      };
+
+      window._spOpenFile = async function (id) {
+        var r = await call("/api/signal-providers/" + id + "/open-file", "POST", {}, "打开文件");
+        if (r.success) {
+          FWUI.toast.success("已在默认 IDE 中打开文件");
+        } else {
+          FWUI.toast.error(r.message || r.error || "打开失败");
+        }
+      };
+
+      window._spDelete = async function (id) {
+        // 先检查是否有任务引用
+        var refCheck = await call("/api/signal-providers/" + id + "/references", "GET", null, "检查引用");
+        var refs = refCheck.success && refCheck.data ? refCheck.data : [];
+        if (refs.length > 0) {
+          var taskList = refs.map(function (r) { return '"' + r.task_name + '"(ID:' + r.task_id + ')'; }).join(", ");
+          FWUI.toast.error("该信号源正在被 " + refs.length + " 个任务使用: " + taskList + "。请先删除相关任务后再删除信号源");
+          return;
+        }
+        if (!(await FWUI.modal.danger({ content: "确定删除此信号源吗？这将同时删除对应的 .py 文件！", okText: "删除" }))) return;
+        var r = await call("/api/signal-providers/" + id, "DELETE", {}, "删除信号源");
+        if (r.success) { FWUI.toast.success("信号源及 .py 文件已删除"); loadSignalProviders(); }
+        else { FWUI.toast.error(r.message || "删除失败"); }
+      };
+
+      window._spHealth = async function (id) {
+        var r = await call("/api/signal-providers/" + id + "/health", "POST", {}, "健康检查");
+        if (r.success) {
+          var status = r.data.status === 'ok' ? '✅ 健康' : '❌ 异常';
+          FWUI.toast.success(status);
+          loadSignalProviders();
+        } else {
+          FWUI.toast.error(r.message || "检查失败");
+        }
+      };
+
+      window._spTest = async function (id) {
+        var r = await call("/api/signal-providers/" + id + "/test", "POST", {}, "测试信号");
+        if (r.success) {
+          if (r.data.success && r.data.signal) {
+            FWUI.toast.success('信号生成成功');
+            var s = r.data.signal;
+            log('📡 信号测试: ' + s.symbol + ' dir=' + s.direction + ' amt=' + s.amount);
+          } else {
+            FWUI.toast.error(r.data.error || "信号生成失败");
+          }
+        } else {
+          FWUI.toast.error(r.message || "测试失败");
+        }
+      };
+
+      // 加载启用的信号源（供任务信号源下拉选择）
+      async function loadActiveSignalProvidersForSelect() {
+        var selectEl = document.getElementById("auto-task-source");
+        if (!selectEl) return;
+        var r = await call("/api/signal-providers/active", "GET", null, "获取启用信号源");
+        if (r.success && r.data) {
+          var options = '<option value="">-- 请选择信号源 --</option>';
+          r.data.forEach(function (sp) {
+            options += '<option value="' + escapeHtml(sp.provider_name) + '">' + escapeHtml(sp.display_name || sp.provider_name) + ' (' + escapeHtml(sp.category === 'internal' ? '内部' : '外部') + ')</option>';
+          });
+          selectEl.innerHTML = options;
+        }
+      }
+
+      // 来源类型切换（新建模式）
+      window._onSourceTypeChange = function () {
+        var type = document.getElementById("sp-source-type").value;
+        var urlRow = document.getElementById("sp-url-row");
+        var nameHint = document.getElementById("sp-name-hint");
+        if (type === "http_url") {
+          urlRow.style.display = "block";
+          nameHint.textContent = "留空将自动生成 signal_YYYYMMDDhhmm 格式";
+        } else {
+          urlRow.style.display = "none";
+          nameHint.textContent = "留空将自动生成 signal_YYYYMMDDhhmm 格式";
+        }
+      };
+
+      document.getElementById("btn-signal-provider-new").onclick = function () {
+        editingSignalProviderId = null;
+        document.getElementById("signal-provider-modal-title").textContent = "新建信号源";
+        document.getElementById("sp-source-type").value = "python";
+        document.getElementById("sp-source-type").style.display = "block";
+        document.getElementById("sp-name").value = "";
+        document.getElementById("sp-display").value = "";
+        document.getElementById("sp-category").value = "custom";
+        document.getElementById("sp-class").value = "";
+        document.getElementById("sp-module").value = "";
+        document.getElementById("sp-desc").value = "";
+        document.getElementById("sp-config").value = "{}";
+        document.getElementById("sp-http-url").value = "";
+        document.getElementById("sp-name").disabled = false;
+        document.getElementById("sp-class").disabled = false;
+        document.getElementById("sp-module").disabled = false;
+        document.getElementById("sp-category").disabled = false;
+        document.getElementById("sp-advanced").open = false;
+        window._onSourceTypeChange();
+        document.getElementById("signal-provider-modal").style.display = "flex";
+      };
+
+      // 热加载：点击刷新按钮时重新扫描 providers/ 目录
+      document.getElementById("btn-signal-provider-refresh").onclick = async function () {
+        var r = await call("/api/signal-providers/reload", "POST", {}, "热加载");
+        if (r.success) {
+          var d = r.data;
+          FWUI.toast.success("热加载完成：共 " + d.total + " 个信号源" + (d.new.length > 0 ? "，新增 " + d.new.length + " 个" : "") + (d.removed.length > 0 ? "，移除 " + d.removed.length + " 个" : ""));
+          loadSignalProviders();
+        } else {
+          FWUI.toast.error(r.message || "热加载失败");
+        }
+      };
+
+      document.getElementById("signal-provider-modal-cancel").onclick = function () {
+        document.getElementById("signal-provider-modal").style.display = "none";
+      };
+
+      document.getElementById("signal-provider-modal-save").onclick = async function () {
+        var isEditing = !!editingSignalProviderId;
+        var sourceType = document.getElementById("sp-source-type").value;
+        var payload = {
+          source_type: sourceType,
+          provider_name: document.getElementById("sp-name").value.trim(),
+          display_name: document.getElementById("sp-display").value.trim(),
+          category: document.getElementById("sp-category").value,
+          class_name: document.getElementById("sp-class").value.trim(),
+          module_path: document.getElementById("sp-module").value.trim(),
+          description: document.getElementById("sp-desc").value.trim(),
+          config_json: document.getElementById("sp-config").value.trim(),
+        };
+
+        if (sourceType === "http_url") {
+          payload.http_url = document.getElementById("sp-http-url").value.trim();
+          if (!payload.http_url) { FWUI.toast.error("请输入 HTTP URL"); return; }
+          if (!payload.provider_name) {
+            // 自动生成名称
+            payload.provider_name = ""; // 后端会自动生成
+          }
+        } else {
+          // Python 自定义：名称可留空自动生成
+          if (!payload.provider_name && isEditing) { FWUI.toast.error("信号源名称不可为空"); return; }
+        }
+
+        if (isEditing) {
+          var r = await call("/api/signal-providers/" + editingSignalProviderId, "PUT", payload, "更新信号源");
+          if (r.success) { FWUI.toast.success("信号源已更新"); document.getElementById("signal-provider-modal").style.display = "none"; loadSignalProviders(); }
+          else { FWUI.toast.error(r.message || "更新失败"); }
+        } else {
+          var r = await call("/api/signal-providers", "POST", payload, "创建信号源");
+          if (r.success) {
+            var newName = r.data && r.data.provider_name ? r.data.provider_name : "";
+            FWUI.toast.success("信号源已创建" + (newName ? "：" + newName : ""));
+            document.getElementById("signal-provider-modal").style.display = "none";
+            loadSignalProviders();
+          }
+          else { FWUI.toast.error(r.message || "创建失败"); }
+        }
+      };
+
     })();
   </script>
 </body>

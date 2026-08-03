@@ -186,7 +186,7 @@ async def login(
         n = await record_login_failure(req.email, request)
         await _record_login_audit(db, req.email, request, success=False, reason="invalid_credentials")
         logger.bind(action="login_fail", email=req.email, failures=n).warning("login failed")
-        raise AuthError("invalid email or password")
+        raise AuthError("用户名或密码错误")
     if user.status != 0:
         await _record_login_audit(db, req.email, request, success=False, reason="user_disabled")
         raise AuthError("user disabled")

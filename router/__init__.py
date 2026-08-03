@@ -10,6 +10,8 @@ from router import (
     polymarket_router,
     ranking_router,
     rental_router,
+    signal_provider_router,
+    task_router,
 )
 
 __all__ = [
@@ -23,5 +25,7 @@ __all__ = [
     "polymarket_router",
     "ranking_router",
     "rental_router",
+    "signal_provider_router",
+    "task_router",
 ]
 __version__ = "1.0.0"

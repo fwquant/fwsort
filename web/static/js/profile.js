@@ -219,8 +219,8 @@
       document.getElementById("old-password").value = "";
       document.getElementById("new-password").value = "";
       document.getElementById("confirm-password").value = "";
-      setTimeout(() => {
-        if (confirm("密码已修改，需要重新登录。是否立即退出？")) {
+      setTimeout(async () => {
+        if (await FWUI.modal.confirm("密码已修改，需要重新登录。是否立即退出？")) {
           FWUI.api.logout();
           location.href = "/";
         }

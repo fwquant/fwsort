@@ -429,3 +429,115 @@ class OutboxEvent(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+# ========== 18. 系统配置表（单表：默认值 + 覆盖值）==========
+class SystemConfig(Base):
+    """系统配置单表：默认值 + 用户覆盖值
+    - default_value: 系统出厂默认值（种子写入，不可通过管理接口修改）
+    - config_value: 用户覆盖值（NULL 表示未覆盖，读取时取 default_value）
+    - 读取逻辑：COALESCE(config_value, default_value)
+    - 重置逻辑：SET config_value = NULL
+    """
+
+    __tablename__ = "system_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    config_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    default_value: Mapped[str] = mapped_column(Text, nullable=False)
+    config_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    value_type: Mapped[str] = mapped_column(String(16), nullable=False, default="str")
+    group: Mapped[str] = mapped_column(String(32), nullable=False, default="general", index=True)
+    description: Mapped[str] = mapped_column(String(256), default="", nullable=False)
+    readonly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="True 表示不可通过管理接口修改")
+    updated_by: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ========== 19. 自动任务表（信号管理器 + 自动下单）==========
+class AutoTask(Base):
+    """自动任务：定时获取信号 → 下单 → 记录日志"""
+
+    __tablename__ = "auto_task"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    task_name: Mapped[str] = mapped_column(String(128), nullable=False, comment="任务名称")
+    signal_source: Mapped[str] = mapped_column(String(32), nullable=False, default="random", comment="信号来源: random/http")
+    gateway: Mapped[str] = mapped_column(String(32), nullable=False, default="polymarket_f3", comment="交易网关")
+    interval: Mapped[int] = mapped_column(Integer, default=5, comment="调度间隔（分钟）")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否启用")
+    config_json: Mapped[str] = mapped_column(Text, default="{}", comment="任务额外配置 JSON")
+    max_daily_amount: Mapped[float] = mapped_column(DECIMAL(18, 6), default=50.0, comment="单日最大下单金额 USDC")
+    max_daily_count: Mapped[int] = mapped_column(Integer, default=50, comment="单日最大下单次数")
+    max_consecutive_failures: Mapped[int] = mapped_column(Integer, default=5, comment="连续失败熔断阈值")
+    total_executions: Mapped[int] = mapped_column(Integer, default=0, comment="总执行次数")
+    total_success: Mapped[int] = mapped_column(Integer, default=0, comment="成功次数")
+    total_failed: Mapped[int] = mapped_column(Integer, default=0, comment="失败次数")
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, comment="当前连续失败次数")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    logs: Mapped[list["AutoTaskLog"]] = relationship(back_populates="task")
+
+
+# ========== 20. 自动任务执行日志表 ==========
+class AutoTaskLog(Base):
+    """自动任务日志：执行日志 + 操作日志"""
+
+    __tablename__ = "auto_task_log"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(FKType, ForeignKey("auto_task.id"), nullable=False, index=True)
+    log_type: Mapped[int] = mapped_column(
+        SmallInteger, default=0, index=True, comment="0-执行日志 1-操作日志"
+    )
+    action_type: Mapped[str] = mapped_column(String(32), default="", comment="操作类型: start/stop/create/update/delete/execute_manual/init_gateway/fuse_triggered")
+    executed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    signal_json: Mapped[str] = mapped_column(Text, default="{}", comment="信号内容 JSON")
+    order_result_json: Mapped[str] = mapped_column(Text, default="{}", comment="下单结果 JSON")
+    status: Mapped[int] = mapped_column(
+        SmallInteger, default=0, comment="0-成功 1-失败 2-已重试成功 3-已熔断"
+    )
+    error_message: Mapped[str] = mapped_column(String(512), default="", comment="错误信息")
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0, comment="执行耗时（毫秒）")
+    order_id: Mapped[str] = mapped_column(String(128), default="", comment="订单ID")
+    detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="操作详情 JSON")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+    task: Mapped["AutoTask"] = relationship(back_populates="logs")
+
+
+# ========== 21. 信号提供者配置表 ==========
+class SignalProviderConfig(Base):
+    """信号提供者配置：用于在 Admin UI 中管理信号源（增删改查）
+
+    区分：
+        - internal: 内部信号（如 random）由系统自动发现，可修改配置
+        - external: 外部信号（如 HTTP/Webhook）由用户手动创建，需填写配置
+    """
+
+    __tablename__ = "signal_provider_config"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    provider_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="信号源名称（对应 SignalProvider.name）")
+    category: Mapped[str] = mapped_column(String(16), nullable=False, default="internal", comment="internal 内部 / external 外部")
+    class_name: Mapped[str] = mapped_column(String(128), nullable=False, comment="Python 类名（如 RandomSignalProvider）")
+    module_path: Mapped[str] = mapped_column(String(256), default="", comment="模块路径（如 fwsort.signals.providers.random_signal）")
+    display_name: Mapped[str] = mapped_column(String(128), default="", comment="显示名称")
+    description: Mapped[str] = mapped_column(Text, default="", comment="描述")
+    config_json: Mapped[str] = mapped_column(Text, default="{}", comment="Provider 初始化参数 JSON")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否为系统内置（内置不可删除）")
+    health_status: Mapped[str] = mapped_column(String(16), default="unknown", comment="健康状态: ok/fail/unknown")
+    health_message: Mapped[str] = mapped_column(String(256), default="", comment="健康检查信息")
+    last_health_check_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )

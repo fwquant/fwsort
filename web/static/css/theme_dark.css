@@ -4,6 +4,7 @@
   /* 背景层级 */
   --fwui-bg: #1a1325;             /* 页面底色 */
   --fwui-bg-elevated: #251a35;    /* 卡片/弹框/输入框 */
+  --fwui-bg-secondary: #20172e;   /* 次要背景（表格hover/控制台等）*/
   --fwui-bg-input: #2d2042;
   --fwui-bg-hover: #2f2344;
   --fwui-bg-tag: #2d2042;

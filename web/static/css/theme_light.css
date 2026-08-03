@@ -2,6 +2,7 @@
 [data-theme="light"] {
   --fwui-bg: #f7f5fb;
   --fwui-bg-elevated: #ffffff;
+  --fwui-bg-secondary: #ede8f5;
   --fwui-bg-input: #ffffff;
   --fwui-bg-hover: #f0ebf8;
   --fwui-bg-tag: #f0ebf8;
