@@ -4,6 +4,10 @@
     - 支持 HTTP POST 推送信号
     - 支持 Webhook 回调
     - 信号可通过 set_external_signal() 方法手动注入
+
+参数说明：
+    - webhook_url (str): Webhook 回调地址
+    - api_key (str): API 密钥（隐藏参数）
 """
 from __future__ import annotations
 
@@ -18,15 +22,31 @@ class HttpSignalProvider(SignalProvider):
     """HTTP 外部信号提供者
 
     通过 HTTP POST /api/signals/http 推送信号到系统。
+
+    参数：
+        - webhook_url: Webhook 回调地址
+        - api_key: API 密钥
     """
 
     name: str = "http"
-    category: str = "external"  # 外部信号
+    category: str = "external"
+    description: str = "HTTP POST / Webhook 外部信号源"
+
+    # 显示参数（Web 可编辑）
+    parameters = ["webhook_url", "api_key"]
+    # 隐藏参数
+    hidden_parameters: list[str] = []
+
+    # 参数默认值（会被 Web 界面修改）
+    webhook_url: str = ""
+    api_key: str = ""
 
     def __init__(self, config_json: dict | None = None):
         self.config = config_json or {}
-        self.webhook_url = self.config.get("webhook_url", "")
-        self.api_key = self.config.get("api_key", "")
+        # 从 config 读取运行时配置（兼容现有任务数据）
+        if self.config:
+            self.webhook_url = self.config.get("webhook_url", self.webhook_url)
+            self.api_key = self.config.get("api_key", self.api_key)
         self._pending_signal: Signal | None = None
 
     def set_external_signal(self, signal: Signal) -> None:

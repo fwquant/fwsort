@@ -1144,8 +1144,254 @@ class PolymarketGateway(BaseGateway):
             result["code"] = GatewayCode.QUERY_FAILED
         return result
 
-    # ===== 6. 账户与持仓 =====
+    # ===== 5. 账户与持仓 =====
     pass
+
+    # 扫描并赎回所有已结算市场的获胜持仓
+    async def redeem_resolved_positions(self, redeem_all: bool = True) -> dict:
+        """扫描钱包所有持仓，找到已结算市场并批量赎回
+
+        逻辑：
+        1. 扫描钱包所有持仓（data-api /positions）
+        2. 对每个持仓查询对应市场状态，判断是否已结算（resolved=true）
+        3. 已结算且持仓 > 0 的，调用 redeemPositions 做链上批量赎回
+        4. 已关闭但未结算的市场不做任何操作（卖出会失败）
+        5. 没有待赎回仓位时不发链上交易
+
+        Args:
+            redeem_all: True=赎回所有已结算持仓，False=仅当市场 resolved 时赎回
+
+        Returns:
+            dict: {success, redeemed_count, redeemed_positions, errors}
+        """
+        if not self.wallet_address:
+            return {
+                "success": False,
+                "code": GatewayCode.WALLET_NOT_CONFIGURED,
+                "msg": "wallet address not configured",
+                "redeemed_count": 0,
+                "redeemed_positions": [],
+                "errors": [],
+            }
+
+        errors = []
+        positions_to_redeem = []
+
+        try:
+            pos_result = await self.get_positions(size_greater_than=0.001)
+            if not pos_result.get("success"):
+                return {
+                    "success": False,
+                    "code": GatewayCode.POSITIONS_QUERY_FAILED,
+                    "msg": f"查询持仓失败: {pos_result.get('msg', '')}",
+                    "redeemed_count": 0,
+                    "redeemed_positions": [],
+                    "errors": [pos_result.get('msg', '')],
+                }
+
+            all_positions = pos_result.get("data") or []
+            if not all_positions:
+                return {
+                    "success": True,
+                    "code": GatewayCode.POSITIONS_OK,
+                    "msg": "无持仓，跳过赎回",
+                    "redeemed_count": 0,
+                    "redeemed_positions": [],
+                    "errors": [],
+                }
+
+            logger.info(f"[POLY-REDEEM] 扫描到 {len(all_positions)} 个持仓，逐个检查结算状态...")
+
+            for pos in all_positions:
+                token_id = pos.get("token_id") or pos.get("tokenId", "")
+                market_slug = pos.get("market") or pos.get("market_slug", "")
+                size = float(pos.get("size") or 0)
+                cur_price = float(pos.get("curPrice") or pos.get("price") or 0)
+
+                if size <= 0:
+                    continue
+
+                try:
+                    if market_slug:
+                        market_resp = await self.get_market_by_slug(market_slug)
+                        if market_resp.get("success") and market_resp.get("data"):
+                            mkt = market_resp.get("data")
+                            state = mkt.get("state") or {}
+                            is_resolved = state.get("resolved", False)
+                            is_closed = state.get("closed", False)
+
+                            if is_resolved and is_closed:
+                                condition_id = mkt.get("conditionId") or mkt.get("condition_id", "")
+                                positions_to_redeem.append({
+                                    "token_id": token_id,
+                                    "market_slug": market_slug,
+                                    "condition_id": condition_id,
+                                    "size": size,
+                                    "cur_price": cur_price,
+                                    "is_resolved": True,
+                                })
+                                logger.info(
+                                    f"[POLY-REDEEM] 发现已结算持仓: {market_slug} "
+                                    f"token={token_id[:12]}... size={size} price={cur_price}"
+                                )
+                            elif is_closed and not is_resolved:
+                                logger.debug(
+                                    f"[POLY-REDEEM] 市场已关闭但未结算: {market_slug}，跳过"
+                                )
+                            else:
+                                logger.debug(
+                                    f"[POLY-REDEEM] 市场未结算: {market_slug} "
+                                    f"(closed={is_closed}, resolved={is_resolved})，跳过"
+                                )
+                        else:
+                            logger.warning(
+                                f"[POLY-REDEEM] 查询市场失败: {market_slug}, "
+                                f"将尝试直接赎回 token={token_id}"
+                            )
+                            if token_id:
+                                positions_to_redeem.append({
+                                    "token_id": token_id,
+                                    "market_slug": market_slug,
+                                    "condition_id": "",
+                                    "size": size,
+                                    "cur_price": cur_price,
+                                    "is_resolved": None,
+                                })
+                    elif token_id:
+                        positions_to_redeem.append({
+                            "token_id": token_id,
+                            "market_slug": "",
+                            "condition_id": "",
+                            "size": size,
+                            "cur_price": cur_price,
+                            "is_resolved": None,
+                        })
+                except Exception as e:
+                    err_msg = f"检查持仓异常: {market_slug or token_id[:16]}... {e}"
+                    logger.warning(f"[POLY-REDEEM] {err_msg}")
+                    errors.append(err_msg)
+
+            if not positions_to_redeem:
+                return {
+                    "success": True,
+                    "code": GatewayCode.POSITIONS_OK,
+                    "msg": f"扫描 {len(all_positions)} 个持仓，无已结算持仓需要赎回",
+                    "redeemed_count": 0,
+                    "redeemed_positions": [],
+                    "errors": errors,
+                }
+
+            logger.info(
+                f"[POLY-REDEEM] 共 {len(positions_to_redeem)} 个持仓可赎回，开始批量赎回..."
+            )
+
+            redeemed_results = []
+
+            if self._sdk_client and hasattr(self._sdk_client, 'redeem_positions'):
+                try:
+                    condition_ids = list(set(
+                        p["condition_id"] for p in positions_to_redeem
+                        if p.get("condition_id")
+                    ))
+                    for cid in condition_ids:
+                        try:
+                            handle = await self._sdk_client.redeem_positions(condition_id=cid)
+                            result = await handle.wait()
+                            redeemed_results.append({
+                                "condition_id": cid,
+                                "result": str(result),
+                            })
+                            logger.info(f"[POLY-REDEEM] 赎回成功 condition_id={cid[:12]}... result={result}")
+                        except Exception as e:
+                            err_msg = f"赎回 condition_id={cid[:12]}... 失败: {e}"
+                            logger.warning(f"[POLY-REDEEM] {err_msg}")
+                            errors.append(err_msg)
+                            redeemed_results.append({
+                                "condition_id": cid,
+                                "error": str(e),
+                            })
+
+                    for p in positions_to_redeem:
+                        if not p.get("condition_id") and p.get("token_id"):
+                            try:
+                                handle = await self._sdk_client.redeem_positions(token_id=p["token_id"])
+                                result = await handle.wait()
+                                redeemed_results.append({
+                                    "token_id": p["token_id"],
+                                    "result": str(result),
+                                })
+                                logger.info(f"[POLY-REDEEM] 按 token 赎回成功 {p['token_id'][:12]}...")
+                            except Exception as e:
+                                err_msg = f"赎回 token={p['token_id'][:12]}... 失败: {e}"
+                                logger.warning(f"[POLY-REDEEM] {err_msg}")
+                                errors.append(err_msg)
+                                redeemed_results.append({
+                                    "token_id": p["token_id"],
+                                    "error": str(e),
+                                })
+                except Exception as e:
+                    err_msg = f"批量赎回异常: {e}"
+                    logger.error(f"[POLY-REDEEM] {err_msg}")
+                    errors.append(err_msg)
+            else:
+                for p in positions_to_redeem:
+                    try:
+                        cid = p.get("condition_id") or ""
+                        tid = p.get("token_id") or ""
+                        payload = {}
+                        if cid:
+                            payload["condition_id"] = cid
+                        if tid:
+                            payload["token_id"] = tid
+                        if not payload:
+                            continue
+
+                        redeem_result = await self._request(
+                            "POST", "/redeem", body=payload, need_l2=True
+                        )
+                        redeemed_results.append({
+                            "market_slug": p.get("market_slug", ""),
+                            "success": redeem_result.get("success"),
+                            "detail": redeem_result.get("data") or redeem_result.get("msg", ""),
+                        })
+                        if redeem_result.get("success"):
+                            logger.info(
+                                f"[POLY-REDEEM] HTTP 赎回成功: {p.get('market_slug', '')} "
+                                f"token={tid[:12]}..."
+                            )
+                        else:
+                            err_msg = f"HTTP 赎回失败: {p.get('market_slug', '')} {redeem_result.get('msg', '')}"
+                            logger.warning(f"[POLY-REDEEM] {err_msg}")
+                            errors.append(err_msg)
+                    except Exception as e:
+                        err_msg = f"赎回 {p.get('market_slug') or p.get('token_id', '')} 异常: {e}"
+                        logger.warning(f"[POLY-REDEEM] {err_msg}")
+                        errors.append(err_msg)
+
+            success_count = sum(1 for r in redeemed_results if r.get("success") or r.get("result"))
+            total_redeem = len(redeemed_results)
+
+            return {
+                "success": True,
+                "code": GatewayCode.POSITIONS_OK,
+                "msg": f"扫描 {len(all_positions)} 持仓，赎回 {total_redeem} 个，成功 {success_count}",
+                "redeemed_count": total_redeem,
+                "redeemed_positions": positions_to_redeem,
+                "redeem_results": redeemed_results,
+                "errors": errors,
+            }
+
+        except Exception as e:
+            err_msg = f"redeem_resolved_positions 整体异常: {e}"
+            logger.error(f"[POLY-REDEEM] {err_msg}")
+            return {
+                "success": False,
+                "code": GatewayCode.POSITIONS_QUERY_FAILED,
+                "msg": err_msg,
+                "redeemed_count": 0,
+                "redeemed_positions": [],
+                "errors": [err_msg],
+            }
 
     # 查询钱包余额（V2 兼容：data-api 持仓 + CLOB 旧 /collateral 尝试）
     async def get_balance(self) -> dict:

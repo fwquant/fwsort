@@ -423,10 +423,11 @@ async def lifespan(app: FastAPI):
     async def _sync_signal_providers() -> None:
         try:
             await asyncio.sleep(2)
-            from fwsort.signals.config_service import sync_builtin_providers
-            sync_builtin_providers()
+            from fwsort.signals import list_providers
+            # 新架构：信号源由 manager._discover_providers() 自动发现
+            logger.info("[signal-providers] auto-discovered %d providers", len(list_providers()))
         except Exception as e:
-            logger.warning(f"[signal-providers] sync builtin failed: {e}")
+            logger.warning(f"[signal-providers] sync failed: {e}")
     asyncio.create_task(_sync_signal_providers())
 
     # 从数据库加载配置（种子默认值 + 加载当前值覆盖 settings）
@@ -789,7 +790,7 @@ _DEMO_INJECT_BODY = """
 <script>
   // 演示模式下：导航链接自动重写为 /demo/ 前缀
   document.body.classList.add("fw-demo-body");
-  var _demoNavMap={"/":"demo","/detail":"demo/detail","/accounts":"demo/accounts","/accounts/tasks":"demo/accounts/tasks","/accounts/execution":"demo/accounts/execution","/follow":"demo/follow","/follow/my":"demo/follow/my","/rental":"demo/rental","/admin":"demo/admin","/profile":"demo/profile","/polymarket":"demo/polymarket"};
+  var _demoNavMap={"/":"demo","/detail":"demo/detail","/accounts":"demo/accounts","/accounts/tasks":"demo/accounts/tasks","/accounts/execution":"demo/accounts/execution","/follow":"demo/follow","/follow/my":"demo/follow/my","/rental":"demo/rental","/admin":"demo/admin","/admin/tasks":"demo/admin/tasks","/admin/task-list":"demo/admin/task-list","/profile":"demo/profile","/polymarket":"demo/polymarket"};
   document.querySelectorAll(".fwui-nav__link").forEach(function(a){
     var h=a.getAttribute("href");
     if(h&&_demoNavMap[h]) a.setAttribute("href","/"+_demoNavMap[h]);
@@ -911,6 +912,16 @@ async def rental_page() -> HTMLResponse:
 async def admin_page() -> HTMLResponse:
     return await _render_page("admin")
 
+@app.get("/admin/tasks", response_class=HTMLResponse)
+async def admin_tasks_page() -> HTMLResponse:
+    """自动任务管理（独立 URL）"""
+    return await _render_page("admin", initial_tab="tasks")
+
+@app.get("/admin/task-list", response_class=HTMLResponse)
+async def admin_task_list_page() -> HTMLResponse:
+    """任务列表（独立 URL）"""
+    return await _render_page("admin", initial_tab="task-list")
+
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page() -> HTMLResponse:
     return await _render_page("profile")
@@ -971,6 +982,16 @@ async def demo_rental_page() -> HTMLResponse:
 async def demo_admin_page() -> HTMLResponse:
     return await _render_page("admin", demo=True)
 
+@app.get("/demo/admin/tasks", response_class=HTMLResponse)
+async def demo_admin_tasks_page() -> HTMLResponse:
+    """演示模式 - 自动任务管理（独立 URL）"""
+    return await _render_page("admin", demo=True, initial_tab="tasks")
+
+@app.get("/demo/admin/task-list", response_class=HTMLResponse)
+async def demo_admin_task_list_page() -> HTMLResponse:
+    """演示模式 - 任务列表（独立 URL）"""
+    return await _render_page("admin", demo=True, initial_tab="task-list")
+
 @app.get("/demo/profile", response_class=HTMLResponse)
 async def demo_profile_page() -> HTMLResponse:
     return await _render_page("profile", demo=True)
@@ -1024,6 +1045,7 @@ async def demo_health() -> dict:
 
 if __name__ == "__main__":
     import argparse
+    import logging
     import threading
     import time
     import socket
@@ -1032,6 +1054,29 @@ if __name__ == "__main__":
     import uvicorn
     import webbrowser
 
+    # 配置日志过滤：抑制高频轮询端点的访问日志
+    class _AccessLogFilter(logging.Filter):
+        """过滤高频轮询端点的 access log，减少日志噪音"""
+        NOISY_PATHS = [
+            "/api/notify/list",
+            "/api/tasks/",
+            "/api/signal-providers/active",
+        ]
+        
+        def filter(self, record):
+            if record.name == "uvicorn.access":
+                msg = record.getMessage()
+                for path in self.NOISY_PATHS:
+                    if path in msg:
+                        return False
+            return True
+    
+    # 获取 uvicorn.access logger 并添加过滤器
+    _access_logger = logging.getLogger("uvicorn.access")
+    _access_logger.addFilter(_AccessLogFilter())
+    # 设置 uvicorn.access 日志级别为 WARNING，只保留关键日志
+    _access_logger.setLevel(logging.WARNING)
+
     parser = argparse.ArgumentParser(description="fwsort server")
     parser.add_argument("--port", type=int, default=None, help="端口号，覆盖配置文件中的 APP_PORT")
     args = parser.parse_args()
@@ -1039,35 +1084,43 @@ if __name__ == "__main__":
     if args.port is not None:
         settings.APP_PORT = args.port
 
-    def check_port_conflict(host: str, port: int) -> None:
-        """检查端口是否被占用，若占用则打印友好中文提示并退出"""
+    def find_available_port(host: str, start_port: int, max_tries: int = 100) -> int:
+        """从 start_port 开始逐个尝试，返回第一个可用的端口"""
+        for offset in range(max_tries):
+            port = start_port + offset
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(1.0)
+                    result = s.connect_ex((host if host != "0.0.0.0" else "127.0.0.1", port))
+                    if result != 0:
+                        return port
+            except Exception:
+                return port
+        raise RuntimeError(f"从 {start_port} 开始，连续 {max_tries} 个端口均被占用")
+
+    def check_port_conflict(host: str, port: int) -> int:
+        """检查端口是否被占用，若占用则自动寻找下一个可用端口并返回
+        返回最终可用的端口号（可能是原始端口或自动发现的新端口）"""
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(1.0)
                 result = s.connect_ex((host if host != "0.0.0.0" else "127.0.0.1", port))
                 if result == 0:
-                    # 端口被占用，尝试查找 PID
                     pid = _find_pid_on_port(port)
                     msg = f"\n{'='*60}\n"
                     msg += f"⚠️  端口 {port} 已被占用！\n"
                     if pid:
                         msg += f"   占用进程 PID: {pid}\n"
-                        msg += f"   建议操作：\n"
-                        msg += f"     1. 终止占用进程: taskkill /PID {pid} /F\n"
-                        msg += f"     2. 或使用其他端口: python main.py --port {port+1}\n"
                     else:
                         msg += f"   无法识别占用进程 PID\n"
-                        msg += f"   建议操作：\n"
-                        msg += f"     1. 查看占用: netstat -ano | findstr :{port}\n"
-                        msg += f"     2. 或使用其他端口: python main.py --port {port+1}\n"
-                    msg += f"{'='*60}\n"
-                    msg += f"错误码: WinError 10013 / 10048 (端口冲突)\n"
-                    msg += f"进程已退出，请解决端口占用后重试。\n"
-                    msg += f"{'='*60}\n"
+                    msg += f"   正在自动寻找可用端口...\n"
                     print(msg)
-                    sys.exit(1)
+                    new_port = find_available_port(host, port + 1)
+                    print(f"✅ 已自动切换到端口 {new_port}\n{'='*60}\n")
+                    return new_port
+                return port
         except Exception:
-            pass
+            return port
 
     def _find_pid_on_port(port: int) -> str | None:
         """Windows 下查找占用指定端口的 PID"""
@@ -1114,8 +1167,8 @@ if __name__ == "__main__":
             time.sleep(check_interval)
             elapsed += check_interval
 
-    # 启动前检查端口冲突
-    check_port_conflict(settings.APP_HOST, settings.APP_PORT)
+    # 启动前检查端口冲突，若占用则自动寻找可用端口
+    settings.APP_PORT = check_port_conflict(settings.APP_HOST, settings.APP_PORT)
 
     # 启动浏览器线程（仅在开发模式下）
     if settings.APP_DEBUG:

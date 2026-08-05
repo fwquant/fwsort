@@ -613,6 +613,20 @@ def auto_task_dispatcher() -> dict:
         ).all()
 
         for task in active_tasks:
+            # 检查循环次数是否已达到
+            if task.loop_count > 0 and task.executed_count >= task.loop_count:
+                # 循环已完成，停止任务
+                task.is_active = False
+                db.commit()
+                logger.info(f"[auto_task_dispatcher] task {task.id} loop completed ({task.executed_count}/{task.loop_count}), stopped")
+                skipped.append(task.id)
+                continue
+
+            # 检查开始时间（如果设置了 start_time 且还未到时间，则跳过）
+            if task.start_time and task.start_time > datetime.utcnow():
+                skipped.append(task.id)
+                continue
+
             # 读取上次执行时间
             last_run = 0
             try:

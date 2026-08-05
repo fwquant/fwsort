@@ -85,9 +85,9 @@ def register_provider(name: str, provider_class: type[SignalProvider], category:
 def get_provider(name: str, **kwargs) -> SignalProvider:
     """获取信号提供者实例（单例）
 
+    新架构：参数值存储在 .py 文件的类属性默认值中。
     kwargs 会传递给 Provider 的 __init__ 方法。
-    如果未提供 config_json，则自动从数据库加载配置。
-    对于已有实例，不会重新创建（单例模式）。
+    如果未提供 config_json，则使用空字典（让 Provider 使用类默认值）。
     """
     if name not in _PROVIDERS:
         raise ValueError(f"Unknown signal provider: {name}, available: {list(_PROVIDERS.keys())}")
@@ -95,31 +95,20 @@ def get_provider(name: str, **kwargs) -> SignalProvider:
     if name not in _PROVIDER_INSTANCES:
         cls = _PROVIDERS[name]
 
-        # 如果未提供 config_json，尝试从数据库加载
+        # 新架构：不再从数据库加载 config_json
+        # Provider 的 __init__ 会优先使用 config_json 中的值，
+        # 否则使用类属性的默认值
         if "config_json" not in kwargs:
-            try:
-                from fwsort.database import get_sync_db
-                from fwsort.models import SignalProviderConfig
-                with get_sync_db() as db:
-                    db_cfg = db.query(SignalProviderConfig).filter(
-                        SignalProviderConfig.provider_name == name
-                    ).first()
-                    if db_cfg and db_cfg.config_json:
-                        import json as _json
-                        kwargs["config_json"] = _json.loads(db_cfg.config_json)
-            except Exception:
-                pass
+            kwargs["config_json"] = {}
 
         # 尝试创建实例，兼容不同的构造函数签名
         try:
             _PROVIDER_INSTANCES[name] = cls(**kwargs)
         except TypeError:
-            # 如果传递的参数不兼容，尝试仅传 config_json
             if "config_json" in kwargs:
                 try:
                     _PROVIDER_INSTANCES[name] = cls(config_json=kwargs["config_json"])
                 except TypeError:
-                    # 最后兜底：无参数创建
                     _PROVIDER_INSTANCES[name] = cls()
             else:
                 _PROVIDER_INSTANCES[name] = cls()

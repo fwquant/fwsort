@@ -26,6 +26,18 @@ _PATCHES = [
     ("auto_task_log", "log_type", "SMALLINT", "0"),
     ("auto_task_log", "action_type", "VARCHAR(32)", "''"),
     ("auto_task_log", "detail_json", "TEXT", "'{}'"),
+    # ===== 20260805 自动任务：开始时间 + 循环次数 =====
+    ("auto_task", "start_time", "DATETIME", None),
+    ("auto_task", "loop_count", "INTEGER", "0"),
+    ("auto_task", "executed_count", "INTEGER", "0"),
+    # ===== 20260805 自动任务日志增强：信号/执行/结果详情 + 盈亏追踪 =====
+    ("auto_task_log", "signal_detail_json", "TEXT", "'{}'"),
+    ("auto_task_log", "execution_detail_json", "TEXT", "'{}'"),
+    ("auto_task_log", "result_detail_json", "TEXT", "'{}'"),
+    ("auto_task_log", "pnl_amount", "NUMERIC(18,6)", "0"),
+    ("auto_task_log", "pnl_percent", "NUMERIC(10,4)", "0"),
+    ("auto_task_log", "is_profit", "BOOLEAN", "0"),
+    ("auto_task_log", "market_resolved", "BOOLEAN", "0"),
 ]
 
 

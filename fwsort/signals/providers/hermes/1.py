@@ -3,13 +3,8 @@
 生成随机方向的交易信号，标的代码使用 F3 最简类的获得当前时间值逻辑：
     - 格式: btc-updown-4h-{epoch}
     - 时间戳使用 fwsort.gateway.polymarket.F3.最简类_下单代码.获得当前时间值(周期=4h)
-    - 下单金额默认 1 USDC（可在 Web 界面修改）
+    - 下单金额固定为 1 USDC
     - 下单方向随机 UP/DOWN
-
-参数说明：
-    - interval_seconds (int): 周期秒数，默认 14400 (4小时)
-    - amount (float): 下单金额，默认 1.0
-    - base_symbol (str): 标的前缀（隐藏参数）
 """
 from __future__ import annotations
 
@@ -23,32 +18,15 @@ class RandomSignalProvider(SignalProvider):
 
     标的代码格式: btc-updown-4h-{epoch}
     使用 4 小时周期对齐的时间戳
-
-    参数：
-        - interval_seconds: 周期秒数
-        - amount: 下单金额
     """
 
     name: str = "random"
-    category: str = "internal"
-    description: str = "随机方向信号源，用于测试"
+    category: str = "internal"  # 内部信号
 
-    # 显示参数（Web 可编辑）
-    parameters = ["interval_seconds", "amount"]
-    # 隐藏参数
-    hidden_parameters = ["base_symbol"]
-
-    # 参数默认值（会被 Web 界面修改）
-    interval_seconds: int = 14400
-    amount: float = 1.0
-    base_symbol: str = "btc-updown-4h"
-
-    def __init__(self, config_json: dict | None = None):
+    def __init__(self, interval_seconds: int = 4 * 60 * 60, base_symbol: str = "btc-updown-4h", config_json: dict | None = None):
+        self.interval_seconds = interval_seconds
+        self.base_symbol = base_symbol
         self.config = config_json or {}
-        if self.config:
-            self.interval_seconds = self.config.get("interval_seconds", self.interval_seconds)
-            self.amount = self.config.get("amount", self.amount)
-            self.base_symbol = self.config.get("base_symbol", self.base_symbol)
 
     def get_signal(self) -> Signal:
         """生成一个随机信号
@@ -63,7 +41,7 @@ class RandomSignalProvider(SignalProvider):
 
         return Signal(
             symbol=symbol,
-            amount=self.amount,
+            amount=1.0,
             direction=direction,
             source=self.name,
             timestamp=int(epoch),
@@ -76,5 +54,4 @@ class RandomSignalProvider(SignalProvider):
             "ready": True,
             "base_symbol": self.base_symbol,
             "interval_seconds": self.interval_seconds,
-            "amount": self.amount,
         }

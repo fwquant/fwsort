@@ -21,7 +21,7 @@ from fwsort.redis_client import sync_redis
 DISPATCHER_KEY = "fwsort:auto_task:last_run"
 CHECK_INTERVAL = 1.0  # 检查间隔（秒）：每 1 秒检查一次
 MAX_CONCURRENT_EXECUTIONS = 10  # 最大并发执行数
-HEARTBEAT_INTERVAL = 30  # 心跳日志间隔（秒）：每 30 秒输出一次状态
+HEARTBEAT_INTERVAL = 120  # 心跳日志间隔（秒）：每 120 秒输出一次状态，减少日志噪音
 
 # 调度器状态
 _dispatcher_thread: Optional[threading.Thread] = None
@@ -70,7 +70,7 @@ def _scan_and_dispatch() -> None:
     now = int(time.time())
     current_time = time.time()
 
-    # 心跳日志：每 HEARTBEAT_INTERVAL 秒输出一次
+    # 心跳日志：每 HEARTBEAT_INTERVAL 秒输出一次（仅当有活跃任务时）
     task_count = 0
     if current_time - _last_heartbeat_time >= HEARTBEAT_INTERVAL:
         _last_heartbeat_time = current_time
@@ -87,10 +87,12 @@ def _scan_and_dispatch() -> None:
         except Exception:
             pass
         
-        logger.info(
-            f"[AutoTaskDispatcher] 💓 心跳: 扫描到 {task_count} 个活跃任务, "
-            f"执行中任务数={executing_count}"
-        )
+        # 仅当有活跃任务或执行中任务时输出心跳
+        if task_count > 0 or executing_count > 0:
+            logger.info(
+                f"[AutoTaskDispatcher] 💓 心跳: {task_count} 活跃任务, "
+                f"{executing_count} 执行中"
+            )
 
     try:
         with get_sync_db() as db:

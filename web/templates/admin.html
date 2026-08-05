@@ -466,6 +466,11 @@
       justify-content: space-between;
       flex-shrink: 0;
     }
+    .fw-task-log-modal__loginfo {
+      border-top: 1px solid var(--fwui-border);
+      background: var(--fwui-bg-secondary);
+      flex-shrink: 0;
+    }
     .fw-task-log-item {
       padding: 10px 12px;
       border-radius: 8px;
@@ -696,6 +701,354 @@
       align-items: center;
     }
     .fw-admin-toolbar__spacer { flex: 1; }
+
+    /* 倒计时醒目闪烁动画 */
+    @keyframes fw-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.05); }
+    }
+
+    /* ===== 任务列表 Tab（只读 + 搜索/排序） ===== */
+    .fw-task-list-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 12px 14px;
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 10px;
+    }
+    .fw-task-list-toolbar__search {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 220px;
+    }
+    .fw-task-list-toolbar__search input {
+      flex: 1;
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--fwui-border);
+      background: var(--fwui-bg-input);
+      color: var(--fwui-text);
+      font-size: 13px;
+      outline: none;
+    }
+    .fw-task-list-toolbar__search input:focus {
+      border-color: var(--fwui-primary);
+      box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+    }
+    .fw-task-list-toolbar__sort {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .fw-task-list-toolbar__sort label {
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-list-toolbar__stats {
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+      margin-left: auto;
+      white-space: nowrap;
+    }
+    .fw-task-list-toolbar__stats strong {
+      color: var(--fwui-text);
+      font-weight: 600;
+    }
+    .fw-task-list-toolbar__col-settings {
+      position: relative;
+    }
+    .fw-col-settings-panel {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      min-width: 220px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      z-index: 1000;
+    }
+    .fw-col-settings-panel--open { display: block; }
+    .fw-col-settings-panel__title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fwui-text-muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .fw-col-settings-panel__item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 13px;
+      color: var(--fwui-text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .fw-col-settings-panel__item input { cursor: pointer; }
+    .fw-col-settings-panel__item--disabled {
+      color: var(--fwui-text-muted);
+      cursor: not-allowed;
+    }
+    .fw-col-settings-panel__reset {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--fwui-border);
+      text-align: center;
+    }
+
+    /* 任务列表表格样式（与自动任务共用基础 + 只读化） */
+    .fw-task-list-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .fw-task-list-table thead th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 2px solid var(--fwui-border);
+      color: var(--fwui-text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      position: sticky;
+      top: 0;
+      background: var(--fwui-bg);
+      z-index: 1;
+    }
+    .fw-task-list-table thead th:hover { color: var(--fwui-primary); }
+    .fw-task-list-table thead th.text-center { text-align: center; }
+    .fw-task-list-table thead th .sort-indicator {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 10px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-list-table thead th.sort-active .sort-indicator {
+      color: var(--fwui-primary);
+    }
+    .fw-task-list-table tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--fwui-border);
+      vertical-align: middle;
+    }
+    .fw-task-list-table tbody td.text-center { text-align: center; }
+    .fw-task-list-table tbody tr:hover td {
+      background: var(--fwui-bg-secondary);
+    }
+    .fw-task-list-table .fw-tl-status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .fw-task-list-table .fw-tl-status--active {
+      background: #10b98122;
+      color: #10b981;
+    }
+    .fw-task-list-table .fw-tl-status--stopped {
+      background: #6b728022;
+      color: #6b7280;
+    }
+    .fw-task-list-table .fw-tl-status--fuse {
+      background: #ef444422;
+      color: #ef4444;
+    }
+    .fw-task-list-table-wrap {
+      max-height: 70vh;
+      overflow: auto;
+      border: 1px solid var(--fwui-border);
+      border-radius: 10px;
+    }
+
+    /* 任务列表卡片样式（移动端） */
+    .fw-task-list-cards {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .fw-tl-card {
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: all 0.2s;
+    }
+    .fw-tl-card:hover {
+      border-color: var(--fwui-primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .fw-tl-card__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+    .fw-tl-card__title {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .fw-tl-card__status {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .fw-tl-card__status--active { background: #10b98122; color: #10b981; }
+    .fw-tl-card__status--stopped { background: #6b728022; color: #6b7280; }
+    .fw-tl-card__status--fuse { background: #ef444422; color: #ef4444; }
+    .fw-tl-card__body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+      font-size: 12px;
+    }
+    .fw-tl-card__body-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .fw-tl-card__body-label {
+      font-size: 11px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-tl-card__body-value {
+      font-size: 13px;
+      color: var(--fwui-text);
+      font-weight: 500;
+      word-break: break-all;
+    }
+    .fw-tl-card__stats {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--fwui-border);
+      font-size: 12px;
+    }
+    .fw-tl-card__stat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .fw-tl-card__stat-value {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .fw-tl-card__stat-label {
+      font-size: 10px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-list-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-task-list-empty__icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+
+    /* 筛选行 */
+    .fw-task-list-toolbar__filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* 日志卡片样式（移动端） */
+    .fw-log-card {
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      transition: all 0.2s;
+    }
+    .fw-log-card:hover {
+      border-color: var(--fwui-primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .fw-log-card__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .fw-log-card__title {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .fw-log-card__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+    }
+    .fw-log-card__row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 2px 0;
+    }
+    .fw-log-card__label { color: var(--fwui-text-muted); }
+    .fw-log-card__val { color: var(--fwui-text); font-weight: 500; }
+    .fw-log-card__error {
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border-radius: 6px;
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .fw-log-card__pnl {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .fw-log-card__pnl--profit { color: #10b981; }
+    .fw-log-card__pnl--loss { color: #ef4444; }
+
+    /* 响应式断点 */
+    @media (max-width: 768px) {
+      .fw-task-list-table-wrap { display: none; }
+      .fw-task-list-cards { display: flex; }
+    }
+    @media (min-width: 769px) {
+      .fw-task-list-table-wrap { display: block; }
+      .fw-task-list-cards { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -733,8 +1086,9 @@
         <button class="fw-admin-tab-btn fw-admin-tab-btn--active" data-tab="init">🛠 初始化</button>
         <button class="fw-admin-tab-btn" data-tab="auto-tasks">📡 信号管理</button>
         <button class="fw-admin-tab-btn" data-tab="tasks">🤖 自动任务</button>
+        <button class="fw-admin-tab-btn" data-tab="task-log">📜 任务日志</button>
         <button class="fw-admin-tab-btn" data-tab="config">⚙️ 系统配置</button>
-        <button class="fw-admin-tab-btn" data-tab="log">📜 执行日志</button>
+        <button class="fw-admin-tab-btn" data-tab="log">🔧 系统日志</button>
       </div>
 
       <!-- Tab 内容 -->
@@ -772,75 +1126,18 @@
       <div class="fw-admin-tab-panel" data-tab-panel="auto-tasks">
         <div class="fw-admin-toolbar">
           <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-signal-provider-new">➕ 新建信号源</button>
-          <button class="fwui-btn fwui-btn--sm" id="btn-signal-provider-refresh">🔄 刷新（含同步内置）</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-signal-provider-refresh">🔄 刷新</button>
         </div>
 
         <div id="signal-provider-list" style="margin-top:12px;"></div>
       </div>
 
-      <!-- 2.5 信号源编辑弹窗 -->
+      <!-- 2.5 信号源编辑弹窗（新建 + 编辑参数值） -->
       <div id="signal-provider-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-        <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:480px;max-width:560px;">
+        <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:520px;max-width:640px;max-height:90vh;overflow-y:auto;">
           <h3 id="signal-provider-modal-title" style="margin:0 0 16px;">新建信号源</h3>
-          <div style="display:flex;flex-direction:column;gap:12px;">
-            <!-- 来源类型选择 -->
-            <div id="sp-source-type-row">
-              <label style="font-size:12px;color:var(--fwui-text-muted);">来源类型</label>
-              <select id="sp-source-type" class="fwui-select" onchange="window._onSourceTypeChange()" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
-                <option value="python">Python 自定义（可编辑代码）</option>
-                <option value="http_url">HTTP URL（请求外部JSON）</option>
-              </select>
-            </div>
-            <!-- 名称输入 -->
-            <div id="sp-name-row">
-              <label style="font-size:12px;color:var(--fwui-text-muted);">信号源名称（留空自动生成 signal_时间戳）</label>
-              <input id="sp-name" class="fwui-input" placeholder="留空自动生成，如 my_signal" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
-              <div id="sp-name-hint" style="font-size:11px;color:var(--fwui-text-muted);margin-top:4px;">留空将自动生成 signal_YYYYMMDDhhmm 格式</div>
-            </div>
-            <!-- HTTP URL 配置 -->
-            <div id="sp-url-row" style="display:none;">
-              <label style="font-size:12px;color:var(--fwui-text-muted);">HTTP URL（返回JSON信号）</label>
-              <input id="sp-http-url" class="fwui-input" placeholder="https://example.com/api/signal" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
-              <div style="font-size:11px;color:var(--fwui-text-muted);margin-top:4px;">URL需返回JSON: {"symbol":"...", "direction":"UP/DOWN", "amount": 1.0}</div>
-            </div>
-            <!-- 高级选项 -->
-            <details id="sp-advanced" style="border:1px solid var(--fwui-border);border-radius:8px;padding:8px 12px;">
-              <summary style="cursor:pointer;font-size:12px;color:var(--fwui-text-muted);">高级选项（手动指定类名/模块路径等）</summary>
-              <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                  <div>
-                    <label style="font-size:12px;color:var(--fwui-text-muted);">显示名称</label>
-                    <input id="sp-display" class="fwui-input" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
-                  </div>
-                  <div>
-                    <label style="font-size:12px;color:var(--fwui-text-muted);">类别</label>
-                    <select id="sp-category" class="fwui-select" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
-                      <option value="custom">自定义信号</option>
-                      <option value="internal">内部信号</option>
-                      <option value="external">外部信号</option>
-                    </select>
-                  </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                  <div>
-                    <label style="font-size:12px;color:var(--fwui-text-muted);">Python 类名</label>
-                    <input id="sp-class" class="fwui-input" placeholder="自动生成" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
-                  </div>
-                  <div>
-                    <label style="font-size:12px;color:var(--fwui-text-muted);">模块路径</label>
-                    <input id="sp-module" class="fwui-input" placeholder="自动生成" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
-                  </div>
-                </div>
-                <div>
-                  <label style="font-size:12px;color:var(--fwui-text-muted);">描述</label>
-                  <textarea id="sp-desc" rows="2" class="fwui-input" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);resize:vertical;"></textarea>
-                </div>
-                <div id="sp-config-row">
-                  <label style="font-size:12px;color:var(--fwui-text-muted);">初始化参数 JSON</label>
-                  <textarea id="sp-config" rows="2" class="fwui-input" placeholder='{}' style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);resize:vertical;font-family:monospace;font-size:12px;"></textarea>
-                </div>
-              </div>
-            </details>
+          <div id="signal-provider-modal-body" style="display:flex;flex-direction:column;gap:12px;">
+            <!-- 内容由 JS 动态生成 -->
           </div>
           <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
             <button class="fwui-btn" id="signal-provider-modal-cancel">取消</button>
@@ -855,16 +1152,65 @@
           <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-auto-task-new">➕ 新建任务</button>
           <button class="fwui-btn fwui-btn--sm" id="btn-auto-task-refresh">🔄 刷新列表</button>
           <button class="fwui-btn fwui-btn--sm" id="btn-signal-test">🧪 测试信号</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-goto-task-log" style="margin-left:auto;">📜 任务日志</button>
         </div>
 
-        <div id="auto-task-list" style="margin-top:12px;"></div>
+        <!-- 搜索 / 排序 / 列设置 工具栏 -->
+        <div class="fw-task-list-toolbar" style="margin-bottom:12px;">
+          <div class="fw-task-list-toolbar__search">
+            <input type="text" id="auto-task-search-input" placeholder="🔍 搜索任务名称 / 信号源 / 状态 / ID...">
+            <button class="fwui-btn fwui-btn--sm" id="auto-task-search-clear" title="清除搜索">✕</button>
+          </div>
+          <div class="fw-task-list-toolbar__sort">
+            <label>排序</label>
+            <select id="auto-task-sort-select" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+              <option value="id-desc">ID ↓</option>
+              <option value="id-asc">ID ↑</option>
+              <option value="name-asc">名称 A→Z</option>
+              <option value="name-desc">名称 Z→A</option>
+              <option value="status-active">运行中优先</option>
+              <option value="status-stopped">已停止优先</option>
+              <option value="countdown-asc">倒计时 ↑（最快执行）</option>
+              <option value="executions-desc">执行次数 ↓</option>
+              <option value="success-desc">成功次数 ↓</option>
+              <option value="failed-desc">失败次数 ↓</option>
+              <option value="success-rate-desc">成功率 ↓</option>
+            </select>
+          </div>
+          <div class="fw-task-list-toolbar__col-settings">
+            <button class="fwui-btn fwui-btn--sm" id="auto-task-col-toggle" title="列设置">⚙️ 列</button>
+            <div class="fw-col-settings-panel" id="auto-task-col-panel">
+              <div class="fw-col-settings-panel__title">显示列</div>
+              <div id="auto-task-col-items"></div>
+              <div class="fw-col-settings-panel__reset">
+                <button class="fwui-btn fwui-btn--sm" id="auto-task-col-reset" style="width:100%;">恢复默认</button>
+              </div>
+            </div>
+          </div>
+          <div class="fw-task-list-toolbar__stats" id="auto-task-stats">
+            共 <strong id="auto-task-total">0</strong> 条
+          </div>
+        </div>
+
+        <!-- PC 表格视图 -->
+        <div class="fw-task-list-table-wrap" id="auto-task-table-wrap">
+          <table class="fw-task-list-table" id="auto-task-table">
+            <thead id="auto-task-thead"></thead>
+            <tbody id="auto-task-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- 移动端卡片视图 -->
+        <div class="fw-task-list-cards" id="auto-task-list"></div>
       </div>
 
       <!-- 3.5 自动任务编辑弹窗 -->
       <div id="auto-task-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-        <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:420px;max-width:560px;">
+        <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:480px;max-width:600px;">
           <h3 id="auto-task-modal-title" style="margin:0 0 16px;">新建自动任务</h3>
           <div style="display:flex;flex-direction:column;gap:12px;">
+            <!-- 基础配置 -->
+            <div style="font-size:12px;color:var(--fwui-text-muted);font-weight:600;border-bottom:1px solid var(--fwui-border);padding-bottom:4px;">📋 基础配置</div>
             <div>
               <label style="font-size:12px;color:var(--fwui-text-muted);">任务名称</label>
               <input id="auto-task-name" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
@@ -881,6 +1227,22 @@
                 <input id="auto-task-interval" type="number" value="5" min="1" max="1440" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
               </div>
             </div>
+
+            <!-- 执行控制 -->
+            <div style="font-size:12px;color:var(--fwui-text-muted);font-weight:600;border-bottom:1px solid var(--fwui-border);padding-bottom:4px;margin-top:4px;">⏰ 执行控制</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;color:var(--fwui-text-muted);">开始时间（留空=立即执行）</label>
+                <input id="auto-task-start-time" type="datetime-local" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--fwui-text-muted);">循环次数（0=无限循环）</label>
+                <input id="auto-task-loop-count" type="number" value="0" min="0" max="9999" class="fwui-input" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);">
+              </div>
+            </div>
+
+            <!-- 风控参数 -->
+            <div style="font-size:12px;color:var(--fwui-text-muted);font-weight:600;border-bottom:1px solid var(--fwui-border);padding-bottom:4px;margin-top:4px;">🛡️ 风控参数</div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
               <div>
                 <label style="font-size:12px;color:var(--fwui-text-muted);">单日最大金额 (USDC)</label>
@@ -911,6 +1273,90 @@
           <div style="text-align:center;">
             <span id="task-start-progress-status" style="color:var(--fwui-text-muted);font-size:13px;">正在初始化...</span>
           </div>
+        </div>
+      </div>
+
+      <!-- 3.7 自动任务日志（搜索/筛选/排序/列设置） -->
+      <div class="fw-admin-tab-panel" data-tab-panel="task-log">
+        <div class="fw-task-list-toolbar">
+          <div class="fw-task-list-toolbar__search">
+            <input type="text" id="task-log-search-input" placeholder="🔍 搜索任务名/订单ID/错误信息/操作类型...">
+            <button class="fwui-btn fwui-btn--sm" id="task-log-search-clear" title="清除搜索">✕</button>
+          </div>
+          <div class="fw-task-list-toolbar__filter">
+            <select id="task-log-filter-status" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+              <option value="">全部状态</option>
+              <option value="0">✅ 成功</option>
+              <option value="1">❌ 失败</option>
+              <option value="2">🔄 重试成功</option>
+              <option value="3">🔒 熔断</option>
+            </select>
+            <select id="task-log-filter-type" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+              <option value="">全部类型</option>
+              <option value="0">执行日志</option>
+              <option value="1">操作日志</option>
+            </select>
+            <input type="date" id="task-log-date-from" class="fwui-input" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+            <span style="color:var(--fwui-text-muted);">至</span>
+            <input type="date" id="task-log-date-to" class="fwui-input" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--fwui-text-muted);">
+              <input type="checkbox" id="task-log-pnl-only" style="width:auto;"> 只看盈利
+            </label>
+          </div>
+          <div class="fw-task-list-toolbar__sort">
+            <label>排序</label>
+            <select id="task-log-sort-select" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+              <option value="executed_at-desc">执行时间 ↓</option>
+              <option value="executed_at-asc">执行时间 ↑</option>
+              <option value="id-desc">ID ↓</option>
+              <option value="id-asc">ID ↑</option>
+              <option value="duration_ms-desc">耗时 ↓</option>
+              <option value="duration_ms-asc">耗时 ↑</option>
+              <option value="status-desc">状态 ↓</option>
+              <option value="status-asc">状态 ↑</option>
+              <option value="pnl_amount-desc">盈亏 ↓</option>
+              <option value="pnl_amount-asc">盈亏 ↑</option>
+              <option value="task_id-desc">任务ID ↓</option>
+              <option value="task_id-asc">任务ID ↑</option>
+            </select>
+            <button class="fwui-btn fwui-btn--sm" id="task-log-refresh" title="刷新">🔄</button>
+          </div>
+          <div class="fw-task-list-toolbar__col-settings">
+            <button class="fwui-btn fwui-btn--sm" id="task-log-col-toggle" title="列设置">⚙️ 列</button>
+            <div class="fw-col-settings-panel" id="task-log-col-panel">
+              <div class="fw-col-settings-panel__title">显示列</div>
+              <div id="task-log-col-items"></div>
+              <div class="fw-col-settings-panel__reset">
+                <button class="fwui-btn fwui-btn--sm" id="task-log-col-reset" style="width:100%;">恢复默认</button>
+              </div>
+            </div>
+          </div>
+          <div class="fw-task-list-toolbar__stats" id="task-log-stats">
+            共 <strong id="task-log-total">0</strong> 条
+          </div>
+        </div>
+
+        <!-- PC 表格视图 -->
+        <div class="fw-task-list-table-wrap" id="task-log-table-wrap">
+          <table class="fw-task-list-table" id="task-log-table">
+            <thead id="task-log-thead"></thead>
+            <tbody id="task-log-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- 移动端卡片视图 -->
+        <div class="fw-task-list-cards" id="task-log-cards"></div>
+
+        <!-- 分页 -->
+        <div class="fw-pagination" id="task-log-pagination" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;">
+          <button class="fwui-btn fwui-btn--sm" id="task-log-prev">上一页</button>
+          <span id="task-log-page-info" style="font-size:13px;color:var(--fwui-text-muted);"></span>
+          <button class="fwui-btn fwui-btn--sm" id="task-log-next">下一页</button>
+          <select id="task-log-page-size" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+            <option value="20">20/页</option>
+            <option value="50" selected>50/页</option>
+            <option value="100">100/页</option>
+          </select>
         </div>
       </div>
 
@@ -999,6 +1445,7 @@
 
       <!-- 5. 执行日志 -->
       <div class="fw-admin-tab-panel" data-tab-panel="log">
+        <div id="log-files-panel" style="margin-bottom:16px;"></div>
         <div id="console-log" class="fwui-console"></div>
       </div>
     </div>
@@ -1012,16 +1459,74 @@
   <script src="/static/js/app.js?v=3"></script>
   <script>
     (function () {
+      // ===== 任务日志变量（必须在 Tab 切换前初始化，否则 switchTab 中加载会失败） =====
+      var TL_LOG_COLUMNS = [
+        { key: 'id',          label: 'ID',        width: 60,  sortable: 'id',           default: true,  always: true },
+        { key: 'task_id',     label: '任务ID',    width: 70,  sortable: 'task_id',      default: true,  always: true },
+        { key: 'task_name',   label: '任务名',    width: 140, sortable: null,           default: true },
+        { key: 'log_type',    label: '日志类型',  width: 80,  sortable: null,           default: true },
+        { key: 'action_type', label: '操作类型',  width: 120, sortable: null,           default: true },
+        { key: 'status',      label: '状态',      width: 90,  sortable: 'status',       default: true,  align: 'center' },
+        { key: 'duration_ms', label: '耗时(ms)',  width: 90,  sortable: 'duration_ms', default: true,  align: 'right' },
+        { key: 'pnl_amount',  label: '盈亏(USD)', width: 100, sortable: 'pnl_amount',  default: true,  align: 'right' },
+        { key: 'order_id',    label: '订单ID',    width: 160, sortable: null,           default: true },
+        { key: 'signal_info', label: '信号',      width: 200, sortable: null,           default: true },
+        { key: 'execution_info', label: '执行',    width: 160, sortable: null,           default: true },
+        { key: 'result_info', label: '下单结果',  width: 200, sortable: null,           default: true },
+        { key: 'error_msg',   label: '错误信息',  width: null, sortable: null,          default: false },
+        { key: 'executed_at', label: '执行时间',  width: 160, sortable: 'executed_at',  default: true },
+        { key: 'created_at',  label: '创建时间',  width: 160, sortable: null,           default: false },
+      ];
+      var TL_LOG_COL_STORAGE_KEY = 'fwsort_tasklog_columns';
+      var TL_LOG_STATUS_MAP = {
+        0: { text: '✅ 成功', cls: 'fw-tl-status--active' },
+        1: { text: '❌ 失败', cls: 'fw-tl-status--fuse' },
+        2: { text: '🔄 重试成功', cls: 'fw-tl-status--active' },
+        3: { text: '🔒 熔断', cls: 'fw-tl-status--stopped' },
+      };
+      var TL_LOG_TYPE_MAP = { 0: '执行日志', 1: '操作日志' };
+      var taskLogData = [];
+      var taskLogTotal = 0;
+      var taskLogSearch = "";
+      var taskLogFilterStatus = null;
+      var taskLogFilterType = null;
+      var taskLogFilterDateFrom = "";
+      var taskLogFilterDateTo = "";
+      var taskLogPnlOnly = false;
+      var taskLogSort = "executed_at-desc";
+      var taskLogOffset = 0;
+      var taskLogLimit = 50;
+      var taskLogVisibleCols = (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem(TL_LOG_COL_STORAGE_KEY));
+          var keys;
+          if (!saved || !Array.isArray(saved)) {
+            keys = TL_LOG_COLUMNS.filter(function (c) { return c.default; }).map(function (c) { return c.key; });
+          } else {
+            var valid = TL_LOG_COLUMNS.map(function (c) { return c.key; });
+            keys = saved.filter(function (k) { return valid.indexOf(k) >= 0; });
+          }
+          return TL_LOG_COLUMNS.filter(function (c) { return keys.indexOf(c.key) >= 0; });
+        } catch (e) {
+          return TL_LOG_COLUMNS.filter(function (c) { return c.default; });
+        }
+      })();
+
       // ===== Tab 切换（带 URL hash） =====
       var tabBtns = document.querySelectorAll(".fw-admin-tab-btn");
       var tabPanels = document.querySelectorAll(".fw-admin-tab-panel");
-      var TAB_KEYS = ["init", "auto-tasks", "tasks", "config", "log"];
+      var TAB_KEYS = ["init", "auto-tasks", "tasks", "task-log", "config", "log"];
       var currentConfigs = [];
       var editingTaskId = null;
-      var editingSignalProviderId = null;
+      var editingSignalProviderName = null;
 
-      // #auto-tasks -> 信号管理, #tasks -> 自动任务调度
-      var HASH_ALIAS = {};
+      // #auto-tasks -> 信号管理, #tasks -> 自动任务, #task-log -> 任务日志
+      var HASH_ALIAS = {
+        "tasks_list": "task-log",
+        "taskslist": "task-log",
+        "task-list": "task-log",
+        "task_log": "task-log",
+      };
 
       function resolveTab(tab) {
         return HASH_ALIAS[tab] || tab;
@@ -1052,6 +1557,14 @@
         if (tab === "tasks" && typeof loadAutoTasks === "function") {
           loadAutoTasks();
         }
+        // 自动加载：切到 task-log 时加载任务日志
+        if (tab === "task-log" && typeof loadTaskLogs === "function") {
+          loadTaskLogs();
+        }
+        // 自动加载：切到 log 时加载日志文件面板
+        if (tab === "log" && typeof loadLogFilesPanel === "function") {
+          loadLogFilesPanel();
+        }
       }
 
       tabBtns.forEach(function (btn) {
@@ -1060,8 +1573,8 @@
         });
       });
 
-      // 从 URL hash 恢复 Tab
-      var initialTab = resolveTab((window.location.hash || "").replace("#", ""));
+      // 从 URL hash 恢复 Tab，或使用服务端注入的 __FW_INITIAL_TAB__
+      var initialTab = window.__FW_INITIAL_TAB__ || resolveTab((window.location.hash || "").replace("#", ""));
       if (TAB_KEYS.indexOf(initialTab) !== -1) {
         switchTab(initialTab, false);
       }
@@ -1594,6 +2107,562 @@
       var autoTasks = [];
       var autoTaskLogsCache = {};
 
+      // ===== 任务列定义 =====
+      var TL_COLUMNS = [
+        { key: 'id',           label: 'ID',           width: 60,  sortable: 'id',           default: true,  always: true },
+        { key: 'name',         label: '任务名称',     width: null, sortable: 'name',         default: true,  always: true },
+        { key: 'source',       label: '信号源',       width: null, sortable: 'source',       default: true },
+        { key: 'gateway',      label: '网关',         width: 110, sortable: 'gateway',      default: false },
+        { key: 'interval',     label: '间隔',         width: 90,  sortable: 'interval',     default: true },
+        { key: 'status',       label: '状态',         width: 80,  sortable: 'status',       default: true,  align: 'center' },
+        { key: 'countdown',    label: '倒计时',       width: 130, sortable: 'countdown',    default: true,  align: 'center' },
+        { key: 'executions',    label: '执行次数',     width: 80,  sortable: 'executions',   default: true,  align: 'center' },
+        { key: 'success',      label: '成功',         width: 70,  sortable: 'success',      default: true,  align: 'center' },
+        { key: 'failed',       label: '失败',         width: 70,  sortable: 'failed',       default: true,  align: 'center' },
+        { key: 'success-rate', label: '成功率',       width: 90,  sortable: 'success-rate',default: true,  align: 'center' },
+        { key: 'loop',         label: '循环进度',     width: 90,  sortable: null,           default: false, align: 'center' },
+        { key: 'consecutive',  label: '连续失败',     width: 80,  sortable: null,           default: false, align: 'center' },
+        { key: 'daily-amount', label: '日限额金额',   width: 100, sortable: null,           default: false, align: 'center' },
+        { key: 'daily-count',  label: '日限额次数',   width: 100, sortable: null,           default: false, align: 'center' },
+        { key: 'last-executed',label: '最近执行',    width: 160, sortable: 'last-executed',default: true },
+        { key: 'created-at',   label: '创建时间',     width: 160, sortable: null,           default: false },
+        { key: 'updated-at',   label: '更新时间',     width: 160, sortable: null,           default: false },
+      ];
+      var TL_COL_STORAGE_KEY = 'fwsort_tasklist_columns';
+
+      function _loadTLVisibleCols() {
+        try {
+          var saved = JSON.parse(localStorage.getItem(TL_COL_STORAGE_KEY));
+          if (!saved || !Array.isArray(saved)) {
+            return TL_COLUMNS.filter(function (c) { return c.default; }).map(function (c) { return c.key; });
+          }
+          var valid = TL_COLUMNS.map(function (c) { return c.key; });
+          return saved.filter(function (k) { return valid.indexOf(k) >= 0; });
+        } catch (e) {
+          return TL_COLUMNS.filter(function (c) { return c.default; }).map(function (c) { return c.key; });
+        }
+      }
+
+      function _saveTLVisibleCols(keys) {
+        try { localStorage.setItem(TL_COL_STORAGE_KEY, JSON.stringify(keys)); } catch (e) {}
+      }
+
+      function _getTLVisibleCols() {
+        var saved = _loadTLVisibleCols();
+        if (!saved || saved.length === 0) {
+          return TL_COLUMNS.filter(function (c) { return c.always || c.default; });
+        }
+        return TL_COLUMNS.filter(function (c) { return saved.indexOf(c.key) >= 0 || c.always; });
+      }
+
+      // ===== 任务列表（只读） =====
+      var taskListData = [];
+      var taskListSearch = "";
+      var taskListSort = "id-desc";
+      var taskListLastExecutionMax = 0;
+      var taskListVisibleCols = _getTLVisibleCols();
+
+      function _initColumnSettings() {
+        var panel = document.getElementById('task-list-col-panel');
+        var itemsEl = document.getElementById('task-list-col-items');
+        var toggleBtn = document.getElementById('task-list-col-toggle');
+        var resetBtn = document.getElementById('task-list-col-reset');
+        if (!panel || !itemsEl) return;
+
+        function renderItems() {
+          var visibleKeys = taskListVisibleCols.map(function (c) { return c.key; });
+          var html = '';
+          TL_COLUMNS.forEach(function (col) {
+            var checked = visibleKeys.indexOf(col.key) >= 0;
+            var disabled = col.always ? ' disabled' : '';
+            var cls = col.always ? ' fw-col-settings-panel__item--disabled' : '';
+            html += '<label class="fw-col-settings-panel__item' + cls + '">' +
+                    '<input type="checkbox" data-col="' + col.key + '"' + (checked ? ' checked' : '') + disabled + '>' +
+                    col.label + (col.always ? ' <span style="color:var(--fwui-text-muted);font-size:10px;">(固定)</span>' : '') +
+                    '</label>';
+          });
+          itemsEl.innerHTML = html;
+          itemsEl.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+              var key = cb.getAttribute('data-col');
+              var col = TL_COLUMNS.find(function (c) { return c.key === key; });
+              if (!col || col.always) return;
+              var keys = taskListVisibleCols.map(function (c) { return c.key; });
+              if (cb.checked) {
+                if (keys.indexOf(key) < 0) keys.push(key);
+              } else {
+                keys = keys.filter(function (k) { return k !== key; });
+              }
+              _saveTLVisibleCols(keys);
+              taskListVisibleCols = _getTLVisibleCols();
+              renderTaskList();
+            });
+          });
+        }
+
+        toggleBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          panel.classList.toggle('fw-col-settings-panel--open');
+          if (panel.classList.contains('fw-col-settings-panel--open')) {
+            renderItems();
+          }
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!panel.contains(e.target) && e.target !== toggleBtn) {
+            panel.classList.remove('fw-col-settings-panel--open');
+          }
+        });
+
+        resetBtn.addEventListener('click', function () {
+          _saveTLVisibleCols(TL_COLUMNS.filter(function (c) { return c.default; }).map(function (c) { return c.key; }));
+          taskListVisibleCols = _getTLVisibleCols();
+          renderItems();
+          renderTaskList();
+        });
+
+        renderItems();
+      }
+
+      async function loadTaskList() {
+        var tbody = document.getElementById("task-list-tbody");
+        var cardsEl = document.getElementById("task-list-cards");
+        if (!tbody) return;
+        var colspan = taskListVisibleCols.length;
+        tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">加载中...</td></tr>';
+        if (cardsEl) cardsEl.innerHTML = '';
+
+        var r = await call("/api/tasks", "GET", null, "加载任务列表");
+        if (!r.success) {
+          var msg = '加载失败: ' + (r.message || '');
+          tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-danger);padding:30px;">' + msg + '</td></tr>';
+          if (cardsEl) cardsEl.innerHTML = '<div class="fw-task-list-empty"><div class="fw-task-list-empty__icon">⚠️</div><div>' + msg + '</div></div>';
+          return;
+        }
+
+        taskListData = r.data || [];
+        taskListData.forEach(function (t) {
+          if (t.last_executed_ts) taskListLastExecutionMax = Math.max(taskListLastExecutionMax, t.last_executed_ts);
+        });
+        renderTaskList();
+        startTaskListTicker();
+      }
+
+      function _tlStatusInfo(task) {
+        if (task.consecutive_failures >= task.max_consecutive_failures) {
+          return { cls: "fw-tl-status--fuse", text: "已熔断" };
+        }
+        if (task.is_active) {
+          return { cls: "fw-tl-status--active", text: "运行中" };
+        }
+        return { cls: "fw-tl-status--stopped", text: "已停止" };
+      }
+
+      function _tlSourceLabel(task) {
+        if (task.signal_provider_name) return escapeHtml(task.signal_provider_name);
+        if (task.signal_source === 'random') return '🎲 随机信号';
+        if (task.signal_source === 'http_url') return '🌐 HTTP 信号';
+        return escapeHtml(task.signal_source || '-');
+      }
+
+      function _tlGatewayLabel(task) {
+        var gw = task.gateway || '';
+        var map = {
+          'polymarket_f3': 'Polymarket F3',
+          'polymarket': 'Polymarket',
+          'okx': 'OKX',
+        };
+        return map[gw] || escapeHtml(gw || '—');
+      }
+
+      function _tlCountdownText(task) {
+        if (!task.is_active) return '—';
+        if (task.countdown_urgent) return '即将执行';
+        return task.countdown_text || '待执行';
+      }
+
+      function _tlCountdownColor(task) {
+        if (!task.is_active) return 'color:var(--fwui-text-muted);';
+        if (task.countdown_urgent) return 'color:#fff;background:linear-gradient(135deg,#ef4444,#f97316);padding:3px 10px;border-radius:12px;font-weight:700;box-shadow:0 0 8px rgba(239,68,68,0.5);';
+        if (_tlCountdownText(task) === '即将执行') return 'color:var(--fwui-danger);font-weight:600;';
+        return 'color:var(--fwui-primary);font-weight:600;';
+      }
+
+      function _tlSuccessRate(task) {
+        var total = (task.total_executions || 0);
+        if (total <= 0) return 0;
+        return Math.round((task.total_success || 0) * 10000 / total) / 100;
+      }
+
+      function _tlFormatTime(isoStr) {
+        if (!isoStr) return '—';
+        try {
+          var d = new Date(isoStr);
+          if (isNaN(d.getTime())) return escapeHtml(isoStr);
+          return d.toLocaleString();
+        } catch (e) {
+          return escapeHtml(isoStr);
+        }
+      }
+
+      function _tlLastExecutedText(task) {
+        if (!task.last_executed_at) return '—';
+        try {
+          var d = new Date(task.last_executed_at);
+          if (isNaN(d.getTime())) return escapeHtml(task.last_executed_at);
+          var now = new Date();
+          var diffMs = now - d;
+          var diffMin = Math.floor(diffMs / 60000);
+          var timeStr = d.toLocaleString();
+          if (diffMin < 1) return timeStr + '<div style="font-size:10px;color:var(--fwui-success);">刚刚</div>';
+          if (diffMin < 60) return timeStr + '<div style="font-size:10px;color:var(--fwui-text-muted);">' + diffMin + ' 分钟前</div>';
+          if (diffMin < 1440) return timeStr + '<div style="font-size:10px;color:var(--fwui-text-muted);">' + Math.floor(diffMin/60) + ' 小时前</div>';
+          return timeStr + '<div style="font-size:10px;color:var(--fwui-text-muted);">' + Math.floor(diffMin/1440) + ' 天前</div>';
+        } catch (e) {
+          return escapeHtml(task.last_executed_at);
+        }
+      }
+
+      function _tlRenderCell(task, col) {
+        switch (col.key) {
+          case 'id': return '#' + task.id;
+          case 'name': return escapeHtml(task.task_name);
+          case 'source': return _tlSourceLabel(task);
+          case 'gateway': return _tlGatewayLabel(task);
+          case 'interval': return (task.interval || '-') + ' 分钟';
+          case 'status': {
+            var st = _tlStatusInfo(task);
+            return '<span class="fw-tl-status ' + st.cls + '">' + st.text + '</span>';
+          }
+          case 'countdown': {
+            var cdText = _tlCountdownText(task);
+            var cdStyle = _tlCountdownColor(task);
+            var loopInfo = '';
+            if (task.loop_count && task.loop_count > 0) {
+              var remaining = task.loop_count - (task.executed_count || 0);
+              loopInfo = '<div style="font-size:10px;color:var(--fwui-text-muted);margin-top:2px;">循环: ' + remaining + '/' + task.loop_count + '</div>';
+            }
+            return '<span data-countdown-task-list="' + task.id + '" style="font-size:12px;">' +
+                   '<span style="' + cdStyle + '">' + cdText + '</span>' + loopInfo + '</span>';
+          }
+          case 'executions': return '<span style="font-weight:500;">' + (task.total_executions || 0) + '</span>';
+          case 'success': return '<span style="color:#10b981;font-weight:500;">' + (task.total_success || 0) + '</span>';
+          case 'failed': return '<span style="color:#ef4444;font-weight:500;">' + (task.total_failed || 0) + '</span>';
+          case 'success-rate': {
+            var rate = _tlSuccessRate(task);
+            var rateColor = rate >= 80 ? '#10b981' : (rate >= 50 ? '#f59e0b' : '#ef4444');
+            var rateBg = rate >= 80 ? 'background:#10b98122;' : (rate >= 50 ? 'background:#f59e0b22;' : 'background:#ef444422;');
+            return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;color:' + rateColor + ';' + rateBg + '">' + rate.toFixed(1) + '%</span>';
+          }
+          case 'loop': {
+            if (!task.loop_count || task.loop_count <= 0) return '<span style="color:var(--fwui-text-muted);">∞ 无限</span>';
+            var remain = task.loop_count - (task.executed_count || 0);
+            var pct = Math.max(0, Math.round((task.executed_count || 0) * 100 / task.loop_count));
+            return '<div style="font-size:12px;">' + remain + '/' + task.loop_count +
+                   '<div style="background:var(--fwui-border);border-radius:4px;height:4px;margin-top:3px;overflow:hidden;">' +
+                   '<div style="background:var(--fwui-primary);height:100%;width:' + pct + '%;"></div></div></div>';
+          }
+          case 'consecutive': {
+            var cf = task.consecutive_failures || 0;
+            var maxCf = task.max_consecutive_failures || 5;
+            var cfColor = cf >= maxCf ? '#ef4444' : (cf >= maxCf * 0.6 ? '#f59e0b' : 'var(--fwui-text)');
+            return '<span style="color:' + cfColor + ';font-weight:' + (cf >= maxCf ? '700' : '500') + ';">' + cf + ' / ' + maxCf + '</span>';
+          }
+          case 'daily-amount': {
+            var amt = task.max_daily_amount || 0;
+            return '$' + amt.toFixed(2);
+          }
+          case 'daily-count': {
+            var cnt = task.max_daily_count || 0;
+            var used = task.total_executions || 0;
+            return '<span>' + cnt + '<span style="color:var(--fwui-text-muted);font-size:11px;"> (已用 ' + used + ')</span></span>';
+          }
+          case 'last-executed': return _tlLastExecutedText(task);
+          case 'created-at': return _tlFormatTime(task.created_at);
+          case 'updated-at': return _tlFormatTime(task.updated_at);
+          default: return '—';
+        }
+      }
+
+      function _tlFilteredSorted(list) {
+        var kw = (taskListSearch || '').trim().toLowerCase();
+        var filtered = list;
+        if (kw) {
+          filtered = list.filter(function (t) {
+            var haystack = [
+              String(t.id || ''),
+              t.task_name || '',
+              t.signal_provider_name || t.signal_source || '',
+              _tlStatusInfo(t).text,
+              String(t.interval || ''),
+              String(t.total_executions || ''),
+              String(t.total_success || ''),
+              String(t.total_failed || ''),
+              t.gateway || '',
+              String(t.consecutive_failures || ''),
+            ].join(' ').toLowerCase();
+            return haystack.indexOf(kw) >= 0;
+          });
+        }
+
+        var key = taskListSort || 'id-desc';
+        var parts = key.split('-');
+        var field = parts[0];
+        var dir = parts[1] || 'desc';
+        filtered = filtered.slice().sort(function (a, b) {
+          switch (field) {
+            case 'id': return dir === 'asc' ? (a.id || 0) - (b.id || 0) : (b.id || 0) - (a.id || 0);
+            case 'name': {
+              var na = (a.task_name || '').toLowerCase();
+              var nb = (b.task_name || '').toLowerCase();
+              return dir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+            }
+            case 'source': {
+              var sa = (a.signal_provider_name || a.signal_source || '').toLowerCase();
+              var sb = (b.signal_provider_name || b.signal_source || '').toLowerCase();
+              return dir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+            }
+            case 'gateway': {
+              var ga = (a.gateway || '').toLowerCase();
+              var gb = (b.gateway || '').toLowerCase();
+              return dir === 'asc' ? ga.localeCompare(gb) : gb.localeCompare(ga);
+            }
+            case 'interval': return dir === 'asc' ? (a.interval || 0) - (b.interval || 0) : (b.interval || 0) - (a.interval || 0);
+            case 'status': {
+              var wa = a.is_active ? 2 : 0;
+              var wb = b.is_active ? 2 : 0;
+              wa += (a.consecutive_failures >= a.max_consecutive_failures) ? 1 : 0;
+              wb += (b.consecutive_failures >= b.max_consecutive_failures) ? 1 : 0;
+              return dir === 'asc' ? wa - wb : wb - wa;
+            }
+            case 'countdown': {
+              var ca = a.countdown_seconds != null ? a.countdown_seconds : 99999999;
+              var cb = b.countdown_seconds != null ? b.countdown_seconds : 99999999;
+              return dir === 'asc' ? ca - cb : cb - ca;
+            }
+            case 'executions': return dir === 'asc' ? (a.total_executions || 0) - (b.total_executions || 0) : (b.total_executions || 0) - (a.total_executions || 0);
+            case 'success': return dir === 'asc' ? (a.total_success || 0) - (b.total_success || 0) : (b.total_success || 0) - (a.total_success || 0);
+            case 'failed': return dir === 'asc' ? (a.total_failed || 0) - (b.total_failed || 0) : (b.total_failed || 0) - (a.total_failed || 0);
+            case 'success-rate': {
+              var ra = _tlSuccessRate(a);
+              var rb = _tlSuccessRate(b);
+              return dir === 'asc' ? ra - rb : rb - ra;
+            }
+            case 'last-executed': {
+              var la = a.last_executed_ts || 0;
+              var lb = b.last_executed_ts || 0;
+              return dir === 'asc' ? la - lb : lb - la;
+            }
+            default: return (b.id || 0) - (a.id || 0);
+          }
+        });
+        return filtered;
+      }
+
+      function renderTaskList() {
+        var tbody = document.getElementById("task-list-tbody");
+        var thead = document.getElementById("task-list-thead");
+        var cardsEl = document.getElementById("task-list-cards");
+        var totalEl = document.getElementById("task-list-total");
+        if (!tbody || !thead) return;
+
+        var visibleCols = taskListVisibleCols;
+        var filtered = _tlFilteredSorted(taskListData);
+
+        if (totalEl) totalEl.textContent = filtered.length;
+
+        // 渲染表头
+        var headHtml = '<tr>';
+        visibleCols.forEach(function (col) {
+          var widthStyle = col.width ? ' style="width:' + col.width + 'px;"' : '';
+          var alignCls = col.align === 'center' ? ' class="text-center"' : '';
+          var sortAttr = col.sortable ? ' data-sort="' + col.sortable + '"' : '';
+          headHtml += '<th' + widthStyle + alignCls + sortAttr + '>' + col.label + '<span class="sort-indicator"></span></th>';
+        });
+        headHtml += '</tr>';
+        thead.innerHTML = headHtml;
+
+        if (filtered.length === 0) {
+          var emptyMsg = taskListSearch ? '未找到匹配 "' + escapeHtml(taskListSearch) + '" 的任务' : '暂无任务';
+          tbody.innerHTML = '<tr><td colspan="' + visibleCols.length + '" style="text-align:center;color:var(--fwui-text-muted);padding:40px;"><div class="fw-task-list-empty__icon">📋</div><div>' + emptyMsg + '</div></td></tr>';
+          if (cardsEl) cardsEl.innerHTML = '<div class="fw-task-list-empty"><div class="fw-task-list-empty__icon">📋</div><div>' + emptyMsg + '</div></div>';
+          updateSortIndicators();
+          return;
+        }
+
+        // PC 表格
+        var html = '';
+        filtered.forEach(function (t) {
+          html += '<tr>';
+          visibleCols.forEach(function (col) {
+            var alignStyle = col.align === 'center' ? ' class="text-center"' : '';
+            html += '<td' + alignStyle + '>' + _tlRenderCell(t, col) + '</td>';
+          });
+          html += '</tr>';
+        });
+        tbody.innerHTML = html;
+
+        // 移动端卡片
+        if (cardsEl) {
+          var cHtml = '';
+          filtered.forEach(function (t) {
+            var st = _tlStatusInfo(t);
+            var rate = _tlSuccessRate(t);
+            var rateColor = rate >= 80 ? '#10b981' : (rate >= 50 ? '#f59e0b' : '#ef4444');
+            cHtml += '<div class="fw-tl-card">';
+            cHtml += '  <div class="fw-tl-card__header">';
+            cHtml += '    <div class="fw-tl-card__title">#' + t.id + ' ' + escapeHtml(t.task_name) + '</div>';
+            cHtml += '    <span class="fw-tl-card__status ' + st.cls + '">' + st.text + '</span>';
+            cHtml += '  </div>';
+            cHtml += '  <div class="fw-tl-card__body">';
+            cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">信号源</span><span class="fw-tl-card__body-value">' + _tlSourceLabel(t) + '</span></div>';
+            cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">间隔</span><span class="fw-tl-card__body-value">' + t.interval + ' 分钟</span></div>';
+            cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">倒计时</span><span class="fw-tl-card__body-value" data-countdown-task-list="' + t.id + '" style="' + _tlCountdownColor(t) + '">' + _tlCountdownText(t) + '</span></div>';
+            cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">最近执行</span><span class="fw-tl-card__body-value">' + (t.last_executed_at ? escapeHtml(t.last_executed_at) : '—') + '</span></div>';
+            cHtml += '  </div>';
+            cHtml += '  <div class="fw-tl-card__stats">';
+            cHtml += '    <div class="fw-tl-card__stat"><span class="fw-tl-card__stat-value">' + (t.total_executions || 0) + '</span><span class="fw-tl-card__stat-label">执行</span></div>';
+            cHtml += '    <div class="fw-tl-card__stat"><span class="fw-tl-card__stat-value" style="color:#10b981;">' + (t.total_success || 0) + '</span><span class="fw-tl-card__stat-label">成功</span></div>';
+            cHtml += '    <div class="fw-tl-card__stat"><span class="fw-tl-card__stat-value" style="color:#ef4444;">' + (t.total_failed || 0) + '</span><span class="fw-tl-card__stat-label">失败</span></div>';
+            cHtml += '    <div class="fw-tl-card__stat"><span class="fw-tl-card__stat-value" style="color:' + rateColor + ';">' + rate.toFixed(0) + '%</span><span class="fw-tl-card__stat-label">成功率</span></div>';
+            cHtml += '  </div>';
+            cHtml += '</div>';
+          });
+          cardsEl.innerHTML = cHtml;
+        }
+
+        updateSortIndicators();
+      }
+
+      function updateSortIndicators() {
+        var ths = document.querySelectorAll('#task-list-thead th[data-sort]');
+        ths.forEach(function (th) {
+          var field = th.getAttribute('data-sort');
+          var indicator = th.querySelector('.sort-indicator');
+          if (field && field === (taskListSort || '').split('-')[0]) {
+            th.classList.add('sort-active');
+            if (indicator) indicator.textContent = (taskListSort.split('-')[1] === 'asc' || field === 'countdown' || field === 'last-executed') ? '▲' : '▼';
+          } else {
+            th.classList.remove('sort-active');
+            if (indicator) indicator.textContent = '';
+          }
+        });
+      }
+
+      var _taskListTickerTimer = null;
+      function startTaskListTicker() {
+        if (_taskListTickerTimer) clearInterval(_taskListTickerTimer);
+        _taskListTickerTimer = setInterval(function () {
+          var cells = document.querySelectorAll('[data-countdown-task-list]');
+          if (cells.length === 0) {
+            clearInterval(_taskListTickerTimer);
+            _taskListTickerTimer = null;
+            return;
+          }
+          cells.forEach(function (cell) {
+            var id = parseInt(cell.getAttribute('data-countdown-task-list'));
+            var task = taskListData.find(function (t) { return t.id === id; });
+            if (!task || !task.is_active) {
+              cell.textContent = '—';
+              return;
+            }
+            if (task.countdown_seconds == null) {
+              cell.textContent = '待执行';
+              return;
+            }
+            task.countdown_seconds--;
+            if (task.countdown_seconds <= 0) {
+              cell.textContent = '即将执行';
+              return;
+            }
+            var r = task.countdown_seconds;
+            var m = Math.floor(r / 60);
+            var s = r % 60;
+            var text;
+            if (m >= 60) {
+              var h = Math.floor(m / 60);
+              m = m % 60;
+              text = h + 'h' + (m < 10 ? '0' : '') + m + 'm';
+            } else if (m > 0) {
+              text = m + 'm' + (s < 10 ? '0' : '') + s + 's';
+            } else {
+              text = s + 's';
+            }
+            // 保留 span.style / span.classList 仅更新文本（PC 表格）
+            if (cell.tagName === 'SPAN') {
+              cell.textContent = text;
+            } else {
+              // 移动端卡片：cell 本身带样式
+              cell.textContent = text;
+            }
+          });
+        }, 1000);
+      }
+
+      function _initTaskListToolbar() {
+        var input = document.getElementById('task-list-search-input');
+        if (input && !input._bound) {
+          input._bound = true;
+          var debounceTimer = null;
+          input.addEventListener('input', function () {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+              taskListSearch = input.value || '';
+              renderTaskList();
+            }, 200);
+          });
+        }
+        var clearBtn = document.getElementById('task-list-search-clear');
+        if (clearBtn && !clearBtn._bound) {
+          clearBtn._bound = true;
+          clearBtn.addEventListener('click', function () {
+            taskListSearch = '';
+            if (input) input.value = '';
+            renderTaskList();
+          });
+        }
+        var sortSel = document.getElementById('task-list-sort-select');
+        if (sortSel && !sortSel._bound) {
+          sortSel._bound = true;
+          sortSel.addEventListener('change', function () {
+            taskListSort = sortSel.value;
+            renderTaskList();
+          });
+        }
+        var refreshBtn = document.getElementById('task-list-refresh');
+        if (refreshBtn && !refreshBtn._bound) {
+          refreshBtn._bound = true;
+          refreshBtn.addEventListener('click', function () { loadTaskList(); });
+        }
+        // 表头点击排序（事件委托，因为 thead 是动态渲染的）
+        var thead = document.getElementById('task-list-thead');
+        if (thead && !thead._sortBound) {
+          thead._sortBound = true;
+          thead.addEventListener('click', function (e) {
+            var th = e.target.closest('th[data-sort]');
+            if (!th) return;
+            var field = th.getAttribute('data-sort');
+            if (!field) return;
+            var cur = taskListSort || '';
+            var parts = cur.split('-');
+            if (parts[0] === field) {
+              taskListSort = field + '-' + (parts[1] === 'asc' ? 'desc' : 'asc');
+            } else {
+              var defDir = (field === 'status' || field === 'countdown' || field === 'last-executed' || field === 'success-rate' || field === 'executions' || field === 'success' || field === 'failed' || field === 'id') ? 'desc' : 'asc';
+              if (field === 'countdown' || field === 'last-executed') defDir = 'asc';
+              taskListSort = field + '-' + defDir;
+            }
+            if (sortSel) {
+              var match = Array.from(sortSel.options).find(function (o) { return o.value === taskListSort; });
+              if (match) sortSel.value = taskListSort;
+            }
+            renderTaskList();
+          });
+        }
+      }
+      _initTaskListToolbar();
+      _initColumnSettings();
+
       async function loadAutoTasks() {
         var listDiv = document.getElementById("auto-task-list");
         if (!listDiv) return;
@@ -1610,120 +2679,264 @@
       }
 
       function renderAutoTaskList() {
+        var thead = document.getElementById("auto-task-thead");
+        var tbody = document.getElementById("auto-task-tbody");
         var listDiv = document.getElementById("auto-task-list");
-        if (!listDiv) return;
+        if (!thead || !tbody || !listDiv) return;
 
         if (autoTasks.length === 0) {
-          listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:40px;text-align:center;"><div style="font-size:48px;">🤖</div><div style="margin-top:8px;">暂无自动任务，点击上方"新建任务"创建</div></div>';
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            listDiv.innerHTML = '<div class="fw-task-list-empty"><div class="fw-task-list-empty__icon">🤖</div><div>暂无自动任务，点击上方"新建任务"创建</div></div>';
+            return;
+        }
+
+        // ===== PC端：表格布局 =====
+        var headHtml = '<tr>';
+        headHtml += '<th>ID</th>';
+        headHtml += '<th>任务名称</th>';
+        headHtml += '<th>信号来源</th>';
+        headHtml += '<th>间隔</th>';
+        headHtml += '<th class="text-center">状态</th>';
+        headHtml += '<th class="text-center">倒计时</th>';
+        headHtml += '<th class="text-center">执行/成功/失败</th>';
+        headHtml += '<th class="text-center">操作</th>';
+        headHtml += '</tr>';
+        thead.innerHTML = headHtml;
+
+        var rowsHtml = '';
+        autoTasks.forEach(function (task) {
+            var statusBadge = task.is_active
+                ? '<span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:10px;font-size:12px;">运行中</span>'
+                : '<span style="background:#9994;color:#999;padding:2px 8px;border-radius:10px;font-size:12px;">已停止</span>';
+
+            var failWarn = task.consecutive_failures >= task.max_consecutive_failures
+                ? '<span style="color:var(--fwui-danger);">⚠️ 已熔断</span>'
+                : (task.consecutive_failures > 0 ? '<span style="color:#f59e0b;font-size:11px;">连败:' + task.consecutive_failures + '</span>' : '');
+
+            rowsHtml += '<tr id="auto-task-row-' + task.id + '">';
+            rowsHtml += '<td>' + task.id + '</td>';
+            rowsHtml += '<td style="font-weight:500;">' + escapeHtml(task.task_name) + '</td>';
+            rowsHtml += '<td>' + (task.signal_source === 'random' ? '🎲 随机信号' : '🌐 HTTP 信号') + '</td>';
+            rowsHtml += '<td>' + task.interval + ' 分钟</td>';
+            rowsHtml += '<td class="text-center">' + statusBadge + ' ' + failWarn + '</td>';
+            var cdText = task.countdown_text || '—';
+            var cdColor = task.is_active ? 'color:var(--fwui-primary);' : 'color:var(--fwui-text-muted);';
+            var cdFontWeight = '600';
+            var cdBg = '';
+            if (task.countdown_urgent) {
+                cdColor = 'color:#fff;';
+                cdBg = 'background:linear-gradient(135deg,#ef4444,#f97316);padding:4px 10px;border-radius:12px;box-shadow:0 0 8px rgba(239,68,68,0.5);animation:fw-pulse 1s infinite;';
+                cdFontWeight = '700';
+            } else if (cdText === '即将执行') {
+                cdColor = 'color:var(--fwui-danger);';
+            }
+            var loopInfo = '';
+            if (task.loop_count && task.loop_count > 0) {
+                var remaining = task.loop_count - (task.executed_count || 0);
+                loopInfo = '<div style="font-size:10px;color:var(--fwui-text-muted);margin-top:2px;">循环剩余: ' + remaining + '/' + task.loop_count + '</div>';
+            }
+            rowsHtml += '<td class="text-center" data-countdown-task="' + task.id + '" style="font-size:13px;font-weight:' + cdFontWeight + ';' + cdColor + cdBg + '">' + cdText + loopInfo + '</td>';
+            rowsHtml += '<td class="text-center" style="font-size:12px;color:var(--fwui-text-muted);">'
+                + task.total_executions + ' / '
+                + '<span style="color:#10b981;">' + task.total_success + '</span> / '
+                + '<span style="color:#ef4444;">' + task.total_failed + '</span>'
+                + '</td>';
+            rowsHtml += '<td class="actions-cell">';
+            rowsHtml += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskEdit(' + task.id + ')" style="margin:2px;">编辑</button>';
+            if (task.is_active) {
+                rowsHtml += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskStop(' + task.id + ')" style="margin:2px;color:var(--fwui-danger);">停止</button>';
+                rowsHtml += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskExecute(' + task.id + ')" style="margin:2px;">立即执行</button>';
+            } else {
+                rowsHtml += '<button class="fwui-btn fwui-btn--sm fwui-btn--primary" onclick="window._autoTaskStart(' + task.id + ')" style="margin:2px;">启用</button>';
+            }
+            rowsHtml += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskLogs(' + task.id + ')" style="margin:2px;">日志</button>';
+            rowsHtml += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskDelete(' + task.id + ')" style="margin:2px;color:var(--fwui-danger);">删除</button>';
+            rowsHtml += '</td></tr>';
+        });
+        tbody.innerHTML = rowsHtml;
+
+        // ===== 移动端：卡片布局 =====
+        var cardsHtml = '';
+        cardsHtml += '<div class="fw-auto-task-cards">';
+        autoTasks.forEach(function (task) {
+            var statusClass = task.is_active ? 'fw-task-card__status--active' : 'fw-task-card__status--stopped';
+            var statusText = task.is_active ? '运行中' : '已停止';
+            var failWarn = task.consecutive_failures >= task.max_consecutive_failures
+                ? ' ⚠️ 熔断'
+                : (task.consecutive_failures > 0 ? ' 连败:' + task.consecutive_failures : '');
+
+            cardsHtml += '<div class="fw-task-card" id="auto-task-card-' + task.id + '">';
+            cardsHtml += '  <div class="fw-task-card__header">';
+            cardsHtml += '    <div class="fw-task-card__title">';
+            cardsHtml += '      <span>#' + task.id + '</span>';
+            cardsHtml += '      <span>' + escapeHtml(task.task_name) + '</span>';
+            cardsHtml += '    </div>';
+            cardsHtml += '    <span class="fw-task-card__status ' + statusClass + '">' + statusText + failWarn + '</span>';
+            cardsHtml += '  </div>';
+            cardsHtml += '  <div class="fw-task-card__meta">';
+            cardsHtml += '    <div class="fw-task-card__meta-item">';
+            cardsHtml += '      <span class="fw-task-card__meta-label">信号来源</span>';
+            cardsHtml += '      <span class="fw-task-card__meta-value">' + (task.signal_source === 'random' ? '🎲 随机信号' : '🌐 HTTP 信号') + '</span>';
+            cardsHtml += '    </div>';
+            cardsHtml += '    <div class="fw-task-card__meta-item">';
+            cardsHtml += '      <span class="fw-task-card__meta-label">执行间隔</span>';
+            cardsHtml += '      <span class="fw-task-card__meta-value">' + task.interval + ' 分钟</span>';
+            cardsHtml += '    </div>';
+            cardsHtml += '    <div class="fw-task-card__meta-item">';
+            cardsHtml += '      <span class="fw-task-card__meta-label">倒计时</span>';
+            var cdTextMobile = task.countdown_text || '—';
+            var cdColorMobile = task.is_active ? '#10b981' : '#999';
+            var cdBgMobile = '';
+            if (task.countdown_urgent) {
+                cdColorMobile = '#fff';
+                cdBgMobile = 'background:linear-gradient(135deg,#ef4444,#f97316);padding:3px 8px;border-radius:10px;font-weight:700;box-shadow:0 0 8px rgba(239,68,68,0.5);';
+            } else if (cdTextMobile === '即将执行') {
+                cdColorMobile = '#ef4444';
+            }
+            cardsHtml += '      <span class="fw-task-card__meta-value" data-countdown-task="' + task.id + '" style="color:' + cdColorMobile + ';font-weight:600;' + cdBgMobile + '">' + cdTextMobile + '</span>';
+            if (task.loop_count && task.loop_count > 0) {
+                var remainingMobile = task.loop_count - (task.executed_count || 0);
+                cardsHtml += '      <span style="font-size:10px;color:var(--fwui-text-muted);margin-left:4px;">循环:' + remainingMobile + '/' + task.loop_count + '</span>';
+            }
+            cardsHtml += '    </div>';
+            cardsHtml += '  </div>';
+            cardsHtml += '  <div class="fw-task-card__stats">';
+            cardsHtml += '    <div class="fw-task-card__stat">';
+            cardsHtml += '      <span class="fw-task-card__stat-value">' + task.total_executions + '</span>';
+            cardsHtml += '      <span class="fw-task-card__stat-label">总执行</span>';
+            cardsHtml += '    </div>';
+            cardsHtml += '    <div class="fw-task-card__stat">';
+            cardsHtml += '      <span class="fw-task-card__stat-value" style="color:#10b981;">' + task.total_success + '</span>';
+            cardsHtml += '      <span class="fw-task-card__stat-label">成功</span>';
+            cardsHtml += '    </div>';
+            cardsHtml += '    <div class="fw-task-card__stat">';
+            cardsHtml += '      <span class="fw-task-card__stat-value" style="color:#ef4444;">' + task.total_failed + '</span>';
+            cardsHtml += '      <span class="fw-task-card__stat-label">失败</span>';
+            cardsHtml += '    </div>';
+            cardsHtml += '  </div>';
+            cardsHtml += '  <div class="fw-task-card__actions">';
+            cardsHtml += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskEdit(' + task.id + ')">✏️ 编辑</button>';
+            if (task.is_active) {
+                cardsHtml += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskStop(' + task.id + ')" style="color:var(--fwui-danger);">⏹ 停止</button>';
+                cardsHtml += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskExecute(' + task.id + ')">▶️ 执行</button>';
+            } else {
+                cardsHtml += '    <button class="fwui-btn fwui-btn--sm fwui-btn--primary" onclick="window._autoTaskStart(' + task.id + ')">▶️ 启用</button>';
+            }
+            cardsHtml += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskLogs(' + task.id + ')">📜 日志</button>';
+            cardsHtml += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskDelete(' + task.id + ')" style="color:var(--fwui-danger);">🗑 删除</button>';
+            cardsHtml += '  </div>';
+            cardsHtml += '</div>';
+        });
+        cardsHtml += '</div>';
+
+        listDiv.innerHTML = cardsHtml;
+        startCountdownTicker();
+      }
+
+      var _countdownTickerTimer = null;
+      function startCountdownTicker() {
+        if (_countdownTickerTimer) clearInterval(_countdownTickerTimer);
+        _countdownTickerTimer = setInterval(function () {
+          var tickCells = document.querySelectorAll('[data-countdown-task]');
+          if (tickCells.length === 0) {
+            clearInterval(_countdownTickerTimer);
+            _countdownTickerTimer = null;
+            return;
+          }
+          tickCells.forEach(function (cell) {
+            var taskId = parseInt(cell.getAttribute('data-countdown-task'));
+            var task = autoTasks.find(function (t) { return t.id === taskId; });
+            if (!task || !task.is_active) {
+              cell.textContent = task ? '已停止' : '—';
+              return;
+            }
+            if (task.countdown_seconds == null) {
+              cell.textContent = '待执行';
+              return;
+            }
+            task.countdown_seconds--;
+            if (task.countdown_seconds <= 0) {
+              cell.textContent = '即将执行';
+              cell.style.color = 'var(--fwui-danger)';
+              return;
+            }
+            var remaining = task.countdown_seconds;
+            var m = Math.floor(remaining / 60);
+            var s = remaining % 60;
+            if (m >= 60) {
+              var h = Math.floor(m / 60);
+              m = m % 60;
+              cell.textContent = h + 'h' + (m < 10 ? '0' : '') + m + 'm';
+            } else if (m > 0) {
+              cell.textContent = m + 'm' + (s < 10 ? '0' : '') + s + 's';
+            } else {
+              cell.textContent = s + 's';
+            }
+          });
+        }, 1000);
+      }
+
+      var _logFilesPanelLoaded = false;
+      async function loadLogFilesPanel() {
+        var panel = document.getElementById("log-files-panel");
+        if (!panel) return;
+        panel.innerHTML = '<div style="color:var(--fwui-text-muted);padding:12px;text-align:center;">加载日志信息...</div>';
+
+        var r = await call("/api/tasks/log-info", "GET", null, "获取日志信息");
+        if (!r.success) {
+          panel.innerHTML = '<div style="color:var(--fwui-danger);padding:12px;">加载失败: ' + escapeHtml(r.message || '') + '</div>';
           return;
         }
 
+        var data = r.data || {};
         var html = '';
 
-        // ===== PC端：表格布局 =====
-        html += '<table class="fw-auto-task-table">';
-        html += '<thead><tr>';
-        html += '<th>ID</th>';
-        html += '<th>任务名称</th>';
-        html += '<th>信号来源</th>';
-        html += '<th>间隔</th>';
-        html += '<th class="text-center">状态</th>';
-        html += '<th class="text-center">执行/成功/失败</th>';
-        html += '<th class="text-center">操作</th>';
-        html += '</tr></thead><tbody>';
+        html += '<div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:10px;padding:16px;">';
+        html += '  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+        html += '    <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;">📂 日志文件管理</div>';
+        html += '    <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="log-panel-open-dir">📂 打开日志目录</button>';
+        html += '  </div>';
 
-        autoTasks.forEach(function (task) {
-          var statusBadge = task.is_active
-            ? '<span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:10px;font-size:12px;">运行中</span>'
-            : '<span style="background:#9994;color:#999;padding:2px 8px;border-radius:10px;font-size:12px;">已停止</span>';
+        html += '  <div style="font-size:12px;color:var(--fwui-text-muted);margin-bottom:8px;">日志目录</div>';
+        html += '  <div style="font-family:monospace;font-size:12px;background:var(--fwui-bg-secondary);padding:8px 12px;border-radius:6px;color:var(--fwui-text);word-break:break-all;margin-bottom:12px;">' + escapeHtml(data.log_dir || '未找到') + '</div>';
 
-          var failWarn = task.consecutive_failures >= task.max_consecutive_failures
-            ? '<span style="color:var(--fwui-danger);">⚠️ 已熔断</span>'
-            : (task.consecutive_failures > 0 ? '<span style="color:#f59e0b;font-size:11px;">连败:' + task.consecutive_failures + '</span>' : '');
+        if (data.current_log_path) {
+          html += '  <div style="font-size:12px;color:var(--fwui-primary);margin-bottom:4px;">📄 当前日志: ' + escapeHtml(data.current_log_path) + '</div>';
+        }
+        if (data.error_log_path) {
+          html += '  <div style="font-size:12px;color:var(--fwui-danger);margin-bottom:4px;">⚠️ 错误日志: ' + escapeHtml(data.error_log_path) + '</div>';
+        }
 
-          html += '<tr id="auto-task-row-' + task.id + '">';
-          html += '<td>' + task.id + '</td>';
-          html += '<td style="font-weight:500;">' + escapeHtml(task.task_name) + '</td>';
-          html += '<td>' + (task.signal_source === 'random' ? '🎲 随机信号' : '🌐 HTTP 信号') + '</td>';
-          html += '<td>' + task.interval + ' 分钟</td>';
-          html += '<td class="text-center">' + statusBadge + ' ' + failWarn + '</td>';
-          html += '<td class="text-center" style="font-size:12px;color:var(--fwui-text-muted);">'
-            + task.total_executions + ' / '
-            + '<span style="color:#10b981;">' + task.total_success + '</span> / '
-            + '<span style="color:#ef4444;">' + task.total_failed + '</span>'
-            + '</td>';
-          html += '<td class="actions-cell">';
-          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskEdit(' + task.id + ')" style="margin:2px;">编辑</button>';
-          if (task.is_active) {
-            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskStop(' + task.id + ')" style="margin:2px;color:var(--fwui-danger);">停止</button>';
-            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskExecute(' + task.id + ')" style="margin:2px;">立即执行</button>';
-          } else {
-            html += '<button class="fwui-btn fwui-btn--sm fwui-btn--primary" onclick="window._autoTaskStart(' + task.id + ')" style="margin:2px;">启用</button>';
-          }
-          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskLogs(' + task.id + ')" style="margin:2px;">日志</button>';
-          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskDelete(' + task.id + ')" style="margin:2px;color:var(--fwui-danger);">删除</button>';
-          html += '</td></tr>';
-        });
-
-        html += '</tbody></table>';
-
-        // ===== 移动端：卡片布局 =====
-        html += '<div class="fw-auto-task-cards">';
-        autoTasks.forEach(function (task) {
-          var statusClass = task.is_active ? 'fw-task-card__status--active' : 'fw-task-card__status--stopped';
-          var statusText = task.is_active ? '运行中' : '已停止';
-          var failWarn = task.consecutive_failures >= task.max_consecutive_failures
-            ? ' ⚠️ 熔断'
-            : (task.consecutive_failures > 0 ? ' 连败:' + task.consecutive_failures : '');
-
-          html += '<div class="fw-task-card" id="auto-task-card-' + task.id + '">';
-          html += '  <div class="fw-task-card__header">';
-          html += '    <div class="fw-task-card__title">';
-          html += '      <span>#' + task.id + '</span>';
-          html += '      <span>' + escapeHtml(task.task_name) + '</span>';
-          html += '    </div>';
-          html += '    <span class="fw-task-card__status ' + statusClass + '">' + statusText + failWarn + '</span>';
+        var files = data.log_files || [];
+        if (files.length > 0) {
+          html += '  <div style="font-size:12px;color:var(--fwui-text-muted);margin:12px 0 8px;border-top:1px solid var(--fwui-border);padding-top:12px;">历史日志文件 (' + files.length + ' 个)</div>';
+          html += '  <div style="max-height:200px;overflow-y:auto;">';
+          files.slice().reverse().forEach(function (f) {
+            var d = new Date(f.mtime * 1000);
+            var timeStr = d.toLocaleString();
+            html += '  <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--fwui-border);font-size:12px;">';
+            html += '    <span style="font-family:monospace;">' + escapeHtml(f.name) + '</span>';
+            html += '    <span style="color:var(--fwui-text-muted);">' + escapeHtml(f.size_human) + ' · ' + timeStr + '</span>';
+            html += '  </div>';
+          });
           html += '  </div>';
-          html += '  <div class="fw-task-card__meta">';
-          html += '    <div class="fw-task-card__meta-item">';
-          html += '      <span class="fw-task-card__meta-label">信号来源</span>';
-          html += '      <span class="fw-task-card__meta-value">' + (task.signal_source === 'random' ? '🎲 随机信号' : '🌐 HTTP 信号') + '</span>';
-          html += '    </div>';
-          html += '    <div class="fw-task-card__meta-item">';
-          html += '      <span class="fw-task-card__meta-label">执行间隔</span>';
-          html += '      <span class="fw-task-card__meta-value">' + task.interval + ' 分钟</span>';
-          html += '    </div>';
-          html += '  </div>';
-          html += '  <div class="fw-task-card__stats">';
-          html += '    <div class="fw-task-card__stat">';
-          html += '      <span class="fw-task-card__stat-value">' + task.total_executions + '</span>';
-          html += '      <span class="fw-task-card__stat-label">总执行</span>';
-          html += '    </div>';
-          html += '    <div class="fw-task-card__stat">';
-          html += '      <span class="fw-task-card__stat-value" style="color:#10b981;">' + task.total_success + '</span>';
-          html += '      <span class="fw-task-card__stat-label">成功</span>';
-          html += '    </div>';
-          html += '    <div class="fw-task-card__stat">';
-          html += '      <span class="fw-task-card__stat-value" style="color:#ef4444;">' + task.total_failed + '</span>';
-          html += '      <span class="fw-task-card__stat-label">失败</span>';
-          html += '    </div>';
-          html += '  </div>';
-          html += '  <div class="fw-task-card__actions">';
-          html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskEdit(' + task.id + ')">✏️ 编辑</button>';
-          if (task.is_active) {
-            html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskStop(' + task.id + ')" style="color:var(--fwui-danger);">⏹ 停止</button>';
-            html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskExecute(' + task.id + ')">▶️ 执行</button>';
-          } else {
-            html += '    <button class="fwui-btn fwui-btn--sm fwui-btn--primary" onclick="window._autoTaskStart(' + task.id + ')">▶️ 启用</button>';
-          }
-          html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskLogs(' + task.id + ')">📜 日志</button>';
-          html += '    <button class="fwui-btn fwui-btn--sm" onclick="window._autoTaskDelete(' + task.id + ')" style="color:var(--fwui-danger);">🗑 删除</button>';
-          html += '  </div>';
-          html += '</div>';
-        });
+        }
+
         html += '</div>';
+        panel.innerHTML = html;
 
-        listDiv.innerHTML = html;
+        var openBtn = document.getElementById("log-panel-open-dir");
+        if (openBtn) {
+          openBtn.onclick = async function () {
+            var r2 = await call("/api/tasks/open-log-dir", "POST", {}, "打开日志目录");
+            if (r2.success) {
+              FWUI.toast.success(r2.message || "已打开日志目录");
+            } else {
+              FWUI.toast.error(r2.message || "打开目录失败");
+            }
+          };
+        }
       }
 
       function escapeHtml(str) {
@@ -1828,6 +3041,8 @@
         document.getElementById("auto-task-modal-title").textContent = "编辑任务 #" + taskId;
         document.getElementById("auto-task-name").value = task.task_name;
         document.getElementById("auto-task-interval").value = task.interval;
+        document.getElementById("auto-task-start-time").value = task.start_time ? task.start_time.replace('T', 'T').substring(0, 16) : '';
+        document.getElementById("auto-task-loop-count").value = task.loop_count || 0;
         document.getElementById("auto-task-max-amount").value = task.max_daily_amount;
         document.getElementById("auto-task-max-count").value = task.max_daily_count;
         document.getElementById("auto-task-max-fail").value = task.max_consecutive_failures;
@@ -1979,18 +3194,80 @@
                 html += '    操作详情解析失败';
               }
             } else {
-              // 执行日志
+              // 执行日志 - 增强版
+              var hasSignalDetail = false;
               try {
-                var sig = JSON.parse(l.signal_json || '{}');
-                if (sig.symbol) {
-                  html += '    <div class="fw-task-log-item__signal">📡 信号: ' + sig.symbol + ' | ' + (sig.direction || '') + ' | ' + (sig.amount || '') + '</div>';
+                var sigDetail = JSON.parse(l.signal_detail_json || '{}');
+                if (sigDetail && (sigDetail.symbol || sigDetail.direction || sigDetail.amount)) {
+                  hasSignalDetail = true;
+                  html += '    <div class="fw-task-log-item__signal">📡 信号详情:</div>';
+                  if (sigDetail.symbol) html += '      <div>标的: <b>' + escapeHtml(sigDetail.symbol) + '</b></div>';
+                  if (sigDetail.direction) html += '      <div>方向: ' + (sigDetail.direction === 'BUY' || sigDetail.direction === 'UP' ? '<span style="color:#10b981">📈 ' + escapeHtml(sigDetail.direction) + '</span>' : '<span style="color:#ef4444">📉 ' + escapeHtml(sigDetail.direction) + '</span>') + '</div>';
+                  if (sigDetail.amount) html += '      <div>金额: $' + escapeHtml(String(sigDetail.amount)) + '</div>';
+                  if (sigDetail.source) html += '      <div>来源: ' + escapeHtml(sigDetail.source) + '</div>';
+                  if (sigDetail.market_question) html += '      <div style="color:var(--fwui-text-muted);font-size:11px;">市场: ' + escapeHtml(sigDetail.market_question) + '</div>';
                 }
               } catch (e) {}
 
+              // 回退：使用旧版 signal_json
+              if (!hasSignalDetail) {
+                try {
+                  var sig = JSON.parse(l.signal_json || '{}');
+                  if (sig.symbol) {
+                    html += '    <div class="fw-task-log-item__signal">📡 信号: ' + escapeHtml(sig.symbol) + ' | ' + escapeHtml(sig.direction || '') + ' | ' + escapeHtml(String(sig.amount || '')) + '</div>';
+                  }
+                } catch (e) {}
+              }
+
+              // 执行详情
+              try {
+                var execDetail = JSON.parse(l.execution_detail_json || '{}');
+                if (execDetail && (execDetail.gateway || execDetail.side || execDetail.making_amount)) {
+                  html += '    <div class="fw-task-log-item__signal" style="margin-top:4px;">⚙️ 执行详情:</div>';
+                  if (execDetail.gateway) html += '      <div>网关: ' + escapeHtml(execDetail.gateway) + '</div>';
+                  if (execDetail.side) html += '      <div>方向: ' + escapeHtml(execDetail.side) + '</div>';
+                  if (execDetail.order_type) html += '      <div>类型: ' + escapeHtml(execDetail.order_type) + (execDetail.retried ? ' <span style="color:#f59e0b">(已重试)</span>' : '') + '</div>';
+                  if (execDetail.making_amount) html += '      <div>付出: ' + escapeHtml(String(execDetail.making_amount)) + '</div>';
+                  if (execDetail.taking_amount) html += '      <div>获得: ' + escapeHtml(String(execDetail.taking_amount)) + '</div>';
+                }
+              } catch (e) {}
+
+              // 结果详情
+              try {
+                var resultDetail = JSON.parse(l.result_detail_json || '{}');
+                if (resultDetail && (resultDetail.order_id || resultDetail.status || resultDetail.error)) {
+                  html += '    <div class="fw-task-log-item__signal" style="margin-top:4px;">📋 执行结果:</div>';
+                  if (resultDetail.status) html += '      <div>状态: ' + escapeHtml(resultDetail.status) + '</div>';
+                  if (resultDetail.order_id) html += '      <div style="font-family:monospace;font-size:11px;">订单ID: ' + escapeHtml(resultDetail.order_id) + '</div>';
+                  if (resultDetail.transactions_hashes && resultDetail.transactions_hashes.length > 0) {
+                    html += '      <div style="font-family:monospace;font-size:11px;color:var(--fwui-text-muted);">TxHash: ' + escapeHtml(resultDetail.transactions_hashes[0]) + '</div>';
+                  }
+                  if (resultDetail.error) html += '      <div style="color:#ef4444;">❌ ' + escapeHtml(resultDetail.error) + '</div>';
+                }
+              } catch (e) {}
+
+              // 盈亏信息
+              if (l.pnl_amount !== undefined && l.pnl_amount !== null) {
+                var pnlClass = l.is_profit ? '#10b981' : (l.pnl_amount < 0 ? '#ef4444' : 'var(--fwui-text-muted)');
+                var pnlIcon = l.is_profit ? '🟢' : (l.pnl_amount < 0 ? '🔴' : '⚪');
+                html += '    <div style="margin-top:4px;padding:4px 8px;background:var(--fwui-bg-secondary);border-radius:4px;font-size:12px;">';
+                html += pnlIcon + ' 盈亏: <span style="color:' + pnlClass + ';">$' + escapeHtml(l.pnl_amount.toFixed(4)) + '</span>';
+                if (l.pnl_percent) {
+                  html += ' (' + escapeHtml(l.pnl_percent.toFixed(2)) + '%)';
+                }
+                if (l.market_resolved) {
+                  html += ' <span style="color:#10b981;">✓ 市场已结算</span>';
+                } else {
+                  html += ' <span style="color:var(--fwui-text-muted);font-size:11px;">(待结算)</span>';
+                }
+                html += '</div>';
+              }
+
+              // 回退：使用旧版 order_result_json
               try {
                 var orderResult = JSON.parse(l.order_result_json || '{}');
-                if (orderResult && orderResult.status) {
-                  html += '    <div class="fw-task-log-item__signal">📋 订单状态: ' + orderResult.status + '</div>';
+                if (orderResult && orderResult.status && !resultDetail) {
+                  html += '    <div class="fw-task-log-item__signal">📋 订单状态: ' + escapeHtml(orderResult.status) + '</div>';
                 }
               } catch (e) {}
             }
@@ -2029,6 +3306,14 @@
           '    <button class="fw-task-log-modal__tab" data-log-tab="operation">操作日志</button>' +
           '  </div>' +
           '  <div class="fw-task-log-modal__body">加载中...</div>' +
+          '  <div class="fw-task-log-modal__loginfo" id="log-file-info">' +
+          '    <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--fwui-border);background:var(--fwui-bg-secondary);font-size:12px;">' +
+          '      <span style="color:var(--fwui-text-muted);">📂 日志目录:</span>' +
+          '      <span id="log-dir-path" style="color:var(--fwui-text);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">加载中...</span>' +
+          '      <button class="fwui-btn fwui-btn--sm" id="log-open-dir" style="flex-shrink:0;">📂 打开目录</button>' +
+          '    </div>' +
+          '    <div id="log-files-list" style="padding:0 16px 10px;font-size:11px;color:var(--fwui-text-muted);"></div>' +
+          '  </div>' +
           '  <div class="fw-task-log-modal__footer">' +
           '    <span style="font-size:12px;color:var(--fwui-text-muted);" id="log-count-info">加载中...</span>' +
           '    <button class="fwui-btn fwui-btn--sm" id="log-refresh-btn">🔄 刷新</button>' +
@@ -2049,7 +3334,63 @@
 
         modal.querySelector('#log-refresh-btn').onclick = async function () {
           await loadLogs();
+          await loadLogInfo();
         };
+
+        modal.querySelector('#log-open-dir').onclick = async function () {
+          var r = await call("/api/tasks/open-log-dir", "POST", {}, "打开日志目录");
+          if (r.success) {
+            FWUI.toast.success(r.message || "已打开日志目录");
+          } else {
+            FWUI.toast.error(r.message || "打开目录失败");
+          }
+        };
+
+        async function loadLogInfo() {
+          var r = await call("/api/tasks/log-info", "GET", null, "获取日志信息");
+          if (!r.success) {
+            modal.querySelector('#log-dir-path').textContent = '加载失败 (API错误)';
+            var errHtml = '<div style="color:#ef4444;padding:8px;font-size:12px;">⚠️ 日志目录加载失败：' + escapeHtml(r.message || '未知错误') + '</div>';
+            errHtml += '<div style="padding:8px;font-size:11px;color:var(--fwui-text-muted);">';
+            errHtml += '💡 任务日志数据存储在数据库表 <code>auto_task_log</code> 中，可直接查询数据库获取完整历史。';
+            errHtml += '</div>';
+            modal.querySelector('#log-files-list').innerHTML = errHtml;
+            return;
+          }
+          var data = r.data || {};
+          modal.querySelector('#log-dir-path').textContent = data.log_dir || '未找到日志目录';
+
+          var filesHtml = '';
+          var files = data.log_files || [];
+          if (data.current_log_path) {
+            filesHtml += '<div style="color:var(--fwui-primary);">📄 当前日志: ' + escapeHtml(data.current_log_path) + '</div>';
+          }
+          if (data.error_log_path) {
+            filesHtml += '<div style="color:var(--fwui-danger);">⚠️ 错误日志: ' + escapeHtml(data.error_log_path) + '</div>';
+          }
+          if (files.length > 0) {
+            filesHtml += '<div style="margin-top:4px;color:var(--fwui-text-muted);">历史日志文件 (' + files.length + '):</div>';
+            files.slice(-5).reverse().forEach(function (f) {
+              var size = f.size_human || f.size + ' B';
+              filesHtml += '<div style="padding-left:8px;">' + escapeHtml(f.name) + ' <span style="float:right;">' + size + '</span></div>';
+            });
+            if (files.length > 5) {
+              filesHtml += '<div style="padding-left:8px;color:var(--fwui-text-muted);">...还有 ' + (files.length - 5) + ' 个文件</div>';
+            }
+          }
+          
+          // 数据库表提示
+          if (data.db_table) {
+            filesHtml += '<div style="margin-top:8px;padding:6px 8px;background:var(--fwui-bg-secondary);border-radius:4px;font-size:11px;color:var(--fwui-text-muted);">';
+            filesHtml += '💾 <b>数据库表:</b> <code>' + escapeHtml(data.db_table) + '</code>';
+            if (data.db_table_desc) {
+              filesHtml += '<div style="margin-top:2px;">' + escapeHtml(data.db_table_desc) + '</div>';
+            }
+            filesHtml += '</div>';
+          }
+          
+          modal.querySelector('#log-files-list').innerHTML = filesHtml;
+        }
 
         // 加载日志
         async function loadLogs() {
@@ -2070,6 +3411,7 @@
         }
 
         await loadLogs();
+        await loadLogInfo();
       };
 
       // ===== 自动任务：按钮绑定 =====
@@ -2078,6 +3420,8 @@
         document.getElementById("auto-task-modal-title").textContent = "新建自动任务";
         document.getElementById("auto-task-name").value = "";
         document.getElementById("auto-task-interval").value = "5";
+        document.getElementById("auto-task-start-time").value = "";
+        document.getElementById("auto-task-loop-count").value = "0";
         document.getElementById("auto-task-max-amount").value = "50";
         document.getElementById("auto-task-max-count").value = "50";
         document.getElementById("auto-task-max-fail").value = "5";
@@ -2110,10 +3454,13 @@
         var source = document.getElementById("auto-task-source").value;
         if (!source) { FWUI.toast.error("请选择信号源"); return; }
 
+        var startTimeVal = document.getElementById("auto-task-start-time").value;
         var payload = {
           task_name: name,
           signal_source: source,
           interval: parseInt(document.getElementById("auto-task-interval").value) || 5,
+          start_time: startTimeVal ? new Date(startTimeVal).toISOString() : null,
+          loop_count: parseInt(document.getElementById("auto-task-loop-count").value) || 0,
           max_daily_amount: parseFloat(document.getElementById("auto-task-max-amount").value) || 50,
           max_daily_count: parseInt(document.getElementById("auto-task-max-count").value) || 50,
           max_consecutive_failures: parseInt(document.getElementById("auto-task-max-fail").value) || 5,
@@ -2131,7 +3478,10 @@
             loadAutoTasks();
             // 自动启动
             if (r.data && r.data.id) {
-              await call("/api/tasks/" + r.data.id + "/start", "POST", {}, "启动任务");
+              var sr = await call("/api/tasks/" + r.data.id + "/start", "POST", {}, "启动任务");
+              if (!sr.success) {
+                FWUI.toast.warning("任务创建成功，但启动失败: " + (sr.message || ""));
+              }
             }
           } else {
             FWUI.toast.error(r.message || "创建失败");
@@ -2139,8 +3489,10 @@
         }
       };
 
-      // ===== 信号源管理 =====
+      // ===== 信号源管理（文件驱动架构） =====
       var signalProviders = [];
+      var editingSignalProviderName = null;
+      var editingParamValues = {};  // 编辑中的参数值
 
       async function loadSignalProviders() {
         var listDiv = document.getElementById("signal-provider-list");
@@ -2161,16 +3513,16 @@
         if (!listDiv) return;
 
         if (signalProviders.length === 0) {
-          listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:40px;text-align:center;"><div style="font-size:48px;">📡</div><div style="margin-top:8px;">暂无信号源，点击"同步内置"加载系统信号，或"新建信号源"添加自定义信号</div></div>';
+          listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:40px;text-align:center;"><div style="font-size:48px;">📡</div><div style="margin-top:8px;">暂无信号源，点击"新建信号源"添加</div></div>';
           return;
         }
 
         var html = '<table style="width:100%;border-collapse:collapse;margin-top:12px;">';
         html += '<thead><tr style="border-bottom:2px solid var(--fwui-border);">';
-        html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">ID</th>';
         html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">信号源</th>';
         html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">类别</th>';
         html += '<th style="padding:10px;text-align:left;color:var(--fwui-text-muted);font-size:12px;">类名/模块</th>';
+        html += '<th style="padding:10px;text-align:center;color:var(--fwui-text-muted);font-size:12px;">参数</th>';
         html += '<th style="padding:10px;text-align:center;color:var(--fwui-text-muted);font-size:12px;">健康</th>';
         html += '<th style="padding:10px;text-align:center;color:var(--fwui-text-muted);font-size:12px;">启用</th>';
         html += '<th style="padding:10px;text-align:center;color:var(--fwui-text-muted);font-size:12px;">操作</th>';
@@ -2192,22 +3544,24 @@
           if (sp.health_status === 'ok') healthBadge = '✅';
           else if (sp.health_status === 'fail') healthBadge = '❌';
 
+          var paramCount = sp.parameters ? sp.parameters.length : 0;
+
           // 启用/停用开关
           var toggleChecked = sp.is_active ? 'checked' : '';
           var toggleColor = sp.is_active ? '#10b981' : '#999';
           var builtinTag = sp.is_builtin ? '<span style="color:var(--fwui-text-muted);font-size:11px;">🔒内置</span>' : '';
 
           html += '<tr style="border-bottom:1px solid var(--fwui-border);">';
-          html += '<td style="padding:10px;font-size:13px;">' + sp.id + '</td>';
           html += '<td style="padding:10px;"><div style="font-weight:500;">' + escapeHtml(sp.display_name || sp.provider_name) + '</div><div style="color:var(--fwui-text-muted);font-size:11px;">' + escapeHtml(sp.provider_name) + '</div></td>';
           html += '<td style="padding:10px;">' + catBadge + '</td>';
           html += '<td style="padding:10px;font-size:12px;color:var(--fwui-text-muted);">' + escapeHtml(sp.class_name) + '<br><span style="font-size:11px;">' + escapeHtml(sp.module_path) + '</span></td>';
+          html += '<td style="padding:10px;text-align:center;font-size:12px;">' + paramCount + ' 个</td>';
           html += '<td style="padding:10px;text-align:center;">' + healthBadge + '</td>';
 
           // 启用开关 (toggle switch)
           html += '<td style="padding:10px;text-align:center;">';
           html += '<label style="position:relative;display:inline-block;width:42px;height:22px;cursor:pointer;">';
-          html += '<input type="checkbox" ' + toggleChecked + ' onchange="window._spToggle(' + sp.id + ')" style="opacity:0;width:0;height:0;">';
+          html += '<input type="checkbox" ' + toggleChecked + ' onchange="window._spToggle(\'' + sp.provider_name + '\')" style="opacity:0;width:0;height:0;">';
           html += '<span style="position:absolute;inset:0;background:' + toggleColor + ';border-radius:22px;transition:.3s;"></span>';
           html += '<span style="position:absolute;height:18px;width:18px;left:' + (sp.is_active ? '22px' : '2px') + ';top:2px;background:#fff;border-radius:50%;transition:.3s;"></span>';
           html += '</label>';
@@ -2215,14 +3569,11 @@
           html += '</td>';
 
           html += '<td style="padding:10px;text-align:center;white-space:nowrap;">';
-          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spEdit(' + sp.id + ')" style="margin:2px;">编辑</button>';
-          if (sp.file_path) {
-            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spOpenFile(' + sp.id + ')" style="margin:2px;">📝IDE</button>';
-          }
-          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spHealth(' + sp.id + ')" style="margin:2px;">健康</button>';
-          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spTest(' + sp.id + ')" style="margin:2px;">测试</button>';
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spEdit(\'' + sp.provider_name + '\')" style="margin:2px;">编辑参数</button>';
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spOpenFile(\'' + sp.provider_name + '\')" style="margin:2px;">📝IDE</button>';
+          html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spTest(\'' + sp.provider_name + '\')" style="margin:2px;">测试</button>';
           if (sp.can_delete) {
-            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spDelete(' + sp.id + ')" style="margin:2px;color:var(--fwui-danger);">删除</button>';
+            html += '<button class="fwui-btn fwui-btn--sm" onclick="window._spDelete(\'' + sp.provider_name + '\')" style="margin:2px;color:var(--fwui-danger);">删除</button>';
           }
           html += builtinTag;
           html += '</td></tr>';
@@ -2232,58 +3583,129 @@
         listDiv.innerHTML = html;
       }
 
-      // 信号源 CRUD 操作
-      window._spEdit = function (id) {
-        var sp = signalProviders.find(function (x) { return x.id === id; });
-        if (!sp) return;
-        editingSignalProviderId = id;
-        document.getElementById("signal-provider-modal-title").textContent = "编辑信号源 #" + id;
-        document.getElementById("sp-source-type").style.display = "none";
-        document.getElementById("sp-name").value = sp.provider_name;
-        document.getElementById("sp-display").value = sp.display_name || "";
-        document.getElementById("sp-category").value = sp.category;
-        document.getElementById("sp-class").value = sp.class_name;
-        document.getElementById("sp-module").value = sp.module_path;
-        document.getElementById("sp-desc").value = sp.description || "";
-        document.getElementById("sp-config").value = typeof sp.config_json === 'string' ? sp.config_json : JSON.stringify(sp.config_json || {}, null, 2);
+      // ===== 信号源 CRUD 操作（文件驱动） =====
 
-        // 检测是否为 HTTP URL 信号源
-        var cfg = sp.config_json || {};
-        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch(e) { cfg = {}; } }
-        if (cfg.http_url) {
-          document.getElementById("sp-http-url").value = cfg.http_url;
-          document.getElementById("sp-url-row").style.display = "block";
-          document.getElementById("sp-source-type").value = "http_url";
-        } else {
-          document.getElementById("sp-http-url").value = "";
-          document.getElementById("sp-url-row").style.display = "none";
-          document.getElementById("sp-source-type").value = "python";
+      window._spEdit = async function (name) {
+        var sp = signalProviders.find(function (x) { return x.provider_name === name; });
+        if (!sp) return;
+        editingSignalProviderName = name;
+        editingParamValues = {};
+
+        // 从后端获取详情（含参数元信息）
+        var r = await call("/api/signal-providers/" + encodeURIComponent(name), "GET", null, "获取详情");
+        if (!r.success) {
+          FWUI.toast.error(r.message || "获取详情失败");
+          return;
+        }
+        var detail = r.data;
+
+        var body = document.getElementById("signal-provider-modal-body");
+        var title = document.getElementById("signal-provider-modal-title");
+        title.textContent = "编辑参数 - " + (sp.display_name || sp.provider_name);
+
+        // 构建参数编辑表单
+        var params = detail.parameters || [];
+        var hiddenParams = detail.hidden_parameters || [];
+        var meta = detail.parameter_meta || {};
+
+        var formHtml = '';
+
+        // 基本信息（只读）
+        formHtml += '<div style="background:var(--fwui-bg-input);border:1px solid var(--fwui-border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--fwui-text-muted);">';
+        formHtml += '<div><strong style="color:var(--fwui-text);">信号源:</strong> ' + escapeHtml(detail.provider_name) + '</div>';
+        formHtml += '<div><strong style="color:var(--fwui-text);">类名:</strong> ' + escapeHtml(detail.class_name) + '</div>';
+        formHtml += '<div><strong style="color:var(--fwui-text);">模块:</strong> ' + escapeHtml(detail.module_path) + '</div>';
+        formHtml += '</div>';
+
+        // 显示参数
+        if (params.length > 0) {
+          formHtml += '<div style="font-size:13px;font-weight:500;color:var(--fwui-text);margin-top:8px;">📋 参数配置</div>';
+          params.forEach(function (pname) {
+            var info = meta[pname] || { value: '', type: 'str', type_name: '字符串' };
+            editingParamValues[pname] = info.value;
+            formHtml += _renderParamField(pname, info, false);
+          });
         }
 
-        document.getElementById("sp-name").disabled = sp.is_builtin;
-        document.getElementById("sp-class").disabled = sp.is_builtin;
-        document.getElementById("sp-module").disabled = sp.is_builtin;
-        document.getElementById("sp-category").disabled = sp.is_builtin || !sp.can_delete;
-        document.getElementById("sp-advanced").open = true;
+        // 隐藏参数（可展开）
+        if (hiddenParams.length > 0) {
+          formHtml += '<details style="border:1px solid var(--fwui-border);border-radius:8px;padding:8px 12px;margin-top:8px;">';
+          formHtml += '<summary style="cursor:pointer;font-size:12px;color:var(--fwui-text-muted);">⚙️ 隐藏参数（' + hiddenParams.length + ' 个）</summary>';
+          formHtml += '<div style="margin-top:8px;display:flex;flex-direction:column;gap:10px;">';
+          hiddenParams.forEach(function (pname) {
+            var info = meta[pname] || { value: '', type: 'str', type_name: '字符串' };
+            editingParamValues[pname] = info.value;
+            formHtml += _renderParamField(pname, info, true);
+          });
+          formHtml += '</div></details>';
+        }
+
+        body.innerHTML = formHtml;
         document.getElementById("signal-provider-modal").style.display = "flex";
       };
 
-      window._spToggle = async function (id) {
-        var sp = signalProviders.find(function (x) { return x.id === id; });
-        if (!sp) return;
-        var r = await call("/api/signal-providers/" + id + "/toggle", "POST", {}, "切换状态");
+      // 渲染单个参数字段
+      function _renderParamField(name, info, isHidden) {
+        var val = info.value;
+        var type = info.type || 'str';
+        var typeName = info.type_name || type;
+        var disabled = isHidden ? '' : '';
+
+        var field = '<div>';
+        field += '<label style="font-size:12px;color:var(--fwui-text-muted);display:flex;justify-content:space-between;">';
+        field += '<span>' + escapeHtml(name) + (isHidden ? ' 🔒' : '') + '</span>';
+        field += '<span style="color:var(--fwui-text-muted);font-size:11px;">' + typeName + '</span>';
+        field += '</label>';
+
+        if (type === 'bool') {
+          field += '<label style="position:relative;display:inline-block;width:42px;height:22px;margin-top:4px;cursor:pointer;">';
+          field += '<input type="checkbox" ' + (val ? 'checked' : '') + ' data-param="' + escapeHtml(name) + '" onchange="window._onParamBoolChange(this)" style="opacity:0;width:0;height:0;">';
+          field += '<span style="position:absolute;inset:0;background:' + (val ? '#10b981' : '#999') + ';border-radius:22px;"></span>';
+          field += '<span style="position:absolute;height:18px;width:18px;left:' + (val ? '22px' : '2px') + ';top:2px;background:#fff;border-radius:50%;"></span>';
+          field += '</label>';
+        } else if (type === 'int' || type === 'float') {
+          field += '<input type="number" data-param="' + escapeHtml(name) + '" data-type="' + type + '" value="' + escapeHtml(String(val)) + '" onchange="window._onParamInputChange(this)" oninput="window._onParamInputChange(this)" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
+        } else {
+          // str - 检查是否多行
+          var strVal = String(val);
+          if (strVal.length > 80 || strVal.indexOf('\n') >= 0) {
+            field += '<textarea data-param="' + escapeHtml(name) + '" rows="3" onchange="window._onParamInputChange(this)" oninput="window._onParamInputChange(this)" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;font-family:monospace;font-size:12px;">' + escapeHtml(strVal) + '</textarea>';
+          } else {
+            field += '<input type="text" data-param="' + escapeHtml(name) + '" value="' + escapeHtml(strVal) + '" onchange="window._onParamInputChange(this)" oninput="window._onParamInputChange(this)" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
+          }
+        }
+
+        field += '</div>';
+        return field;
+      }
+
+      window._onParamInputChange = function (el) {
+        var name = el.getAttribute('data-param');
+        var type = el.getAttribute('data-type') || 'str';
+        var val = el.value;
+        if (type === 'int') val = parseInt(val, 10) || 0;
+        else if (type === 'float') val = parseFloat(val) || 0;
+        editingParamValues[name] = val;
+      };
+
+      window._onParamBoolChange = function (el) {
+        var name = el.getAttribute('data-param');
+        editingParamValues[name] = el.checked;
+      };
+
+      window._spToggle = async function (name) {
+        var r = await call("/api/signal-providers/" + encodeURIComponent(name) + "/toggle", "POST", {}, "切换状态");
         if (r.success) {
-          sp.is_active = r.data.is_active;
           FWUI.toast.success(r.message);
-          renderSignalProviderList();
+          loadSignalProviders();
         } else {
           FWUI.toast.error(r.message || "操作失败");
-          renderSignalProviderList(); // 刷新UI恢复
+          loadSignalProviders();
         }
       };
 
-      window._spOpenFile = async function (id) {
-        var r = await call("/api/signal-providers/" + id + "/open-file", "POST", {}, "打开文件");
+      window._spOpenFile = async function (name) {
+        var r = await call("/api/signal-providers/" + encodeURIComponent(name) + "/open-file", "POST", {}, "打开文件");
         if (r.success) {
           FWUI.toast.success("已在默认 IDE 中打开文件");
         } else {
@@ -2291,9 +3713,8 @@
         }
       };
 
-      window._spDelete = async function (id) {
-        // 先检查是否有任务引用
-        var refCheck = await call("/api/signal-providers/" + id + "/references", "GET", null, "检查引用");
+      window._spDelete = async function (name) {
+        var refCheck = await call("/api/signal-providers/" + encodeURIComponent(name) + "/references", "GET", null, "检查引用");
         var refs = refCheck.success && refCheck.data ? refCheck.data : [];
         if (refs.length > 0) {
           var taskList = refs.map(function (r) { return '"' + r.task_name + '"(ID:' + r.task_id + ')'; }).join(", ");
@@ -2301,31 +3722,20 @@
           return;
         }
         if (!(await FWUI.modal.danger({ content: "确定删除此信号源吗？这将同时删除对应的 .py 文件！", okText: "删除" }))) return;
-        var r = await call("/api/signal-providers/" + id, "DELETE", {}, "删除信号源");
+        var r = await call("/api/signal-providers/" + encodeURIComponent(name), "DELETE", {}, "删除信号源");
         if (r.success) { FWUI.toast.success("信号源及 .py 文件已删除"); loadSignalProviders(); }
         else { FWUI.toast.error(r.message || "删除失败"); }
       };
 
-      window._spHealth = async function (id) {
-        var r = await call("/api/signal-providers/" + id + "/health", "POST", {}, "健康检查");
+      window._spTest = async function (name) {
+        var r = await call("/api/signal-providers/" + encodeURIComponent(name) + "/test", "POST", {}, "测试信号");
         if (r.success) {
-          var status = r.data.status === 'ok' ? '✅ 健康' : '❌ 异常';
-          FWUI.toast.success(status);
-          loadSignalProviders();
-        } else {
-          FWUI.toast.error(r.message || "检查失败");
-        }
-      };
-
-      window._spTest = async function (id) {
-        var r = await call("/api/signal-providers/" + id + "/test", "POST", {}, "测试信号");
-        if (r.success) {
-          if (r.data.success && r.data.signal) {
+          if (r.data && r.data.success && r.data.signal) {
             FWUI.toast.success('信号生成成功');
             var s = r.data.signal;
             log('📡 信号测试: ' + s.symbol + ' dir=' + s.direction + ' amt=' + s.amount);
           } else {
-            FWUI.toast.error(r.data.error || "信号生成失败");
+            FWUI.toast.error(r.data ? r.data.error : "信号生成失败");
           }
         } else {
           FWUI.toast.error(r.message || "测试失败");
@@ -2346,43 +3756,53 @@
         }
       }
 
-      // 来源类型切换（新建模式）
-      window._onSourceTypeChange = function () {
-        var type = document.getElementById("sp-source-type").value;
-        var urlRow = document.getElementById("sp-url-row");
-        var nameHint = document.getElementById("sp-name-hint");
-        if (type === "http_url") {
-          urlRow.style.display = "block";
-          nameHint.textContent = "留空将自动生成 signal_YYYYMMDDhhmm 格式";
-        } else {
-          urlRow.style.display = "none";
-          nameHint.textContent = "留空将自动生成 signal_YYYYMMDDhhmm 格式";
-        }
-      };
-
+      // 新建信号源
       document.getElementById("btn-signal-provider-new").onclick = function () {
-        editingSignalProviderId = null;
-        document.getElementById("signal-provider-modal-title").textContent = "新建信号源";
-        document.getElementById("sp-source-type").value = "python";
-        document.getElementById("sp-source-type").style.display = "block";
-        document.getElementById("sp-name").value = "";
-        document.getElementById("sp-display").value = "";
-        document.getElementById("sp-category").value = "custom";
-        document.getElementById("sp-class").value = "";
-        document.getElementById("sp-module").value = "";
-        document.getElementById("sp-desc").value = "";
-        document.getElementById("sp-config").value = "{}";
-        document.getElementById("sp-http-url").value = "";
-        document.getElementById("sp-name").disabled = false;
-        document.getElementById("sp-class").disabled = false;
-        document.getElementById("sp-module").disabled = false;
-        document.getElementById("sp-category").disabled = false;
-        document.getElementById("sp-advanced").open = false;
-        window._onSourceTypeChange();
+        editingSignalProviderName = null;
+        var body = document.getElementById("signal-provider-modal-body");
+        var title = document.getElementById("signal-provider-modal-title");
+        title.textContent = "新建信号源";
+
+        var formHtml = '';
+        formHtml += '<div><label style="font-size:12px;color:var(--fwui-text-muted);">信号源名称（留空自动生成 signal_时间戳）</label>';
+        formHtml += '<input id="sp-new-name" class="fwui-input" placeholder="留空自动生成，如 my_signal" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
+        formHtml += '<div style="font-size:11px;color:var(--fwui-text-muted);margin-top:4px;">留空将自动生成 signal_YYYYMMDDhhmm 格式</div></div>';
+
+        formHtml += '<div><label style="font-size:12px;color:var(--fwui-text-muted);">信号类型</label>';
+        formHtml += '<select id="sp-new-type" onchange="window._onNewTypeChange()" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
+        formHtml += '<option value="python">Python 自定义（可编辑代码）</option>';
+        formHtml += '<option value="http">HTTP URL（请求外部JSON）</option>';
+        formHtml += '</select></div>';
+
+        formHtml += '<div id="sp-new-url-row" style="display:none;"><label style="font-size:12px;color:var(--fwui-text-muted);">HTTP URL（返回JSON信号）</label>';
+        formHtml += '<input id="sp-new-url" class="fwui-input" placeholder="https://example.com/api/signal" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
+        formHtml += '<div style="font-size:11px;color:var(--fwui-text-muted);margin-top:4px;">URL需返回JSON: {"symbol":"...", "direction":"UP/DOWN", "amount": 1.0}</div></div>';
+
+        formHtml += '<details style="border:1px solid var(--fwui-border);border-radius:8px;padding:8px 12px;margin-top:4px;">';
+        formHtml += '<summary style="cursor:pointer;font-size:12px;color:var(--fwui-text-muted);">高级选项</summary>';
+        formHtml += '<div style="margin-top:8px;display:flex;flex-direction:column;gap:10px;">';
+        formHtml += '<div><label style="font-size:12px;color:var(--fwui-text-muted);">显示名称</label>';
+        formHtml += '<input id="sp-new-display" class="fwui-input" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;"></div>';
+        formHtml += '<div><label style="font-size:12px;color:var(--fwui-text-muted);">类别</label>';
+        formHtml += '<select id="sp-new-category" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
+        formHtml += '<option value="custom">自定义信号</option>';
+        formHtml += '<option value="internal">内部信号</option>';
+        formHtml += '<option value="external">外部信号</option>';
+        formHtml += '</select></div>';
+        formHtml += '<div><label style="font-size:12px;color:var(--fwui-text-muted);">描述</label>';
+        formHtml += '<textarea id="sp-new-desc" rows="2" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);resize:vertical;margin-top:4px;"></textarea></div>';
+        formHtml += '</div></details>';
+
+        body.innerHTML = formHtml;
         document.getElementById("signal-provider-modal").style.display = "flex";
       };
 
-      // 热加载：点击刷新按钮时重新扫描 providers/ 目录
+      window._onNewTypeChange = function () {
+        var type = document.getElementById("sp-new-type").value;
+        document.getElementById("sp-new-url-row").style.display = type === "http" ? "block" : "none";
+      };
+
+      // 刷新（热加载）
       document.getElementById("btn-signal-provider-refresh").onclick = async function () {
         var r = await call("/api/signal-providers/reload", "POST", {}, "热加载");
         if (r.success) {
@@ -2394,51 +3814,552 @@
         }
       };
 
+      // 取消
       document.getElementById("signal-provider-modal-cancel").onclick = function () {
         document.getElementById("signal-provider-modal").style.display = "none";
       };
 
+      // 保存（统一处理新建和编辑）
       document.getElementById("signal-provider-modal-save").onclick = async function () {
-        var isEditing = !!editingSignalProviderId;
-        var sourceType = document.getElementById("sp-source-type").value;
-        var payload = {
-          source_type: sourceType,
-          provider_name: document.getElementById("sp-name").value.trim(),
-          display_name: document.getElementById("sp-display").value.trim(),
-          category: document.getElementById("sp-category").value,
-          class_name: document.getElementById("sp-class").value.trim(),
-          module_path: document.getElementById("sp-module").value.trim(),
-          description: document.getElementById("sp-desc").value.trim(),
-          config_json: document.getElementById("sp-config").value.trim(),
-        };
-
-        if (sourceType === "http_url") {
-          payload.http_url = document.getElementById("sp-http-url").value.trim();
-          if (!payload.http_url) { FWUI.toast.error("请输入 HTTP URL"); return; }
-          if (!payload.provider_name) {
-            // 自动生成名称
-            payload.provider_name = ""; // 后端会自动生成
+        if (editingSignalProviderName) {
+          // 编辑模式：保存参数值到 .py 文件
+          var payload = { values: editingParamValues };
+          var r = await call("/api/signal-providers/" + encodeURIComponent(editingSignalProviderName), "PUT", payload, "更新参数");
+          if (r.success) {
+            FWUI.toast.success("参数已更新并热加载");
+            document.getElementById("signal-provider-modal").style.display = "none";
+            loadSignalProviders();
+          } else {
+            FWUI.toast.error(r.message || "更新失败");
           }
         } else {
-          // Python 自定义：名称可留空自动生成
-          if (!payload.provider_name && isEditing) { FWUI.toast.error("信号源名称不可为空"); return; }
-        }
+          // 新建模式
+          var name = document.getElementById("sp-new-name").value.trim();
+          var type = document.getElementById("sp-new-type").value;
+          var displayName = document.getElementById("sp-new-display").value.trim();
+          var category = document.getElementById("sp-new-category").value;
+          var desc = document.getElementById("sp-new-desc").value.trim();
 
-        if (isEditing) {
-          var r = await call("/api/signal-providers/" + editingSignalProviderId, "PUT", payload, "更新信号源");
-          if (r.success) { FWUI.toast.success("信号源已更新"); document.getElementById("signal-provider-modal").style.display = "none"; loadSignalProviders(); }
-          else { FWUI.toast.error(r.message || "更新失败"); }
-        } else {
+          var payload = {
+            provider_name: name,
+            source_type: type,
+            display_name: displayName,
+            category: category,
+            description: desc,
+          };
+
+          if (type === "http") {
+            var url = document.getElementById("sp-new-url").value.trim();
+            if (!url) { FWUI.toast.error("请输入 HTTP URL"); return; }
+            payload.http_url = url;
+          }
+
           var r = await call("/api/signal-providers", "POST", payload, "创建信号源");
           if (r.success) {
             var newName = r.data && r.data.provider_name ? r.data.provider_name : "";
             FWUI.toast.success("信号源已创建" + (newName ? "：" + newName : ""));
             document.getElementById("signal-provider-modal").style.display = "none";
             loadSignalProviders();
+          } else {
+            FWUI.toast.error(r.message || "创建失败");
           }
-          else { FWUI.toast.error(r.message || "创建失败"); }
         }
       };
+
+      // ===== 任务日志辅助函数 =====
+      function _loadTLLogVisibleCols() {
+        try {
+          var saved = JSON.parse(localStorage.getItem(TL_LOG_COL_STORAGE_KEY));
+          var keys;
+          if (!saved || !Array.isArray(saved)) {
+            keys = TL_LOG_COLUMNS.filter(function (c) { return c.default; }).map(function (c) { return c.key; });
+          } else {
+            var valid = TL_LOG_COLUMNS.map(function (c) { return c.key; });
+            keys = saved.filter(function (k) { return valid.indexOf(k) >= 0; });
+          }
+          return TL_LOG_COLUMNS.filter(function (c) { return keys.indexOf(c.key) >= 0; });
+        } catch (e) {
+          return TL_LOG_COLUMNS.filter(function (c) { return c.default; });
+        }
+      }
+      function _saveTLLogVisibleCols(keys) {
+        try { localStorage.setItem(TL_LOG_COL_STORAGE_KEY, JSON.stringify(keys)); } catch (e) {}
+      }
+
+      function _initTaskLogToolbar() {
+        var input = document.getElementById('task-log-search-input');
+        var debounceTimer = null;
+        if (input && !input._bound) {
+          input._bound = true;
+          input.addEventListener('input', function () {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+              taskLogSearch = input.value.trim();
+              taskLogOffset = 0;
+              loadTaskLogs();
+            }, 300);
+          });
+        }
+        var clearBtn = document.getElementById('task-log-search-clear');
+        if (clearBtn && !clearBtn._bound) {
+          clearBtn._bound = true;
+          clearBtn.addEventListener('click', function () {
+            taskLogSearch = '';
+            if (input) input.value = '';
+            taskLogOffset = 0;
+            loadTaskLogs();
+          });
+        }
+        var statusSel = document.getElementById('task-log-filter-status');
+        if (statusSel && !statusSel._bound) {
+          statusSel._bound = true;
+          statusSel.addEventListener('change', function () {
+            taskLogFilterStatus = statusSel.value === '' ? null : parseInt(statusSel.value);
+            taskLogOffset = 0;
+            loadTaskLogs();
+          });
+        }
+        var typeSel = document.getElementById('task-log-filter-type');
+        if (typeSel && !typeSel._bound) {
+          typeSel._bound = true;
+          typeSel.addEventListener('change', function () {
+            taskLogFilterType = typeSel.value === '' ? null : parseInt(typeSel.value);
+            taskLogOffset = 0;
+            loadTaskLogs();
+          });
+        }
+        var dateFrom = document.getElementById('task-log-date-from');
+        if (dateFrom && !dateFrom._bound) {
+          dateFrom._bound = true;
+          dateFrom.addEventListener('change', function () {
+            taskLogFilterDateFrom = dateFrom.value;
+            taskLogOffset = 0;
+            loadTaskLogs();
+          });
+        }
+        var dateTo = document.getElementById('task-log-date-to');
+        if (dateTo && !dateTo._bound) {
+          dateTo._bound = true;
+          dateTo.addEventListener('change', function () {
+            taskLogFilterDateTo = dateTo.value;
+            taskLogOffset = 0;
+            loadTaskLogs();
+          });
+        }
+        var pnlChk = document.getElementById('task-log-pnl-only');
+        if (pnlChk && !pnlChk._bound) {
+          pnlChk._bound = true;
+          pnlChk.addEventListener('change', function () {
+            taskLogPnlOnly = pnlChk.checked;
+            taskLogOffset = 0;
+            loadTaskLogs();
+          });
+        }
+        var sortSel = document.getElementById('task-log-sort-select');
+        if (sortSel && !sortSel._bound) {
+          sortSel._bound = true;
+          sortSel.addEventListener('change', function () {
+            taskLogSort = sortSel.value;
+            loadTaskLogs();
+          });
+        }
+        var refreshBtn = document.getElementById('task-log-refresh');
+        if (refreshBtn && !refreshBtn._bound) {
+          refreshBtn._bound = true;
+          refreshBtn.addEventListener('click', function () { loadTaskLogs(); });
+        }
+        // 分页
+        var prevBtn = document.getElementById('task-log-prev');
+        if (prevBtn && !prevBtn._bound) {
+          prevBtn._bound = true;
+          prevBtn.addEventListener('click', function () {
+            if (taskLogOffset > 0) {
+              taskLogOffset = Math.max(0, taskLogOffset - taskLogLimit);
+              loadTaskLogs();
+            }
+          });
+        }
+        var nextBtn = document.getElementById('task-log-next');
+        if (nextBtn && !nextBtn._bound) {
+          nextBtn._bound = true;
+          nextBtn.addEventListener('click', function () {
+            if (taskLogOffset + taskLogLimit < taskLogTotal) {
+              taskLogOffset += taskLogLimit;
+              loadTaskLogs();
+            }
+          });
+        }
+        var pageSizeSel = document.getElementById('task-log-page-size');
+        if (pageSizeSel && !pageSizeSel._bound) {
+          pageSizeSel._bound = true;
+          pageSizeSel.addEventListener('change', function () {
+            taskLogLimit = parseInt(pageSizeSel.value);
+            taskLogOffset = 0;
+            loadTaskLogs();
+          });
+        }
+      }
+
+      function _initTaskLogColSettings() {
+        var panel = document.getElementById('task-log-col-panel');
+        var itemsEl = document.getElementById('task-log-col-items');
+        var toggleBtn = document.getElementById('task-log-col-toggle');
+        var resetBtn = document.getElementById('task-log-col-reset');
+        if (!panel || !itemsEl) return;
+
+        function renderItems() {
+          var visibleKeys = taskLogVisibleCols.map(function (c) { return c.key; });
+          var html = '';
+          TL_LOG_COLUMNS.forEach(function (col) {
+            var checked = visibleKeys.indexOf(col.key) >= 0;
+            var disabled = col.always ? ' disabled' : '';
+            var cls = col.always ? ' fw-col-settings-panel__item--disabled' : '';
+            html += '<label class="fw-col-settings-panel__item' + cls + '">' +
+                    '<input type="checkbox" data-col="' + col.key + '"' + (checked ? ' checked' : '') + disabled + '>' +
+                    col.label + (col.always ? ' <span style="color:var(--fwui-text-muted);font-size:10px;">(固定)</span>' : '') +
+                    '</label>';
+          });
+          itemsEl.innerHTML = html;
+          itemsEl.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+              var key = cb.getAttribute('data-col');
+              var col = TL_LOG_COLUMNS.find(function (c) { return c.key === key; });
+              if (!col || col.always) return;
+              var keys = taskLogVisibleCols.map(function (c) { return c.key; });
+              if (cb.checked) {
+                if (keys.indexOf(key) < 0) keys.push(key);
+              } else {
+                keys = keys.filter(function (k) { return k !== key; });
+              }
+              _saveTLLogVisibleCols(keys);
+              taskLogVisibleCols = _loadTLLogVisibleCols();
+              renderTaskLogTable();
+            });
+          });
+        }
+
+        toggleBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          panel.classList.toggle('fw-col-settings-panel--open');
+          if (panel.classList.contains('fw-col-settings-panel--open')) renderItems();
+        });
+        document.addEventListener('click', function (e) {
+          if (!panel.contains(e.target) && e.target !== toggleBtn) {
+            panel.classList.remove('fw-col-settings-panel--open');
+          }
+        });
+        resetBtn.addEventListener('click', function () {
+          _saveTLLogVisibleCols(TL_LOG_COLUMNS.filter(function (c) { return c.default; }).map(function (c) { return c.key; }));
+          taskLogVisibleCols = _loadTLLogVisibleCols();
+          renderItems();
+          renderTaskLogTable();
+        });
+        renderItems();
+      }
+
+      async function loadTaskLogs() {
+        var tbody = document.getElementById("task-log-tbody");
+        var cardsEl = document.getElementById("task-log-cards");
+        if (!tbody) return;
+        var colspan = taskLogVisibleCols.length;
+        tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">加载中...</td></tr>';
+        if (cardsEl) cardsEl.innerHTML = '';
+
+        var params = {
+          search: taskLogSearch,
+          status: taskLogFilterStatus,
+          log_type: taskLogFilterType,
+          pnl_only: taskLogPnlOnly ? 'true' : null,
+          date_from: taskLogFilterDateFrom || null,
+          date_to: taskLogFilterDateTo || null,
+          sort_by: taskLogSort.split('-')[0],
+          sort_dir: taskLogSort.split('-')[1] || 'desc',
+          limit: taskLogLimit,
+          offset: taskLogOffset,
+        };
+        // 清理 null 参数
+        Object.keys(params).forEach(function (k) { if (params[k] === null || params[k] === '') delete params[k]; });
+
+        var qs = Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+        var r = await call('/api/tasks/logs?' + qs, 'GET', null, '加载任务日志');
+        if (!r.success) {
+          tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-danger);padding:30px;">加载失败</td></tr>';
+          return;
+        }
+        var data = r.data || {};
+        taskLogData = data.logs || [];
+        taskLogTotal = data.total || 0;
+        renderTaskLogTable();
+        renderTaskLogCards();
+        updateTaskLogPagination();
+      }
+
+      function updateTaskLogPagination() {
+        var info = document.getElementById('task-log-page-info');
+        if (!info) return;
+        var totalPages = Math.max(1, Math.ceil(taskLogTotal / taskLogLimit));
+        var currentPage = Math.floor(taskLogOffset / taskLogLimit) + 1;
+        info.textContent = '第 ' + currentPage + ' / ' + totalPages + ' 页 · 共 ' + taskLogTotal + ' 条';
+        document.getElementById('task-log-prev').disabled = taskLogOffset <= 0;
+        document.getElementById('task-log-next').disabled = taskLogOffset + taskLogLimit >= taskLogTotal;
+      }
+
+      function _renderTaskLogColValue(log, col) {
+        switch (col.key) {
+          case 'id': return log.id;
+          case 'task_id': return log.task_id;
+          case 'task_name': return escapeHtml(log.task_name || '—');
+          case 'log_type': return TL_LOG_TYPE_MAP[log.log_type] || escapeHtml(log.log_type || '—');
+          case 'action_type': return escapeHtml(log.action_type || '—');
+          case 'status':
+            var si = TL_LOG_STATUS_MAP[log.status] || { text: '未知', cls: 'fw-tl-status--stopped' };
+            return '<span class="fw-tl-status ' + si.cls + '">' + si.text + '</span>';
+          case 'duration_ms':
+            return log.duration_ms ? log.duration_ms + 'ms' : '—';
+          case 'pnl_amount':
+            if (log.pnl_amount > 0) return '<span style="color:#10b981;font-weight:600;">+$' + log.pnl_amount.toFixed(2) + '</span>';
+            if (log.pnl_amount < 0) return '<span style="color:#ef4444;font-weight:600;">-$' + Math.abs(log.pnl_amount).toFixed(2) + '</span>';
+            return '—';
+          case 'order_id': return escapeHtml(log.order_id || '—');
+          case 'error_msg': return escapeHtml(log.error_message || '—');
+          case 'executed_at': return _tlFormatTime(log.executed_at);
+          case 'created_at': return _tlFormatTime(log.created_at);
+          case 'signal_info': return _renderSignalInfo(log);
+          case 'execution_info': return _renderExecutionInfo(log);
+          case 'result_info': return _renderResultInfo(log);
+          default: return '—';
+        }
+      }
+
+      function _renderSignalInfo(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);font-size:11px;">—</span>';
+        // 优先使用 signal_detail_json
+        try {
+          var sd = JSON.parse(log.signal_detail_json || '{}');
+          if (sd && (sd.symbol || sd.direction || sd.amount)) {
+            var parts = [];
+            if (sd.symbol) parts.push('<span style="font-weight:500;">' + escapeHtml(sd.symbol) + '</span>');
+            if (sd.direction) {
+              var dirColor = (sd.direction === 'BUY' || sd.direction === 'UP') ? '#10b981' : '#ef4444';
+              parts.push('<span style="color:' + dirColor + ';">' + escapeHtml(sd.direction) + '</span>');
+            }
+            if (sd.amount) parts.push('<span style="color:var(--fwui-text-muted);">$' + escapeHtml(String(sd.amount)) + '</span>');
+            return parts.join(' · ');
+          }
+        } catch (e) {}
+        // 回退：使用 signal_json
+        try {
+          var sig = JSON.parse(log.signal_json || '{}');
+          if (sig && sig.symbol) {
+            var parts2 = [];
+            parts2.push(escapeHtml(sig.symbol));
+            if (sig.direction) parts2.push(escapeHtml(sig.direction));
+            if (sig.amount) parts2.push('$' + escapeHtml(String(sig.amount)));
+            return parts2.join(' · ');
+          }
+        } catch (e) {}
+        return '<span style="color:var(--fwui-text-muted);font-size:11px;">—</span>';
+      }
+
+      function _renderExecutionInfo(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);font-size:11px;">—</span>';
+        try {
+          var ed = JSON.parse(log.execution_detail_json || '{}');
+          if (ed && (ed.gateway || ed.side || ed.order_type || ed.making_amount)) {
+            var parts = [];
+            if (ed.gateway) parts.push('<span style="color:var(--fwui-text-muted);">' + escapeHtml(ed.gateway) + '</span>');
+            if (ed.side) {
+              var sideColor = (ed.side === 'BUY' || ed.side === 'UP') ? '#10b981' : '#ef4444';
+              parts.push('<span style="color:' + sideColor + ';">' + escapeHtml(ed.side) + '</span>');
+            }
+            if (ed.order_type) parts.push(escapeHtml(ed.order_type));
+            if (ed.making_amount) parts.push('<span style="color:var(--fwui-text-muted);">付出 $' + escapeHtml(String(ed.making_amount)) + '</span>');
+            if (ed.taking_amount) parts.push('<span style="color:var(--fwui-text-muted);">获得 $' + escapeHtml(String(ed.taking_amount)) + '</span>');
+            return parts.join(' · ');
+          }
+        } catch (e) {}
+        return '<span style="color:var(--fwui-text-muted);font-size:11px;">—</span>';
+      }
+
+      function _renderResultInfo(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);font-size:11px;">—</span>';
+        try {
+          var rd = JSON.parse(log.result_detail_json || '{}');
+          if (rd && (rd.order_id || rd.status || rd.error || rd.filled_amount)) {
+            var parts = [];
+            if (rd.status) {
+              var isError = rd.status === 'fail' || rd.status === 'error' || rd.error;
+              var color = isError ? '#ef4444' : '#10b981';
+              parts.push('<span style="color:' + color + ';">' + escapeHtml(rd.status) + '</span>');
+            }
+            if (rd.filled_amount) parts.push('<span style="color:var(--fwui-text-muted);">成交 $' + escapeHtml(String(rd.filled_amount)) + '</span>');
+            if (rd.error) parts.push('<span style="color:#ef4444;font-size:11px;">' + escapeHtml(rd.error) + '</span>');
+            return parts.join(' · ');
+          }
+        } catch (e) {}
+        // 回退：使用 order_result_json
+        try {
+          var or = JSON.parse(log.order_result_json || '{}');
+          if (or && or.status) {
+            var isErr = or.status === 'fail' || or.status === 'error';
+            return '<span style="color:' + (isErr ? '#ef4444' : '#10b981') + ';">' + escapeHtml(or.status) + '</span>';
+          }
+        } catch (e) {}
+        return '<span style="color:var(--fwui-text-muted);font-size:11px;">—</span>';
+      }
+
+      function renderTaskLogTable() {
+        var thead = document.getElementById("task-log-thead");
+        var tbody = document.getElementById("task-log-tbody");
+        if (!thead || !tbody) return;
+
+        // 渲染表头
+        var headHtml = '<tr>';
+        taskLogVisibleCols.forEach(function (col) {
+          var style = col.width ? ' style="width:' + col.width + 'px;"' : '';
+          var align = col.align ? ' text-center' : '';
+          var sortCls = col.sortable ? ' sortable' : '';
+          var curField = taskLogSort.split('-')[0];
+          var curDir = taskLogSort.split('-')[1];
+          var sortActive = col.sortable === curField ? ' sort-active' : '';
+          var indicator = col.sortable ? '<span class="sort-indicator">' + (sortActive ? (curDir === 'asc' ? '↑' : '↓') : '↕') + '</span>' : '';
+          headHtml += '<th data-sort="' + col.sortable + '" class="' + align + sortCls + sortActive + '"' + style + '>' + col.label + indicator + '</th>';
+        });
+        headHtml += '</tr>';
+        thead.innerHTML = headHtml;
+
+        // 排序点击
+        thead.querySelectorAll('th[data-sort]').forEach(function (th) {
+          th.addEventListener('click', function () {
+            var field = th.getAttribute('data-sort');
+            if (!field) return;
+            var parts = taskLogSort.split('-');
+            if (parts[0] === field) {
+              taskLogSort = field + '-' + (parts[1] === 'asc' ? 'desc' : 'asc');
+            } else {
+              taskLogSort = field + '-desc';
+            }
+            loadTaskLogs();
+          });
+        });
+
+        // 渲染行
+        if (!taskLogData || taskLogData.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="' + taskLogVisibleCols.length + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">暂无数据</td></tr>';
+          return;
+        }
+        var rowsHtml = '';
+        taskLogData.forEach(function (log) {
+          rowsHtml += '<tr>';
+          taskLogVisibleCols.forEach(function (col) {
+            var align = col.align ? ' text-center' : '';
+            var val = _renderTaskLogColValue(log, col);
+            rowsHtml += '<td class="' + align + '">' + val + '</td>';
+          });
+          rowsHtml += '</tr>';
+        });
+        tbody.innerHTML = rowsHtml;
+        document.getElementById('task-log-total').textContent = taskLogTotal;
+      }
+
+      function renderTaskLogCards() {
+        var cardsEl = document.getElementById("task-log-cards");
+        if (!cardsEl) return;
+        if (!taskLogData || taskLogData.length === 0) {
+          cardsEl.innerHTML = '<div class="fw-task-list-empty"><div class="fw-task-list-empty__icon">📭</div><div>暂无日志</div></div>';
+          return;
+        }
+        cardsEl.innerHTML = taskLogData.map(function (log) {
+          var si = TL_LOG_STATUS_MAP[log.status] || { text: '未知', cls: '' };
+          var pnlHtml = '';
+          if (log.pnl_amount > 0) {
+            pnlHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">盈亏</span><span class="fw-log-card__pnl fw-log-card__pnl--profit">+$' + log.pnl_amount.toFixed(2) + '</span></div>';
+          } else if (log.pnl_amount < 0) {
+            pnlHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">盈亏</span><span class="fw-log-card__pnl fw-log-card__pnl--loss">-$' + Math.abs(log.pnl_amount).toFixed(2) + '</span></div>';
+          }
+          var errorHtml = log.error_message ? '<div class="fw-log-card__error">' + escapeHtml(log.error_message) + '</div>' : '';
+
+          // 信号详情
+          var signalHtml = '';
+          if (log.log_type === 0) {
+            try {
+              var sd = JSON.parse(log.signal_detail_json || '{}');
+              if (sd && (sd.symbol || sd.direction || sd.amount)) {
+                signalHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">信号</span><span class="fw-log-card__val">' + _renderSignalInfo(log) + '</span></div>';
+              }
+            } catch (e) {}
+            if (!signalHtml) {
+              try {
+                var sig = JSON.parse(log.signal_json || '{}');
+                if (sig && sig.symbol) {
+                  signalHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">信号</span><span class="fw-log-card__val">' + _renderSignalInfo(log) + '</span></div>';
+                }
+              } catch (e) {}
+            }
+          }
+
+          // 执行详情
+          var execHtml = '';
+          if (log.log_type === 0) {
+            try {
+              var ed = JSON.parse(log.execution_detail_json || '{}');
+              if (ed && (ed.gateway || ed.side || ed.order_type)) {
+                execHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">执行</span><span class="fw-log-card__val">' + _renderExecutionInfo(log) + '</span></div>';
+              }
+            } catch (e) {}
+          }
+
+          // 结果详情
+          var resultHtml = '';
+          if (log.log_type === 0) {
+            try {
+              var rd = JSON.parse(log.result_detail_json || '{}');
+              if (rd && (rd.order_id || rd.status || rd.error)) {
+                resultHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">下单结果</span><span class="fw-log-card__val">' + _renderResultInfo(log) + '</span></div>';
+              }
+            } catch (e) {}
+            if (!resultHtml) {
+              try {
+                var or = JSON.parse(log.order_result_json || '{}');
+                if (or && or.status) {
+                  resultHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">下单结果</span><span class="fw-log-card__val">' + _renderResultInfo(log) + '</span></div>';
+                }
+              } catch (e) {}
+            }
+          }
+
+          return '<div class="fw-log-card">' +
+            '<div class="fw-log-card__header">' +
+              '<div class="fw-log-card__title">#' + log.id + ' ' + escapeHtml(log.task_name || ('任务 #' + log.task_id)) + '</div>' +
+              '<span class="fw-tl-status ' + si.cls + '">' + si.text + '</span>' +
+            '</div>' +
+            '<div class="fw-log-card__meta">' +
+              '<span>📋 ' + escapeHtml(TL_LOG_TYPE_MAP[log.log_type] || '') + '</span>' +
+              '<span>⚙️ ' + escapeHtml(log.action_type || '') + '</span>' +
+              '<span>⏱ ' + (log.duration_ms || 0) + 'ms</span>' +
+            '</div>' +
+            '<div class="fw-log-card__row"><span class="fw-log-card__label">执行时间</span><span class="fw-log-card__val">' + _tlFormatTime(log.executed_at) + '</span></div>' +
+            signalHtml +
+            execHtml +
+            resultHtml +
+            '<div class="fw-log-card__row"><span class="fw-log-card__label">订单ID</span><span class="fw-log-card__val">' + escapeHtml(log.order_id || '—') + '</span></div>' +
+            pnlHtml +
+            errorHtml +
+          '</div>';
+        }).join('');
+      }
+
+      // 初始化 task-log
+      _initTaskLogToolbar();
+      _initTaskLogColSettings();
+
+      // ===== Goto task-log button =====
+      var gotoBtn = document.getElementById('btn-goto-task-log');
+      if (gotoBtn) {
+        gotoBtn.addEventListener('click', function () {
+          switchTab('task-log');
+        });
+      }
 
     })();
   </script>

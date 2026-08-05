@@ -9,6 +9,10 @@ HTTP URL: https://jsonplaceholder.typicode.com/posts/1
     2. URL 返回 JSON，需包含: symbol, direction, amount, timestamp
     3. 如果返回格式不符，会使用默认值
     4. 如需自定义解析逻辑，可编辑此文件
+
+参数说明：
+    - http_url (str): HTTP 请求地址
+    - timeout (int): 请求超时秒数（隐藏参数）
 """
 from __future__ import annotations
 
@@ -23,15 +27,29 @@ class Signal202608031932Provider(SignalProvider):
     """HTTP URL 信号提供者
 
     请求 HTTP URL 获取 JSON 信号数据。
+
+    参数：
+        - http_url: HTTP 请求地址
     """
 
     name: str = "signal_202608031932"
-    category: str = "custom"  # 自定义信号
+    category: str = "custom"
+    description: str = "自定义 HTTP URL 信号源"
+
+    # 显示参数（Web 可编辑）
+    parameters = ["http_url"]
+    # 隐藏参数
+    hidden_parameters = ["timeout"]
+
+    # 参数默认值（会被 Web 界面修改）
+    http_url: str = "https://jsonplaceholder.typicode.com/posts/1"
+    timeout: int = 10
 
     def __init__(self, config_json: dict | None = None):
         self.config = config_json or {}
-        self.http_url = self.config.get("http_url", "https://jsonplaceholder.typicode.com/posts/1")
-        self.timeout = self.config.get("timeout", 10)
+        if self.config:
+            self.http_url = self.config.get("http_url", self.http_url)
+            self.timeout = self.config.get("timeout", self.timeout)
 
     def get_signal(self) -> Signal:
         """从 HTTP URL 获取信号

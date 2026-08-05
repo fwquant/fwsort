@@ -23,6 +23,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+HISTORY_REMOTE_FILE = "/home/khadas/btc_signal_history.jsonl"
+
+
 class BtcSignalFetcher:
     """BTC 信号获取器 - 一次连接，多次读取"""
 
@@ -32,11 +35,13 @@ class BtcSignalFetcher:
             username: str = "khadas",
             password: Optional[str] = None,
             remote_file: str = "/home/khadas/btc_signal.json",
+            history_file: str = HISTORY_REMOTE_FILE,
     ):
         self.host = host
         self.username = username
         self.password = password or os.getenv("HERMES_SSH_PASSWORD", "")
         self.remote_file = remote_file
+        self.history_file = history_file
         self._ssh: Optional[paramiko.SSHClient] = None
         self._sftp: Optional[paramiko.SFTPClient] = None
 
@@ -95,6 +100,45 @@ class BtcSignalFetcher:
             print(f"[{datetime.now()}] 读取信号出错: {e}")
             self._sftp = None
             return None
+
+    def get_history(self, limit: int = 100) -> list[dict]:
+        """读取历史信号文件（JSONL 格式，每行一条记录）
+
+        Args:
+            limit: 最多返回多少条历史记录，默认 100 条
+
+        Returns:
+            历史信号列表，按时间倒序排列（最新的在前）
+        """
+        if self._sftp is None:
+            if not self.connect():
+                return []
+
+        try:
+            with self._sftp.open(self.history_file, "r") as f:
+                raw = f.read().decode().strip()
+            if not raw:
+                return []
+            lines = raw.split("\n")
+            records = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+            records.reverse()
+            return records[:limit]
+        except FileNotFoundError:
+            print(f"[{datetime.now()}] 历史文件不存在: {self.history_file}")
+            print("  请确保远程 btc_moa_signal.py 使用了 --readme 参数并已生成历史")
+            return []
+        except Exception as e:
+            print(f"[{datetime.now()}] 读取历史出错: {e}")
+            self._sftp = None
+            return []
 
     def close(self):
         """关闭连接"""
@@ -208,6 +252,37 @@ def close_sftp():
         _sftp_fetcher = None
 
 
+def get_btc_history_via_sftp(
+        host: str = "100.64.0.9",
+        username: str = "khadas",
+        password: Optional[str] = None,
+        limit: int = 100,
+) -> list[dict]:
+    """
+    [SFTP] 一键获取历史信号列表（每次新建连接，用完即关）
+
+    Args:
+        host: 远程主机
+        username: 用户名
+        password: 密码
+        limit: 最多返回条数
+
+    Returns:
+        历史信号列表，最新的在前
+    """
+    with BtcSignalFetcher(host=host, username=username, password=password) as f:
+        return f.get_history(limit=limit)
+
+
+def get_history_sftp(limit: int = 100) -> list[dict]:
+    """[SFTP] 通过全局连接获取历史信号（需先 connect_sftp）"""
+    global _sftp_fetcher
+    if _sftp_fetcher is None:
+        print("[get_history_sftp] 请先调用 connect_sftp()")
+        return []
+    return _sftp_fetcher.get_history(limit=limit)
+
+
 # ============================================================
 # SSH 方式 — 远程执行 btc_moa_signal.py（实时，较慢）
 # ============================================================
@@ -312,9 +387,10 @@ if __name__ == "__main__":
         print("  1. SFTP 一键获取信号（完整 JSON）")
         print("  2. SFTP 只拿下单方向")
         print("  3. SFTP 全局连接 + 循环读取")
+        print("  4. SFTP 获取历史信号")
         print("  --- SSH（远程执行，实时，约 5-10s）---")
-        print("  4. SSH 实时获取信号（完整 JSON）")
-        print("  5. SSH 只拿下单方向")
+        print("  5. SSH 实时获取信号（完整 JSON）")
+        print("  6. SSH 只拿下单方向")
         print("  ---")
         print("  0. 退出")
         print("=" * 45)
@@ -323,18 +399,14 @@ if __name__ == "__main__":
         if choice == "1":
             oldtime = time.time()
             print(f"获取信号（可能 需要10秒~90秒）...oldtime={oldtime}")
-            signal = get_btc_signal_via_sftp()  # 读取最新信号
+            signal = get_btc_signal_via_sftp()
             print(f"【get_btc_signal_via_sftp】用时：[{time.time() - oldtime}]，返回值：[{signal}]")
-            # result = process_signal(signal)  # 处理信号
-            # print(f"处理结果 ：result={result}")
 
         elif choice == "2":
             oldtime = time.time()
             print(f"获取信号（可能 需要10秒~90秒）...oldtime={oldtime}")
             direction = get_signal_direction_via_sftp()
-            print(f"【get_btc_signal_via_ssh】用时：[{time.time() - oldtime}]，返回值：[{signal}]")
-            # result = process_signal(signal)  # 处理信号
-            # print(f"处理结果 ：result={result}")
+            print(f"【get_signal_direction_via_sftp】用时：[{time.time() - oldtime}]，返回值：[{direction}]")
 
         elif choice == "3":
             if not connect_sftp():
@@ -361,19 +433,28 @@ if __name__ == "__main__":
                 close_sftp()
 
         elif choice == "4":
+            limit = input("  获取最近 N 条历史 (默认100): ").strip()
+            limit = int(limit) if limit else 100
             oldtime = time.time()
-            print(f"获取信号（可能 需要10秒~90秒）...oldtime={oldtime}")
-            signal = get_btc_signal_via_ssh()
-            print(f"【get_btc_signal_via_ssh】用时：[{time.time() - oldtime}]，返回值：[{signal}]")
-            # result = process_signal(signal)  # 处理信号
-            # print(f"处理结果 ：result={result}")
-
+            history = get_btc_history_via_sftp(limit=limit)
+            print(f"【get_btc_history_via_sftp】用时：[{time.time() - oldtime}]，共 [{len(history)}] 条记录")
+            for i, h in enumerate(history):
+                direction = h.get("下单方向", "")
+                symbol = h.get("标的代码", "")
+                ts = h.get("msg", {}).get("时间范围", "")
+                print(f"  [{i+1}] {direction} | {symbol} | {ts}")
 
         elif choice == "5":
             oldtime = time.time()
             print(f"获取信号（可能 需要10秒~90秒）...oldtime={oldtime}")
+            signal = get_btc_signal_via_ssh()
+            print(f"【get_btc_signal_via_ssh】用时：[{time.time() - oldtime}]，返回值：[{signal}]")
+
+        elif choice == "6":
+            oldtime = time.time()
+            print(f"获取信号（可能 需要10秒~90秒）...oldtime={oldtime}")
             direction = get_signal_direction_via_ssh()
-            print(f"【get_signal_direction_via_ssh】用时：[{time.time() - oldtime}]，返回值：[{signal}]")
+            print(f"【get_signal_direction_via_ssh】用时：[{time.time() - oldtime}]，返回值：[{direction}]")
 
         elif choice == "0":
             print("退出")

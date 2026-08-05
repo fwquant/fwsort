@@ -469,6 +469,9 @@ class AutoTask(Base):
     gateway: Mapped[str] = mapped_column(String(32), nullable=False, default="polymarket_f3", comment="交易网关")
     interval: Mapped[int] = mapped_column(Integer, default=5, comment="调度间隔（分钟）")
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否启用")
+    start_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="首次执行时间（为空则启用后立即执行）")
+    loop_count: Mapped[int] = mapped_column(Integer, default=0, comment="循环次数（0=无限循环，直到手动停止）")
+    executed_count: Mapped[int] = mapped_column(Integer, default=0, comment="已执行次数（用于循环计数）")
     config_json: Mapped[str] = mapped_column(Text, default="{}", comment="任务额外配置 JSON")
     max_daily_amount: Mapped[float] = mapped_column(DECIMAL(18, 6), default=50.0, comment="单日最大下单金额 USDC")
     max_daily_count: Mapped[int] = mapped_column(Integer, default=50, comment="单日最大下单次数")
@@ -488,7 +491,7 @@ class AutoTask(Base):
 
 # ========== 20. 自动任务执行日志表 ==========
 class AutoTaskLog(Base):
-    """自动任务日志：执行日志 + 操作日志"""
+    """自动任务日志：执行日志 + 操作日志 + 盈亏追踪"""
 
     __tablename__ = "auto_task_log"
 
@@ -508,36 +511,20 @@ class AutoTaskLog(Base):
     duration_ms: Mapped[int] = mapped_column(Integer, default=0, comment="执行耗时（毫秒）")
     order_id: Mapped[str] = mapped_column(String(128), default="", comment="订单ID")
     detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="操作详情 JSON")
+    # 增强：信号详情（含市场信息）
+    signal_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="信号详情 JSON(symbol/direction/amount/market_id/market_slug/market_question)")
+    # 增强：执行详情（含操作参数）
+    execution_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="执行详情 JSON(gateway/side/order_type/market_question/making_amount/taking_amount)")
+    # 增强：结果详情（含订单回执）
+    result_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="结果详情 JSON(order_id/status/filled_amount/price/tx_hash/market_result)")
+    # 盈亏追踪
+    pnl_amount: Mapped[float] = mapped_column(default=0.0, comment="盈亏金额(USD)")
+    pnl_percent: Mapped[float] = mapped_column(default=0.0, comment="盈亏百分比(%)")
+    is_profit: Mapped[bool] = mapped_column(default=False, comment="是否盈利")
+    market_resolved: Mapped[bool] = mapped_column(default=False, comment="市场是否已结算")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
     task: Mapped["AutoTask"] = relationship(back_populates="logs")
 
 
-# ========== 21. 信号提供者配置表 ==========
-class SignalProviderConfig(Base):
-    """信号提供者配置：用于在 Admin UI 中管理信号源（增删改查）
-
-    区分：
-        - internal: 内部信号（如 random）由系统自动发现，可修改配置
-        - external: 外部信号（如 HTTP/Webhook）由用户手动创建，需填写配置
-    """
-
-    __tablename__ = "signal_provider_config"
-
-    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
-    provider_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="信号源名称（对应 SignalProvider.name）")
-    category: Mapped[str] = mapped_column(String(16), nullable=False, default="internal", comment="internal 内部 / external 外部")
-    class_name: Mapped[str] = mapped_column(String(128), nullable=False, comment="Python 类名（如 RandomSignalProvider）")
-    module_path: Mapped[str] = mapped_column(String(256), default="", comment="模块路径（如 fwsort.signals.providers.random_signal）")
-    display_name: Mapped[str] = mapped_column(String(128), default="", comment="显示名称")
-    description: Mapped[str] = mapped_column(Text, default="", comment="描述")
-    config_json: Mapped[str] = mapped_column(Text, default="{}", comment="Provider 初始化参数 JSON")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
-    is_builtin: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否为系统内置（内置不可删除）")
-    health_status: Mapped[str] = mapped_column(String(16), default="unknown", comment="健康状态: ok/fail/unknown")
-    health_message: Mapped[str] = mapped_column(String(256), default="", comment="健康检查信息")
-    last_health_check_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
+# (signal_provider_config 表已移除，信号源配置迁移到 .py 文件驱动架构)

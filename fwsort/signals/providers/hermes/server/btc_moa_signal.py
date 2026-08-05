@@ -2,12 +2,14 @@
 """BTC 15分钟方向信号生成器(MoA 三模型投票版,实时行情增强)。
 
 三个模型(deepseek / kimi-k2.6 / MiniMax-M3)并行预测 BTC 未来15分钟
-涨/跌/平。v3(2026-08-05): 支持 readme.md 标准 JSON 输出。
+涨/跌/平。v3(2026-08-05): 支持 readme.md 标准 JSON 输出 + 历史累加。
 
 用法:
   python3 btc_moa_signal.py              # 人类可读格式
   python3 btc_moa_signal.py --json       # 原始 JSON 格式
-  python3 btc_moa_signal.py --readme     # readme.md 标准 JSON 格式
+  python3 btc_moa_signal.py --readme     # readme.md 标准 JSON 格式（同时写入历史）
+  python3 btc_moa_signal.py --show-history [--limit=50]  # 查看历史信号
+  python3 btc_moa_signal.py --clear-history  # 清除历史文件
 """
 import functools
 import json
@@ -18,6 +20,17 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
+
+
+HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "btc_signal_history.jsonl")
+
+
+def _append_to_history(signal: dict, history_file: str = HISTORY_FILE):
+    try:
+        with open(history_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(signal, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[WARN] 写入历史文件失败: {e}", file=sys.stderr)
 
 
 # ---------- 读取密钥 ----------
@@ -318,11 +331,38 @@ def main_json():
 def main_readme():
     """readme.md 标准 JSON 格式"""
     raw = _run_models()
-    print(json.dumps(to_readme_format(raw), ensure_ascii=False, indent=2))
+    signal = to_readme_format(raw)
+    line = json.dumps(signal, ensure_ascii=False, indent=2)
+    print(line)
+    _append_to_history(signal)
 
 
 if __name__ == "__main__":
-    if "--readme" in sys.argv:
+    if "--show-history" in sys.argv:
+        limit = 20
+        for arg in sys.argv[1:]:
+            if arg.startswith("--limit="):
+                limit = int(arg.split("=", 1)[1])
+        try:
+            records = []
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        records.append(json.loads(line))
+            records.reverse()
+            print(f"共 {len(records)} 条历史记录，显示最近 {limit} 条：\n")
+            for i, r in enumerate(records[:limit]):
+                print(f"  [{i+1}] {r.get('下单方向', '')} | {r.get('标的代码', '')} | {r.get('msg', {}).get('时间范围', '')}")
+        except FileNotFoundError:
+            print("历史文件不存在，尚未生成任何信号")
+    elif "--clear-history" in sys.argv:
+        try:
+            os.remove(HISTORY_FILE)
+            print("历史文件已清除")
+        except FileNotFoundError:
+            print("历史文件不存在")
+    elif "--readme" in sys.argv:
         main_readme()
     elif "--json" in sys.argv:
         main_json()
