@@ -62,7 +62,7 @@ async def stop_dispatcher_endpoint(_=Depends(require_admin)):
 @router.get("/logs", response_model=dict)
 async def list_task_logs(
     search: str = Query(default="", description="搜索关键字（任务名/订单ID/错误信息/操作类型）"),
-    status: int | None = Query(default=None, description="状态: 0-成功 1-失败 2-重试成功 3-熔断"),
+    status: int | None = Query(default=None, description="状态: 0-成功 1-失败 2-重试成功 3-熔断 4-无信号"),
     log_type: int | None = Query(default=None, description="日志类型: 0-执行日志 1-操作日志"),
     action_type: str | None = Query(default=None, description="操作类型: start/stop/create/update/delete/execute_manual等"),
     task_id: int | None = Query(default=None, description="按任务ID筛选"),

@@ -702,6 +702,62 @@
     }
     .fw-admin-toolbar__spacer { flex: 1; }
 
+    /* 自动刷新开关样式 */
+    .fw-auto-refresh-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--fwui-text-muted);
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 10px;
+      border-radius: 16px;
+      border: 1px solid var(--fwui-border);
+      background: var(--fwui-bg-elevated);
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .fw-auto-refresh-toggle:hover {
+      border-color: var(--fwui-primary);
+    }
+    .fw-auto-refresh-toggle input {
+      margin: 0;
+      width: auto;
+      cursor: pointer;
+    }
+    .fw-auto-refresh-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--fwui-primary);
+    }
+    .fw-auto-refresh-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      animation: fw-refresh-pulse 2s infinite;
+    }
+    .fw-auto-refresh-toggle:not(:has(input:checked)) .fw-auto-refresh-dot {
+      background: #999;
+      animation: none;
+    }
+    .fw-auto-refresh-toggle:not(:has(input:checked)) .fw-auto-refresh-indicator {
+      color: var(--fwui-text-muted);
+    }
+    .fw-auto-refresh-text {
+      font-variant-numeric: tabular-nums;
+      min-width: 28px;
+      text-align: center;
+    }
+    @keyframes fw-refresh-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
     /* 倒计时醒目闪烁动画 */
     @keyframes fw-pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -1293,6 +1349,14 @@
           <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-auto-task-new">➕ 新建任务</button>
           <button class="fwui-btn fwui-btn--sm" id="btn-auto-task-refresh">🔄 刷新列表</button>
           <button class="fwui-btn fwui-btn--sm" id="btn-signal-test">🧪 测试信号</button>
+          <label class="fw-auto-refresh-toggle" title="自动刷新">
+            <input type="checkbox" id="auto-task-auto-refresh" checked>
+            <span>自动刷新</span>
+            <span class="fw-auto-refresh-indicator" id="auto-task-refresh-indicator">
+              <span class="fw-auto-refresh-dot"></span>
+              <span class="fw-auto-refresh-text">15s</span>
+            </span>
+          </label>
           <button class="fwui-btn fwui-btn--sm" id="btn-goto-task-log" style="margin-left:auto;">📜 任务日志</button>
         </div>
 
@@ -1436,6 +1500,7 @@
               <option value="1">❌ 失败</option>
               <option value="2">🔄 重试成功</option>
               <option value="3">🔒 熔断</option>
+              <option value="4">⏭️ 无信号</option>
             </select>
             <select id="task-log-filter-type" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
               <option value="">全部类型</option>
@@ -1467,6 +1532,11 @@
               <option value="task_id-asc">任务ID ↑</option>
             </select>
             <button class="fwui-btn fwui-btn--sm" id="task-log-refresh" title="刷新">🔄</button>
+            <label class="fw-auto-refresh-toggle" title="自动刷新日志">
+              <input type="checkbox" id="task-log-auto-refresh" checked>
+              <span class="fw-auto-refresh-dot"></span>
+              <span class="fw-auto-refresh-text" id="task-log-refresh-text">15s</span>
+            </label>
           </div>
           <div class="fw-task-list-toolbar__col-settings">
             <button class="fwui-btn fwui-btn--sm" id="task-log-col-toggle" title="列设置">⚙️ 列</button>
@@ -1630,6 +1700,7 @@
         1: { text: '❌ 失败', cls: 'fw-tl-status--fuse' },
         2: { text: '🔄 重试成功', cls: 'fw-tl-status--active' },
         3: { text: '🔒 熔断', cls: 'fw-tl-status--stopped' },
+        4: { text: '⏭️ 无信号', cls: 'fw-tl-status--stopped' },
       };
       var TL_LOG_TYPE_MAP = { 0: '执行日志', 1: '操作日志' };
       var taskLogData = [];
@@ -2810,14 +2881,18 @@
       _initTaskListToolbar();
       _initColumnSettings();
 
-      async function loadAutoTasks() {
+      async function loadAutoTasks(silent) {
         var listDiv = document.getElementById("auto-task-list");
         if (!listDiv) return;
-        listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:20px;text-align:center;">加载中...</div>';
+        if (!silent) {
+          listDiv.innerHTML = '<div style="color:var(--fwui-text-muted);padding:20px;text-align:center;">加载中...</div>';
+        }
 
         var r = await call("/api/tasks", "GET", null, "加载任务列表");
         if (!r.success) {
-          listDiv.innerHTML = '<div style="color:var(--fwui-danger);padding:20px;text-align:center;">加载失败: ' + (r.message || '') + '</div>';
+          if (!silent) {
+            listDiv.innerHTML = '<div style="color:var(--fwui-danger);padding:20px;text-align:center;">加载失败: ' + (r.message || '') + '</div>';
+          }
           return;
         }
 
@@ -2982,6 +3057,11 @@
       }
 
       var _countdownTickerTimer = null;
+      var _autoRefreshTimer = null;
+      var _autoRefreshCountdown = 15;
+      var _autoRefreshEnabled = true;
+      var _autoRefreshLoading = false;
+
       function startCountdownTicker() {
         if (_countdownTickerTimer) clearInterval(_countdownTickerTimer);
         _countdownTickerTimer = setInterval(function () {
@@ -2991,6 +3071,7 @@
             _countdownTickerTimer = null;
             return;
           }
+          var needsRefresh = false;
           tickCells.forEach(function (cell) {
             var taskId = parseInt(cell.getAttribute('data-countdown-task'));
             var task = autoTasks.find(function (t) { return t.id === taskId; });
@@ -3006,6 +3087,7 @@
             if (task.countdown_seconds <= 0) {
               cell.textContent = '即将执行';
               cell.style.color = 'var(--fwui-danger)';
+              needsRefresh = true;
               return;
             }
             var remaining = task.countdown_seconds;
@@ -3021,6 +3103,45 @@
               cell.textContent = s + 's';
             }
           });
+          // 倒计时归零，触发立即刷新
+          if (needsRefresh) {
+            _autoRefreshCountdown = 15;
+            if (!_autoRefreshLoading) {
+              var tasksPanel = document.querySelector('[data-tab-panel="tasks"]');
+              if (tasksPanel && tasksPanel.classList.contains('fw-admin-tab-panel--active')) {
+                _autoRefreshLoading = true;
+                setTimeout(function () {
+                  loadAutoTasks(true).then(function () {
+                    _autoRefreshLoading = false;
+                  }).catch(function () { _autoRefreshLoading = false; });
+                }, 500);
+              }
+            }
+          }
+          // 自动刷新倒计时
+          if (_autoRefreshEnabled) {
+            _autoRefreshCountdown--;
+            var indicator = document.getElementById('auto-task-refresh-indicator');
+            if (indicator) {
+              var textEl = indicator.querySelector('.fw-auto-refresh-text');
+              if (textEl) textEl.textContent = _autoRefreshCountdown + 's';
+            }
+            if (_autoRefreshCountdown <= 0 && !_autoRefreshLoading) {
+              var tasksPanel = document.querySelector('[data-tab-panel="tasks"]');
+              if (tasksPanel && tasksPanel.classList.contains('fw-admin-tab-panel--active')) {
+                _autoRefreshLoading = true;
+                loadAutoTasks(true).then(function () {
+                  _autoRefreshLoading = false;
+                  _autoRefreshCountdown = 15;
+                }).catch(function () {
+                  _autoRefreshLoading = false;
+                  _autoRefreshCountdown = 15;
+                });
+              } else {
+                _autoRefreshCountdown = 15;
+              }
+            }
+          }
         }, 1000);
       }
 
@@ -3165,7 +3286,7 @@
         var r = await call("/api/tasks/" + taskId + "/execute", "POST", {}, "手动执行");
         if (r.success) {
           var d = r.data || {};
-          var color = d.status === '成功' || d.status === '重试成功' ? '#10b981' : '#ef4444';
+          var color = d.status === '成功' || d.status === '重试成功' ? '#10b981' : (d.status === '无信号' ? '#9ca3af' : '#ef4444');
           FWUI.toast.success('执行完成: ' + d.status + (d.duration_ms ? ' (' + d.duration_ms + 'ms)' : ''));
           if (d.signal && d.signal.symbol) log('📡 信号: ' + d.signal.symbol + ' dir=' + d.signal.direction + ' amt=' + d.signal.amount);
           if (d.order_result && d.order_result.order_id) log('✅ 订单: ' + d.order_result.order_id);
@@ -3225,6 +3346,7 @@
           1: { label: '失败', class: 'fw-task-log-item__badge--error' },
           2: { label: '重试成功', class: 'fw-task-log-item__badge--retry' },
           3: { label: '熔断', class: 'fw-task-log-item__badge--fuse' },
+          4: { label: '无信号', class: 'fw-task-log-item__badge--retry' },
         };
 
         var currentTab = 'all'; // all / execution / operation
@@ -3313,7 +3435,7 @@
                     detailLines.push('错误: ' + detail.gateway_error);
                   }
                 } else if (l.action_type === 'execute_manual') {
-                  detailLines.push('执行状态: ' + (['成功', '失败', '重试成功', '熔断'][detail.execution_status] || '-'));
+                  detailLines.push('执行状态: ' + (['成功', '失败', '重试成功', '熔断', '无信号'][detail.execution_status] || '-'));
                   if (detail.duration_ms) {
                     detailLines.push('耗时: ' + detail.duration_ms + 'ms');
                   }
@@ -3577,7 +3699,26 @@
         await loadActiveSignalProvidersForSelect();
       };
 
-      document.getElementById("btn-auto-task-refresh").onclick = function () { loadAutoTasks(); };
+      document.getElementById("btn-auto-task-refresh").onclick = function () {
+        _autoRefreshCountdown = 15;
+        loadAutoTasks();
+      };
+
+      // 自动刷新开关
+      var autoRefreshCheckbox = document.getElementById('auto-task-auto-refresh');
+      if (autoRefreshCheckbox) {
+        autoRefreshCheckbox.checked = true;
+        _autoRefreshEnabled = true;
+        autoRefreshCheckbox.addEventListener('change', function () {
+          _autoRefreshEnabled = autoRefreshCheckbox.checked;
+          if (_autoRefreshEnabled) {
+            _autoRefreshCountdown = 15;
+            FWUI.toast.success('自动刷新已开启（每15秒）');
+          } else {
+            FWUI.toast.info('自动刷新已关闭');
+          }
+        });
+      }
 
       document.getElementById("btn-signal-test").onclick = async function () {
         var r = await call("/api/tasks/signals/test?provider=random", "GET", null, "测试信号");
@@ -4211,12 +4352,14 @@
         renderItems();
       }
 
-      async function loadTaskLogs() {
+      async function loadTaskLogs(silent) {
         var tbody = document.getElementById("task-log-tbody");
         var cardsEl = document.getElementById("task-log-cards");
         if (!tbody) return;
         var colspan = taskLogVisibleCols.length;
-        tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">加载中...</td></tr>';
+        if (!silent) {
+          tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">加载中...</td></tr>';
+        }
         if (cardsEl) cardsEl.innerHTML = '';
 
         var params = {
@@ -4246,6 +4389,53 @@
         renderTaskLogTable();
         renderTaskLogCards();
         updateTaskLogPagination();
+      }
+
+      // ===== 任务日志自动刷新 =====
+      var _logRefreshCountdown = 15;
+      var _logRefreshEnabled = true;
+      var _logRefreshLoading = false;
+      var _logRefreshTimer = null;
+
+      function startLogAutoRefresh() {
+        if (_logRefreshTimer) clearInterval(_logRefreshTimer);
+        _logRefreshTimer = setInterval(function () {
+          if (!_logRefreshEnabled) return;
+          _logRefreshCountdown--;
+          var textEl = document.getElementById('task-log-refresh-text');
+          if (textEl) textEl.textContent = _logRefreshCountdown + 's';
+          if (_logRefreshCountdown <= 0 && !_logRefreshLoading) {
+            var logPanel = document.querySelector('[data-tab-panel="task-log"]');
+            if (logPanel && logPanel.classList.contains('fw-admin-tab-panel--active')) {
+              _logRefreshLoading = true;
+              loadTaskLogs(true).then(function () {
+                _logRefreshLoading = false;
+                _logRefreshCountdown = 15;
+              }).catch(function () {
+                _logRefreshLoading = false;
+                _logRefreshCountdown = 15;
+              });
+            } else {
+              _logRefreshCountdown = 15;
+            }
+          }
+        }, 1000);
+      }
+
+      // 绑定任务日志自动刷新开关
+      var logRefreshCheckbox = document.getElementById('task-log-auto-refresh');
+      if (logRefreshCheckbox) {
+        logRefreshCheckbox.checked = true;
+        _logRefreshEnabled = true;
+        logRefreshCheckbox.addEventListener('change', function () {
+          _logRefreshEnabled = logRefreshCheckbox.checked;
+          if (_logRefreshEnabled) {
+            _logRefreshCountdown = 15;
+            FWUI.toast.success('日志自动刷新已开启');
+          } else {
+            FWUI.toast.info('日志自动刷新已关闭');
+          }
+        });
       }
 
       function updateTaskLogPagination() {

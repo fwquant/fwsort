@@ -457,71 +457,13 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                 redeem_result = None
 
         # ===== 风控检查 =====
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_logs = (
-            db.query(AutoTaskLog)
-            .filter(AutoTaskLog.task_id == task_id, AutoTaskLog.created_at >= today_start)
-            .all()
-        )
-
-        today_total_amount = 0.0
-        today_total_count = len(today_logs)
-        for log in today_logs:
-            try:
-                detail = json.loads(log.detail_json or "{}")
-                today_total_amount += float(detail.get("making_amount", 0))
-            except Exception:
-                pass
-
-        if today_total_count >= task.max_daily_count:
+        risk_check = _run_risk_control(db, task, task_id)
+        if not risk_check["passed"]:
             status = 1
-            error_message = f"已达每日最大执行次数({task.max_daily_count}次)"
-            logger.warning(f"[AutoTask] 任务 {task_id} 风控: {error_message}")
-
-        if status == 0 and today_total_amount >= task.max_daily_amount:
-            status = 1
-            error_message = f"已达每日最大执行金额(${task.max_daily_amount:.2f})"
-            logger.warning(f"[AutoTask] 任务 {task_id} 风控: {error_message}")
+            error_message = risk_check["message"]
 
         # ===== 连续失败熔断检查 =====
-        if task.consecutive_failures >= task.max_consecutive_failures:
-            log_entry = AutoTaskLog(
-                task_id=task_id,
-                log_type=0,
-                executed_at=datetime.utcnow(),
-                signal_json="{}",
-                order_result_json=json.dumps({"error": "熔断触发"}),
-                status=3,
-                error_message=f"连续失败 {task.consecutive_failures} 次，触发熔断",
-                duration_ms=int((time.time() - start_time) * 1000),
-                order_id="",
-                detail_json=_safe_dumps({"manual": manual}),
-                signal_detail_json="{}",
-                execution_detail_json=_safe_dumps({"stage": "fuse_check"}),
-                result_detail_json="{}",
-                pnl_amount=0.0,
-                pnl_percent=0.0,
-                is_profit=False,
-                market_resolved=False,
-            )
-            db.add(log_entry)
-            task.consecutive_failures = 0
-            task.is_active = False
-            task.total_failed += 1
-            task.total_executions += 1
-
-            _add_operation_log(db, task_id, "fuse_triggered", 1, detail={
-                "consecutive_failures": task.consecutive_failures,
-                "max_consecutive_failures": task.max_consecutive_failures,
-            })
-
-            db.commit()
-
-            if manual:
-                _add_operation_log(db, task_id, "execute_manual", 1, detail={
-                    "error": "熔断触发",
-                })
-
+        if _check_circuit_breaker(db, task, task_id, start_time, manual):
             return {"status": "fuse_triggered", "message": "已触发熔断，任务自动停止"}
 
         # ===== 获取信号 =====
@@ -551,6 +493,15 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                 status = 1
                 error_message = f"信号获取失败: {e}"
                 logger.error(f"[AutoTask] ❌ 任务 {task_id} 信号获取失败: {e}")
+
+        # ===== 无有效信号跳过下单 =====
+        if status == 0 and signal and not signal.is_valid:
+            status = 4
+            error_message = "无有效交易信号（direction 为空），跳过下单"
+            logger.warning(
+                f"[AutoTask] ⏭️ 任务 {task_id} 无有效交易信号: "
+                f"symbol={signal_detail.get('symbol')} direction={signal_detail.get('direction')}"
+            )
 
         # ===== 下单（含重试一次）=====
         if status == 0 and signal:
@@ -636,6 +587,8 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
         if status == 0 or status == 2:
             task.total_success += 1
             task.consecutive_failures = 0
+        elif status == 4:
+            pass
         else:
             task.total_failed += 1
             task.consecutive_failures += 1
@@ -670,7 +623,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
             "execution_detail": execution_detail,
             "result_detail": result_detail,
             "order_result": order_result_json,
-            "status": ["成功", "失败", "重试成功", "熔断"][status],
+            "status": ["成功", "失败", "重试成功", "熔断", "无信号"][status],
             "error": error_message,
             "duration_ms": duration_ms,
             "order_id": order_id,
@@ -686,6 +639,104 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
             f"dir={signal_detail.get('direction', 'N/A')} amt={signal_detail.get('amount', 'N/A')}"
         )
         return result
+
+
+def _run_risk_control(db, task: AutoTask, task_id: int) -> dict:
+    """每日风控检查：执行次数 + 执行金额
+
+    Args:
+        db: SQLAlchemy 同步 session
+        task: AutoTask ORM 对象
+        task_id: 任务 ID
+
+    Returns:
+        dict: {"passed": bool, "message": str}
+    """
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_logs = (
+        db.query(AutoTaskLog)
+        .filter(AutoTaskLog.task_id == task_id, AutoTaskLog.created_at >= today_start)
+        .all()
+    )
+
+    today_total_amount = 0.0
+    today_total_count = len(today_logs)
+    for log in today_logs:
+        try:
+            detail = json.loads(log.detail_json or "{}")
+            today_total_amount += float(detail.get("making_amount", 0))
+        except Exception:
+            pass
+
+    if today_total_count >= task.max_daily_count:
+        msg = f"已达每日最大执行次数({task.max_daily_count}次)"
+        logger.warning(f"[AutoTask] 任务 {task_id} 风控: {msg}")
+        return {"passed": False, "message": msg}
+
+    if today_total_amount >= task.max_daily_amount:
+        msg = f"已达每日最大执行金额(${task.max_daily_amount:.2f})"
+        logger.warning(f"[AutoTask] 任务 {task_id} 风控: {msg}")
+        return {"passed": False, "message": msg}
+
+    return {"passed": True, "message": ""}
+
+
+def _check_circuit_breaker(db, task: AutoTask, task_id: int, start_time: float, manual: bool) -> bool:
+    """连续失败熔断检查：触发后自动停止任务
+
+    Args:
+        db: SQLAlchemy 同步 session
+        task: AutoTask ORM 对象
+        task_id: 任务 ID
+        start_time: 任务开始时间戳
+        manual: 是否为手动触发
+
+    Returns:
+        bool: True 表示已触发熔断（调用方应直接 return）
+    """
+    if task.consecutive_failures < task.max_consecutive_failures:
+        return False
+
+    failed_count = task.consecutive_failures
+    log_entry = AutoTaskLog(
+        task_id=task_id,
+        log_type=0,
+        executed_at=datetime.utcnow(),
+        signal_json="{}",
+        order_result_json=json.dumps({"error": "熔断触发"}),
+        status=3,
+        error_message=f"连续失败 {failed_count} 次，触发熔断",
+        duration_ms=int((time.time() - start_time) * 1000),
+        order_id="",
+        detail_json=_safe_dumps({"manual": manual}),
+        signal_detail_json="{}",
+        execution_detail_json=_safe_dumps({"stage": "fuse_check"}),
+        result_detail_json="{}",
+        pnl_amount=0.0,
+        pnl_percent=0.0,
+        is_profit=False,
+        market_resolved=False,
+    )
+    db.add(log_entry)
+    task.consecutive_failures = 0
+    task.is_active = False
+    task.total_failed += 1
+    task.total_executions += 1
+
+    _add_operation_log(db, task_id, "fuse_triggered", 1, detail={
+        "consecutive_failures": failed_count,
+        "max_consecutive_failures": task.max_consecutive_failures,
+    })
+
+    db.commit()
+
+    if manual:
+        _add_operation_log(db, task_id, "execute_manual", 1, detail={
+            "error": "熔断触发",
+        })
+
+    logger.warning(f"[AutoTask] 任务 {task_id} 触发熔断，自动停止")
+    return True
 
 
 def _execute_order_with_retry(task: AutoTask, signal, start_time: float) -> tuple:

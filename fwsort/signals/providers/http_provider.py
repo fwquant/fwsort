@@ -68,7 +68,7 @@ class HttpSignalProvider(SignalProvider):
         return Signal(
             symbol="btc-updown-4h-default",
             amount=1.0,
-            direction="UP",
+            direction="",
             source=self.name,
         )
 

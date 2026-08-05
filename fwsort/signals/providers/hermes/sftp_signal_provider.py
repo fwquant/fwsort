@@ -19,7 +19,7 @@ from typing import Optional
 
 from fwsort.signals.base import Direction, Signal, SignalProvider
 
-from fwsort.signals.providers.hermes.btc_signal_fetcher import (
+from fwsort.signals.providers.hermes.去hermes拿信号_demo import (
     get_btc_signal_via_sftp,
     connect_sftp,
     get_signal_sftp,
@@ -74,7 +74,8 @@ class SftpSignalProvider(SignalProvider):
         self.username = username or self.config.get("username", self.username)
         self.password = password or self.config.get("password", self.password)
         self.amount = amount or self.config.get("amount", self.amount)
-        lc = long_connection if long_connection is not None else self.config.get("long_connection", self.long_connection)
+        lc = long_connection if long_connection is not None else self.config.get("long_connection",
+                                                                                 self.long_connection)
         self.long_connection = bool(lc)
         self._connected = False
 
@@ -99,27 +100,24 @@ class SftpSignalProvider(SignalProvider):
         """获取一个信号
 
         Returns:
-            Signal: 统一格式的信号对象，获取失败时 direction 为空字符串
+            Signal: 统一格式的信号对象，direction 为空字符串时表示无有效交易信号
         """
         if self.long_connection and self._connected:
             raw = get_signal_sftp()
         else:
-            raw = get_btc_signal_via_sftp(
-                host=self.host,
-                username=self.username,
-                password=self.password,
-            )
+            raw = get_btc_signal_via_sftp()
 
         if raw is None:
             return Signal(
                 symbol="",
                 amount=self.amount,
-                direction="UP",
+                direction="",
                 source=self.name,
                 timestamp=int(time.time()),
             )
 
-        direction: Direction = raw.get("下单方向", "") or "UP"
+        raw_direction = raw.get("下单方向", "")
+        direction: Direction = raw_direction if raw_direction in ("UP", "DOWN") else ""
         symbol = raw.get("标的代码", "")
 
         return Signal(

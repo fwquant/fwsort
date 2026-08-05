@@ -24,7 +24,7 @@ from enum import Enum
 from typing import Any, Literal
 
 
-Direction = Literal["UP", "DOWN"]
+Direction = Literal["UP", "DOWN", ""]
 
 # 支持的参数类型
 SUPPORTED_PARAM_TYPES = (int, float, str, bool)
@@ -64,9 +64,14 @@ class Signal:
 
     symbol: str
     amount: float = 1.0
-    direction: Direction = "UP"
+    direction: Direction = ""
     source: str = "unknown"
     timestamp: int = field(default_factory=lambda: int(time.time()))
+
+    @property
+    def is_valid(self) -> bool:
+        """是否为有效交易信号（direction 为 UP 或 DOWN）"""
+        return self.direction in ("UP", "DOWN")
 
     def to_dict(self) -> dict:
         return asdict(self)

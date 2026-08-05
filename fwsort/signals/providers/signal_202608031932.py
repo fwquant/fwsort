@@ -66,9 +66,9 @@ class Signal202608031932Provider(SignalProvider):
                 data = json.loads(resp.read().decode("utf-8"))
 
             symbol = data.get("symbol", f"btc-updown-4h-{int(time.time())}")
-            direction = data.get("direction", "UP")
+            direction = data.get("direction", "")
             if direction not in ("UP", "DOWN"):
-                direction = "UP"
+                direction = ""
             amount = float(data.get("amount", 1.0))
             timestamp = int(data.get("timestamp", int(time.time())))
 
@@ -85,7 +85,7 @@ class Signal202608031932Provider(SignalProvider):
             return Signal(
                 symbol=f"btc-updown-4h-{int(time.time())}",
                 amount=1.0,
-                direction="UP",
+                direction="",
                 source=self.name,
             )
 

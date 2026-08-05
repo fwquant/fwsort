@@ -35,7 +35,7 @@ def 获得当前时间值(周期: int = 4 * 60 * 60):
     result = str(((int(time.time()) // 周期)) * (周期))
     return result
 
-
+#
 class pm类():
 
     def __init__(self, 标的代码: str = "btc-updown-4h-{epoch}"):
@@ -48,6 +48,7 @@ class pm类():
         if not self._initialized:
             await self.初始化()
 
+    # 初始化
     async def 初始化(self):
         if self._initialized:
             return
@@ -56,6 +57,7 @@ class pm类():
         print(f"获得市场={result}")
         self._initialized = True
 
+    # 连接
     async def connect(self):
         POLYMARKET_RELAYER_API_KEY_ADDRESS = settings.POLYMARKET_RELAYER_API_KEY_ADDRESS
         POLYMARKET_RELAYER_PRIVATE_KEY = settings.POLYMARKET_RELAYER_PRIVATE_KEY
@@ -121,6 +123,42 @@ class pm类():
             return 4 * 60 * 60
         return 4 * 60 * 60
 
+    async def 获得_updown价格(self, 标的代码: str = "btc-updown-4h-{epoch}") -> dict:
+        """获得当前市场 UP 和 DOWN 的最新价格(以 USDC 计价, 范围 0-1)"""
+        await self._ensure_initialized()
+        current_slug = 标的代码.replace("{epoch}", 获得当前时间值(周期=self._get周期(标的代码)))
+        if self.market is None or getattr(self.market, "slug", "") != current_slug:
+            self.market = await self.获得市场(标的代码=标的代码)
+
+        yes_token_id = self.market.outcomes.yes.token_id
+        no_token_id = self.market.outcomes.no.token_id
+
+        async def _fetch_price(token_id, label):
+            try:
+                midpoint = await _retry_call(self.client.get_midpoint, token_id=token_id)
+                order_book = await _retry_call(self.client.get_order_book, token_id=token_id)
+                best_bid = order_book.bids[0].price if order_book.bids else None
+                best_ask = order_book.asks[0].price if order_book.asks else None
+                last_trade = order_book.last_trade_price if order_book.last_trade_price else None
+                return {
+                    "label": label,
+                    "token_id": token_id,
+                    "midpoint": str(midpoint) if midpoint else None,
+                    "best_bid": str(best_bid) if best_bid is not None else None,
+                    "best_ask": str(best_ask) if best_ask is not None else None,
+                    "last_trade_price": str(last_trade) if last_trade is not None else None,
+                }
+            except Exception as e:
+                return {"label": label, "token_id": token_id, "error": str(e)}
+
+        up_info, down_info = await asyncio.gather(
+            _fetch_price(yes_token_id, "UP"),
+            _fetch_price(no_token_id, "DOWN"),
+        )
+
+        print(f"【UP/DOWN 价格】 UP(mid={up_info.get('midpoint')}, bid={up_info.get('best_bid')}, ask={up_info.get('best_ask')}) | DOWN(mid={down_info.get('midpoint')}, bid={down_info.get('best_bid')}, ask={down_info.get('best_ask')})")
+        return {"UP": up_info, "DOWN": down_info}
+
     async def 查询流动性(self, token_id: str) -> dict:
         """查询指定 token 的盘口流动性"""
         try:
@@ -148,6 +186,57 @@ class pm类():
             }
         except Exception as e:
             return {"token_id": token_id, "error": str(e)}
+
+    async def 赎回(self, 标的代码: str | None = None) -> list:
+        """赎回持仓。不传参数时赎回所有持仓，传参时赎回指定市场"""
+        await self._ensure_initialized()
+        results = []
+
+        if 标的代码 is not None:
+            m = await self.获得市场(标的代码=标的代码)
+            print(f"【赎回】指定市场={m.slug if hasattr(m, 'slug') else 'N/A'}, condition_id={m.condition_id}")
+
+            if not m.state.closed:
+                print(f"【赎回】⚠️ 市场尚未结算 (closed={m.state.closed}), 赎回可能不生效")
+            if m.state.accepting_orders:
+                print(f"【赎回】⚠️ 市场仍接受下单, 通常应在市场结算后赎回")
+
+            handle = await _retry_call(self.client.redeem_positions, condition_id=m.condition_id)
+            result = await handle.wait()
+            print(f"【赎回】结果 = {result}")
+            results.append({"type": "REDEEM", "condition_id": m.condition_id, "result": str(result)})
+        else:
+            print(f"【赎回】扫描账号所有持仓...")
+            paginator = self.client.list_positions()
+            positions = []
+            async for pos in paginator.iter_items():
+                positions.append(pos)
+
+            if not positions:
+                print(f"【赎回】无持仓，无需赎回")
+                return []
+
+            print(f"【赎回】共找到 {len(positions)} 个持仓，开始逐个赎回...")
+            redeemed_ids = set()
+            for i, pos in enumerate(positions, 1):
+                if pos.size is None or pos.size <= 0:
+                    print(f"  [{i}] 跳过零持仓: outcome={pos.outcome}, size={pos.size}")
+                    continue
+                condition_id = pos.condition_id
+                if condition_id in redeemed_ids:
+                    continue
+                redeemed_ids.add(condition_id)
+                print(f"  [{i}] 赎回 condition_id={condition_id}, outcome={pos.outcome}, size={pos.size}")
+                try:
+                    handle = await _retry_call(self.client.redeem_positions, condition_id=condition_id)
+                    result = await handle.wait()
+                    print(f"  [{i}] 赎回结果 = {result}")
+                    results.append({"type": "REDEEM", "condition_id": condition_id, "result": str(result)})
+                except Exception as e:
+                    print(f"  [{i}] 赎回失败: {e}")
+                    results.append({"type": "FAILED", "condition_id": condition_id, "error": str(e)})
+
+        return results
 
     async def 平仓(self, 标的代码: str | None = "btc-updown-4h-{epoch}"):
         await self._ensure_initialized()
@@ -200,11 +289,10 @@ class pm类():
                 continue
 
             if 标的代码 is not None and not self.market.state.accepting_orders:
-                print(f".2、【平仓】市场已结算，赎回 outcome={pos.outcome}, token_id={token_id}, shares={pos.size}")
-                handle = await _retry_call(self.client.redeem_positions, condition_id=self.market.condition_id)
-                result = await handle.wait()
-                print(f".3、【平仓】赎回结果 result = {result}")
-                results.append({"type": "REDEEM", "result": str(result)})
+                print(f".2、【平仓】市场已结算，调用赎回函数...")
+                redeem_results = await self.赎回(标的代码=标的代码)
+                results.extend(redeem_results)
+                break
             else:
                 print(f".2、【平仓】市价卖出 outcome={pos.outcome}, shares={pos.size}")
                 try:
@@ -249,10 +337,123 @@ class pm类():
             print(f"\n【平仓】⚠️ 共 {len(dust_positions)} 个灰尘持仓，总估值≈{total_dust_value} USDC (低于最低下单金额，可忽略)")
         return results
 
-    async def 查询持仓验证(self):
+    async def 查看连接信息(self, 标的代码: str = "btc-updown-4h-{epoch}") -> dict:
+        """查看当前连接状态、市场信息、盘口数据"""
+        result = {
+            "连接状态": {
+                "已初始化": self._initialized,
+                "客户端存在": self.client is not None,
+                "市场存在": self.market is not None,
+            }
+        }
+
+        if not self._initialized or self.client is None:
+            print(f"【连接信息】 ❌ 未连接，请先初始化！")
+            return result
+
+        try:
+            current_slug = 标的代码.replace("{epoch}", 获得当前时间值(周期=self._get周期(标的代码)))
+            if self.market is None or getattr(self.market, "slug", "") != current_slug:
+                print(f"【连接信息】 市场已过期，重新获取...")
+                self.market = await self.获得市场(标的代码=标的代码)
+
+            m = self.market
+            print(f"\n══════════════════════════════════════")
+            print(f"【连接信息】 ✅ 已连接")
+            print(f"══════════════════════════════════════")
+            print(f"  客户端: {self.client}")
+            print(f"  市场标题: {m.title if hasattr(m, 'title') else 'N/A'}")
+            print(f"  市场Slug: {m.slug if hasattr(m, 'slug') else 'N/A'}")
+            print(f"  市场ID: {m.id if hasattr(m, 'id') else 'N/A'}")
+            print(f"  ConditionID: {m.condition_id if hasattr(m, 'condition_id') else 'N/A'}")
+            print(f"  是否接受下单: {m.state.accepting_orders if hasattr(m.state, 'accepting_orders') else 'N/A'}")
+            print(f"  是否已结算: {m.state.closed if hasattr(m.state, 'closed') else 'N/A'}")
+            print(f"  结果数量: {len(m.outcomes) if hasattr(m, 'outcomes') else 'N/A'}")
+
+            yes_token_id = m.outcomes.yes.token_id if hasattr(m.outcomes, 'yes') else None
+            no_token_id = m.outcomes.no.token_id if hasattr(m.outcomes, 'no') else None
+            print(f"  YES/UP TokenID: {yes_token_id[:20] if yes_token_id else 'N/A'}...")
+            print(f"  NO/DOWN TokenID: {no_token_id[:20] if no_token_id else 'N/A'}...")
+
+            result["市场信息"] = {
+                "title": m.title if hasattr(m, 'title') else None,
+                "slug": m.slug if hasattr(m, 'slug') else None,
+                "condition_id": m.condition_id if hasattr(m, 'condition_id') else None,
+                "accepting_orders": m.state.accepting_orders if hasattr(m.state, 'accepting_orders') else None,
+                "closed": m.state.closed if hasattr(m.state, 'closed') else None,
+            }
+
+            print(f"\n【盘口数据】")
+            async def _显示盘口(token_id, label):
+                if not token_id:
+                    return
+                try:
+                    order_book = await _retry_call(self.client.get_order_book, token_id=token_id)
+                    midpoint = await _retry_call(self.client.get_midpoint, token_id=token_id)
+                    bids = order_book.bids[:5] if order_book.bids else []
+                    asks = order_book.asks[:5] if order_book.asks else []
+                    
+                    print(f"  ── {label} ({token_id[:16]}...) ──")
+                    print(f"    midpoint: {midpoint}")
+                    print(f"    last_trade: {order_book.last_trade_price}")
+                    print(f"    买盘 (前{len(bids)}档):")
+                    for i, b in enumerate(reversed(bids), 1):
+                        print(f"      {i}. price={b.price}, size={b.size}")
+                    print(f"    卖盘 (前{len(asks)}档):")
+                    for i, a in enumerate(asks, 1):
+                        print(f"      {i}. price={a.price}, size={a.size}")
+                    print(f"    min_order_size: {order_book.min_order_size}, tick_size: {order_book.tick_size}")
+                    print()
+
+                    return {
+                        "midpoint": str(midpoint) if midpoint else None,
+                        "last_trade": str(order_book.last_trade_price) if order_book.last_trade_price else None,
+                        "best_bid": str(bids[-1].price) if bids else None,
+                        "best_ask": str(asks[0].price) if asks else None,
+                        "bids_count": len(order_book.bids),
+                        "asks_count": len(order_book.asks),
+                    }
+                except Exception as e:
+                    print(f"  ── {label} 查询失败: {e}")
+                    return {"error": str(e)}
+
+            up盘口, down盘口 = await asyncio.gather(
+                _显示盘口(yes_token_id, "UP/YES"),
+                _显示盘口(no_token_id, "DOWN/NO"),
+            )
+            result["盘口"] = {"UP": up盘口, "DOWN": down盘口}
+
+            print(f"══════════════════════════════════════")
+        except Exception as e:
+            print(f"【连接信息】 ❌ 查询异常: {e}")
+            result["错误"] = str(e)
+
+        return result
+
+    async def 查询持仓(self, 标的代码: str | None = None) -> list:
+        """查询持仓。传参查指定市场，不传查全部"""
         await self._ensure_initialized()
-        page = await self.client.list_positions(market=[self.market.condition_id]).first_page()
-        print(f"5、【查询持仓验证】 page = {page}")
+        if 标的代码 is not None:
+            m = await self.获得市场(标的代码=标的代码)
+            paginator = self.client.list_positions(market=[m.condition_id])
+            print(f"【查询持仓】指定市场={m.slug if hasattr(m, 'slug') else 'N/A'}")
+        else:
+            paginator = self.client.list_positions()
+            print(f"【查询持仓】扫描账号全部持仓...")
+
+        positions = []
+        async for pos in paginator.iter_items():
+            positions.append(pos)
+
+        if not positions:
+            print(f"【查询持仓】无持仓")
+            return []
+
+        print(f"【查询持仓】共 {len(positions)} 个持仓:")
+        for i, pos in enumerate(positions, 1):
+            title = pos.title or pos.slug or '未知市场'
+            print(f"  [{i}] {title} | outcome={pos.outcome} | size={pos.size} | cur_price={pos.cur_price} | value={pos.current_value}")
+        return positions
 
     def 关闭对象(self):
         self.client.close()
@@ -279,10 +480,15 @@ async def 显示菜单():
         # 平仓
         print("2.1. 平仓  btc-updown-4h(SELL 当前市场全部持仓)")
         print("2.2. 一键平仓 (SELL 账号所有持仓)")
+        print("2.3. 赎回  btc-updown-4h (指定市场)")
+        print("2.4. 一键赎回 (所有持仓)")
         print("--------------------------------------")
 
         # 查询
-        print("3.1. 查询持仓验证")
+        print("3.1. 查询持仓 (指定市场)")
+        print("3.2. 查询持仓 (全部)")
+        print("3.3. 查询 UP/DOWN 最新价格")
+        print("3.4. 查看连接信息 & 盘口")
         print("--------------------------------------")
 
         # 退出
@@ -336,11 +542,26 @@ async def 显示菜单():
         elif choice == "2.2":
             result = await pm.平仓(标的代码=None)
             print(f"一键平仓结果 result = {result}")
+        elif choice == "2.3":
+            result = await pm.赎回(标的代码="btc-updown-4h-{epoch}")
+            print(f"指定市场赎回结果 result = {result}")
+        elif choice == "2.4":
+            result = await pm.赎回()
+            print(f"一键赎回所有持仓结果 result = {result}")
 
         # 查询
         elif choice == "3.1":
-            result = await pm.查询持仓验证()
-            print(f"查询持仓验证 result = {result}")
+            result = await pm.查询持仓(标的代码="btc-updown-4h-{epoch}")
+            print(f"指定市场持仓 result = {len(result)} 条")
+        elif choice == "3.2":
+            result = await pm.查询持仓()
+            print(f"全部持仓 result = {len(result)} 条")
+        elif choice == "3.3":
+            result = await pm.获得_updown价格(标的代码="btc-updown-4h-{epoch}")
+            print(f"UP/DOWN 价格 result = {result}")
+        elif choice == "3.4":
+            result = await pm.查看连接信息(标的代码="btc-updown-4h-{epoch}")
+            print(f"连接信息 result = {result}")
 
         # 退出
         elif choice == "0":

@@ -505,7 +505,7 @@ class AutoTaskLog(Base):
     signal_json: Mapped[str] = mapped_column(Text, default="{}", comment="信号内容 JSON")
     order_result_json: Mapped[str] = mapped_column(Text, default="{}", comment="下单结果 JSON")
     status: Mapped[int] = mapped_column(
-        SmallInteger, default=0, comment="0-成功 1-失败 2-已重试成功 3-已熔断"
+        SmallInteger, default=0, comment="0-成功 1-失败 2-已重试成功 3-已熔断 4-无信号"
     )
     error_message: Mapped[str] = mapped_column(String(512), default="", comment="错误信息")
     duration_ms: Mapped[int] = mapped_column(Integer, default=0, comment="执行耗时（毫秒）")
