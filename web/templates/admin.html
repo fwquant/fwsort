@@ -720,6 +720,147 @@
       border: 1px solid var(--fwui-border);
       border-radius: 10px;
     }
+
+    /* ==== 任务日志：搜索栏（独占一行） ==== */
+    .fw-tl-search-bar {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    .fw-tl-search-bar__input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      background: var(--fwui-bg-elevated);
+      border: 1px solid var(--fwui-border);
+      border-radius: 10px;
+      padding: 0;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .fw-tl-search-bar__input-wrap:focus-within {
+      border-color: var(--fwui-primary);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    }
+    .fw-tl-search-bar__input-wrap input {
+      flex: 1;
+      width: 100%;
+      padding: 12px 44px 12px 44px;
+      border: none;
+      background: transparent;
+      color: var(--fwui-text);
+      font-size: 14px;
+      outline: none;
+      border-radius: 10px;
+    }
+    .fw-tl-search-bar__input-wrap::before {
+      content: "🔍";
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .fw-tl-search-bar__clear {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      padding: 0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--fwui-text-muted);
+      background: transparent;
+      border: 1px solid var(--fwui-border);
+    }
+    .fw-tl-search-bar__clear:hover {
+      background: var(--fwui-bg-secondary);
+      color: var(--fwui-text);
+    }
+
+    /* ==== 任务日志：筛选/操作栏 ==== */
+    .fw-tl-filter-bar {
+      width: 100%;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .fw-tl-filter-bar .fw-task-list-toolbar__filter {
+      flex: 1;
+      min-width: 0;
+      gap: 8px;
+    }
+    .fw-tl-filter-bar .fw-task-list-toolbar__sort {
+      flex-shrink: 0;
+    }
+    .fw-tl-filter-bar .fw-task-list-toolbar__stats {
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .fw-tl-date-range {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .fw-tl-date-range input[type="date"] {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--fwui-border);
+      background: var(--fwui-bg-input);
+      color: var(--fwui-text);
+      font-size: 13px;
+      outline: none;
+      max-width: 150px;
+    }
+    .fw-tl-date-range input[type="date"]::-webkit-calendar-picker-indicator {
+      opacity: 0.6;
+      cursor: pointer;
+    }
+    .fw-tl-date-range input[type="date"]:focus {
+      border-color: var(--fwui-primary);
+    }
+
+    /* ==== 移动端适配 ==== */
+    @media (max-width: 768px) {
+      .fw-tl-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .fw-tl-filter-bar .fw-task-list-toolbar__filter {
+        flex-direction: column;
+        gap: 8px;
+      }
+      .fw-tl-filter-bar .fw-task-list-toolbar__filter > select,
+      .fw-tl-filter-bar .fw-task-list-toolbar__filter > label,
+      .fw-tl-filter-bar .fw-task-list-toolbar__filter > .fw-tl-date-range {
+        width: 100%;
+      }
+      .fw-tl-date-range {
+        flex-wrap: wrap;
+      }
+      .fw-tl-filter-bar .fw-task-list-toolbar__sort {
+        flex-wrap: wrap;
+      }
+      .fw-tl-filter-bar .fw-task-list-toolbar__sort > select {
+        flex: 1;
+      }
+      .fw-tl-filter-bar .fw-task-list-toolbar__stats {
+        margin-left: 0;
+        text-align: center;
+        width: 100%;
+      }
+      .fw-tl-search-bar__input-wrap input {
+        font-size: 16px; /* 防止iOS自动缩放 */
+      }
+    }
     .fw-task-list-toolbar__search {
       display: flex;
       align-items: center;
@@ -1278,11 +1419,16 @@
 
       <!-- 3.7 自动任务日志（搜索/筛选/排序/列设置） -->
       <div class="fw-admin-tab-panel" data-tab-panel="task-log">
-        <div class="fw-task-list-toolbar">
-          <div class="fw-task-list-toolbar__search">
-            <input type="text" id="task-log-search-input" placeholder="🔍 搜索任务名/订单ID/错误信息/操作类型...">
-            <button class="fwui-btn fwui-btn--sm" id="task-log-search-clear" title="清除搜索">✕</button>
+        <!-- 搜索栏 - 独占一行 -->
+        <div class="fw-tl-search-bar">
+          <div class="fw-tl-search-bar__input-wrap">
+            <input type="text" id="task-log-search-input" placeholder="🔍 搜索任务名 / 订单ID / 错误信息 / 操作类型...">
+            <button class="fwui-btn fwui-btn--sm fw-tl-search-bar__clear" id="task-log-search-clear" title="清除搜索" style="display:none;">✕</button>
           </div>
+        </div>
+
+        <!-- 筛选/操作栏 -->
+        <div class="fw-task-list-toolbar fw-tl-filter-bar">
           <div class="fw-task-list-toolbar__filter">
             <select id="task-log-filter-status" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
               <option value="">全部状态</option>
@@ -1296,15 +1442,16 @@
               <option value="0">执行日志</option>
               <option value="1">操作日志</option>
             </select>
-            <input type="date" id="task-log-date-from" class="fwui-input" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
-            <span style="color:var(--fwui-text-muted);">至</span>
-            <input type="date" id="task-log-date-to" class="fwui-input" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
-            <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--fwui-text-muted);">
+            <div class="fw-tl-date-range">
+              <input type="date" id="task-log-date-from" class="fwui-input" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+              <span style="color:var(--fwui-text-muted);font-size:12px;">至</span>
+              <input type="date" id="task-log-date-to" class="fwui-input" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
+            </div>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--fwui-text-muted);white-space:nowrap;">
               <input type="checkbox" id="task-log-pnl-only" style="width:auto;"> 只看盈利
             </label>
           </div>
           <div class="fw-task-list-toolbar__sort">
-            <label>排序</label>
             <select id="task-log-sort-select" class="fwui-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);font-size:13px;">
               <option value="executed_at-desc">执行时间 ↓</option>
               <option value="executed_at-asc">执行时间 ↑</option>
@@ -3892,6 +4039,10 @@
         if (input && !input._bound) {
           input._bound = true;
           input.addEventListener('input', function () {
+            var clearBtn = document.getElementById('task-log-search-clear');
+            if (clearBtn) {
+              clearBtn.style.display = input.value.trim() ? 'flex' : 'none';
+            }
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(function () {
               taskLogSearch = input.value.trim();
@@ -3905,7 +4056,10 @@
           clearBtn._bound = true;
           clearBtn.addEventListener('click', function () {
             taskLogSearch = '';
-            if (input) input.value = '';
+            if (input) {
+              input.value = '';
+              clearBtn.style.display = 'none';
+            }
             taskLogOffset = 0;
             loadTaskLogs();
           });
