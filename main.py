@@ -34,7 +34,17 @@ from router import (
 class InterceptHandler(logging.Handler):
     """把标准 logging 路由到 loguru，统一格式"""
 
+    # 需要过滤的 logger 前缀（这些 logger 的 INFO 级别日志会被静默）
+    _FILTERED_LOGGERS = {
+        'sqlalchemy.engine',
+        'sqlalchemy.engine.Engine',
+    }
+    _FILTERED_LEVEL = logging.WARNING  # 低于此级别的日志会被过滤
+
     def emit(self, record: logging.LogRecord) -> None:
+        # 过滤 SQLAlchemy 等高频日志
+        if record.name in self._FILTERED_LOGGERS and record.levelno < self._FILTERED_LEVEL:
+            return
         try:
             level = logger.level(record.levelname).name
         except ValueError:
@@ -61,6 +71,11 @@ logging.basicConfig(handlers=[InterceptHandler()], level=0)
 logging.getLogger("elastic_transport").setLevel(logging.CRITICAL)
 logging.getLogger("elasticsearch").setLevel(logging.CRITICAL)
 logging.getLogger("elastic_transport.node_pool").setLevel(logging.CRITICAL)
+
+# WP-Fix: 静默 SQLAlchemy 的 INFO 级别日志，减少日志噪音
+# SQLAlchemy 的 SQL 语句日志在调试时有用，但在生产环境会产生大量日志
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 
 
 # ========== 应用生命周期 ==========

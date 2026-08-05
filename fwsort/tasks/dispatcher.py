@@ -71,12 +71,25 @@ def _scan_and_dispatch() -> None:
     current_time = time.time()
 
     # 心跳日志：每 HEARTBEAT_INTERVAL 秒输出一次
+    task_count = 0
     if current_time - _last_heartbeat_time >= HEARTBEAT_INTERVAL:
         _last_heartbeat_time = current_time
         with _executing_lock:
             executing_count = len(_executing_tasks)
+        
+        try:
+            with get_sync_db() as db:
+                active_tasks = db.query(AutoTask).filter(
+                    AutoTask.is_active == True,
+                    AutoTask.deleted_at.is_(None),
+                ).all()
+                task_count = len(active_tasks)
+        except Exception:
+            pass
+        
         logger.info(
-            f"[AutoTaskDispatcher] 💓 心跳: 扫描中... 执行中任务数={executing_count}"
+            f"[AutoTaskDispatcher] 💓 心跳: 扫描到 {task_count} 个活跃任务, "
+            f"执行中任务数={executing_count}"
         )
 
     try:
@@ -85,13 +98,6 @@ def _scan_and_dispatch() -> None:
                 AutoTask.is_active == True,
                 AutoTask.deleted_at.is_(None),
             ).all()
-
-            task_count = len(active_tasks)
-            if task_count > 0:
-                logger.info(f"[AutoTaskDispatcher] 扫描到 {task_count} 个活跃任务")
-            elif current_time - _last_heartbeat_time < CHECK_INTERVAL * 2:
-                # 心跳附近：如果没有活跃任务也输出一下
-                pass
 
             for task in active_tasks:
                 try:

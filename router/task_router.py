@@ -93,7 +93,7 @@ async def delete_existing_task(task_id: int, _=Depends(require_admin)):
 async def start_existing_task(task_id: int, _=Depends(require_admin)):
     """启用任务"""
     try:
-        result = start_task(task_id)
+        result = await start_task_async(task_id)
         return {"success": True, "data": result, "message": result["message"]}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

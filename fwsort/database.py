@@ -1,5 +1,6 @@
 # 数据库连接：SQLAlchemy 2.0 同步/异步双引擎
 # WP-06：演示模式数据层物理隔离（独立 SQLite + 独立 session 工厂）
+import logging
 from contextlib import contextmanager
 from typing import Generator
 
@@ -10,6 +11,12 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from fwsort.config import settings
 
+# 控制 SQLAlchemy 日志级别：默认降低到 WARNING 以减少日志噪音
+# 如需调试 SQL，可设置为 logging.INFO 或 logging.DEBUG
+_SQL_ALCHEMY_LOG_LEVEL = logging.WARNING
+logging.getLogger('sqlalchemy.engine').setLevel(_SQL_ALCHEMY_LOG_LEVEL)
+logging.getLogger('sqlalchemy.engine.Engine').setLevel(_SQL_ALCHEMY_LOG_LEVEL)
+
 
 # 声明式基类
 class Base(DeclarativeBase):
@@ -19,12 +26,16 @@ class Base(DeclarativeBase):
 
 
 # ========== 引擎构造（SQLite 走文件，PostgreSQL 走连接池）==========
+# 注意：将 echo 设为 False，避免 SQLAlchemy 直接输出到 stderr
+# SQL 调试可通过设置 logging 级别实现
+_USE_SQL_ECHO = settings.APP_DEBUG and False  # 默认关闭 SQL echo，避免日志噪音
+
 if settings.USE_SQLITE:
     sync_engine = create_engine(
         settings.sync_dsn,
         connect_args={"check_same_thread": False},
         pool_pre_ping=True,
-        echo=settings.APP_DEBUG,
+        echo=_USE_SQL_ECHO,
     )
 
     # SQLite 必须开启外键约束
@@ -38,7 +49,7 @@ if settings.USE_SQLITE:
         settings.async_dsn,
         connect_args={"check_same_thread": False},
         pool_pre_ping=True,
-        echo=settings.APP_DEBUG,
+        echo=_USE_SQL_ECHO,
     )
 else:
     sync_engine = create_engine(
@@ -46,15 +57,22 @@ else:
         pool_size=settings.POSTGRES_POOL_SIZE,
         max_overflow=settings.POSTGRES_MAX_OVERFLOW,
         pool_pre_ping=True,
-        echo=settings.APP_DEBUG,
+        echo=_USE_SQL_ECHO,
     )
     async_engine = create_async_engine(
         settings.postgres_async_dsn,
         pool_size=settings.POSTGRES_POOL_SIZE,
         max_overflow=settings.POSTGRES_MAX_OVERFLOW,
         pool_pre_ping=True,
-        echo=settings.APP_DEBUG,
+        echo=_USE_SQL_ECHO,
     )
+
+# 清理 SQLAlchemy 日志 handler，确保日志只通过我们的日志系统输出
+for _logger_name in ['sqlalchemy.engine', 'sqlalchemy.engine.Engine']:
+    _sa_logger = logging.getLogger(_logger_name)
+    _sa_logger.handlers.clear()
+    _sa_logger.setLevel(logging.WARNING)
+    _sa_logger.propagate = True
 
 # 会话工厂（生产）
 SyncSessionLocal = sessionmaker(bind=sync_engine, autoflush=False, autocommit=False)

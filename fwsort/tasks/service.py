@@ -170,6 +170,12 @@ async def _start_task_internal(task_id: int) -> dict:
         try:
             if task.gateway == "polymarket_f3":
                 add_progress("导入 Polymarket F3 网关模块")
+                
+                # 先重新加载 .env 配置，确保最新的密钥被加载
+                from fwsort.config import reload_env
+                reload_env()
+                logger.info(f"[AutoTask] 重新加载 .env 配置完成")
+                
                 from fwsort.gateway.polymarket.F3.最简类_下单代码 import pm类
                 pm = pm类()
                 
@@ -433,6 +439,11 @@ def _execute_order_with_retry(task: AutoTask, signal, start_time: float) -> tupl
     # 获取或初始化网关
     pm = _gateway_instances.get(task.id)
     if pm is None:
+        # 先重新加载 .env 配置，确保最新的密钥被加载
+        from fwsort.config import reload_env
+        reload_env()
+        logger.info(f"[AutoTask] 执行前重新加载 .env 配置完成")
+        
         from fwsort.gateway.polymarket.F3.最简类_下单代码 import pm类
         pm = pm类()
         _gateway_instances[task.id] = pm

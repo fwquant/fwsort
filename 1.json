@@ -1,18 +1,4 @@
-
-
-
-{
-
-
-"symbol":"btc-updown-4h-1785758400",
-"amount": 1.0,
-"direction": "UP",
-
-
-
-
-
-"source": "random",
-"timestamp": 1785758400
-
-}
+2026-08-01T15:13:29+00:00 {"ts": 1785597209, "btc_price": null, "votes": {"deepseek": "跌", "kimi-k2.6": "平", "minimax-m3": "平"}, "raw": {"deepseek": "跌", "kimi-k2.6": "平", "minimax-m3": "<think>The user wants me to predict the direction of BTC pri"}, "counts": {"涨": 0, "跌": 1, "平": 2}, "signal": null, "agreement": 0, "action": "NO_TRADE"}
+2026-08-01T15:30:16+00:00 {"ts": 1785598216, "btc_price": null, "votes": {"deepseek": "涨", "kimi-k2.6": "平", "minimax-m3": "涨"}, "raw": {"deepseek": "涨", "kimi-k2.6": "平", "minimax-m3": "<think>The user wants a prediction for BTC price direction i"}, "counts": {"涨": 2, "跌": 0, "平": 1}, "signal": "涨", "agreement": 2, "action": "ORDER"}
+2026-08-01T15:46:47+00:00 {"ts": 1785599207, "btc_price": null, "votes": {"deepseek": "涨", "kimi-k2.6": "平", "minimax-m3": "平"}, "raw": {"deepseek": "涨", "kimi-k2.6": "平", "minimax-m3": "<think>The user wants a short-term BTC price prediction for "}, "counts": {"涨": 1, "跌": 0, "平": 2}, "signal": null, "agreement": 0, "action": "NO_TRADE"}
+2026-08-01T16:03:14+00:00 {"ts": 1785600193, "btc_price": null, "votes": {"deepseek": "涨", "kimi-k2.6": "涨", "minimax-m3": "涨"}, "raw": {"deepseek": "涨", "kimi-k2.6": "涨", "minimax-m3": "<think>The user wants me to predict the short-term direction"}, "counts": {"涨": 3, "跌": 0, "平": 0}, "signal": "涨", "agreement": 3, "mode": "两票同向直接下单", "action": "ORDER"}
