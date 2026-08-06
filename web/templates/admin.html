@@ -1253,11 +1253,10 @@
     <div class="fwui-nav__logo">🟣 福纹排行榜</div>
     <div class="fwui-nav__links">
       <a class="fwui-nav__link" href="/">📊 榜单</a>
-      <a class="fwui-nav__link" href="/accounts">💼 我的账户</a>
+      <a class="fwui-nav__link" href="/accounts">💼 我的策略</a>
       <a class="fwui-nav__link" href="/follow">👥 跟单</a>
-      <a class="fwui-nav__link" href="/rental">🤖 租用智能体</a>
-      <a class="fwui-nav__link fwui-nav__link--active" href="/admin">⚙️ 控制台</a>
-      <a class="fwui-nav__link" href="/polymarket">🔮 Polymarket</a>
+      <a class="fwui-nav__link" href="/risk" title="风控中心">🛡️ 风控</a>
+      <a class="fwui-nav__link fwui-nav__link--active" href="/admin" title="控制台">⚙️</a>
     </div>
     <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
     <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
@@ -1281,11 +1280,14 @@
       <!-- Tab 按钮栏 -->
       <div class="fw-admin-tab-bar">
         <button class="fw-admin-tab-btn fw-admin-tab-btn--active" data-tab="init">🛠 初始化</button>
-        <button class="fw-admin-tab-btn" data-tab="auto-tasks">📡 信号管理</button>
-        <button class="fw-admin-tab-btn" data-tab="tasks">🤖 自动任务</button>
-        <button class="fw-admin-tab-btn" data-tab="task-log">📜 任务日志</button>
+        <button class="fw-admin-tab-btn" data-tab="auto-tasks">📡 策略管理</button>
+        <button class="fw-admin-tab-btn" data-tab="tasks">🤖 自动策略</button>
+        <button class="fw-admin-tab-btn" data-tab="task-log">📜 策略日志</button>
         <button class="fw-admin-tab-btn" data-tab="config">⚙️ 系统配置</button>
         <button class="fw-admin-tab-btn" data-tab="log">🔧 系统日志</button>
+        <span style="flex:1"></span>
+        <a class="fw-admin-tab-btn" href="/rental" title="智能体租用">🤖 租用智能体</a>
+        <a class="fw-admin-tab-btn" href="/polymarket" title="Polymarket">🔮 Polymarket</a>
       </div>
 
       <!-- Tab 内容 -->
@@ -1316,20 +1318,32 @@
             <div class="fw-admin-action-card__desc">播种 20 个执行账户 + 50 笔投票 + 50 笔订单</div>
             <button class="fwui-btn" id="btn-seed-mock">播种 MOCK</button>
           </div>
+          <div class="fw-admin-action-card">
+            <div class="fw-admin-action-card__icon">🔄</div>
+            <div class="fw-admin-action-card__title">重置主数据库</div>
+            <div class="fw-admin-action-card__desc">清空所有交易数据（账户/任务/日志/绩效），保留配置和用户</div>
+            <button class="fwui-btn fwui-btn--danger" id="btn-reset-db">重置 fwsort.db</button>
+          </div>
+          <div class="fw-admin-action-card">
+            <div class="fw-admin-action-card__icon">🧹</div>
+            <div class="fw-admin-action-card__title">重置演示数据库</div>
+            <div class="fw-admin-action-card__desc">清空演示库后自动播种演示数据（20账户+50投票）</div>
+            <button class="fwui-btn fwui-btn--danger" id="btn-reset-demo-db">重置并播种 fwsort_demo.db</button>
+          </div>
         </div>
       </div>
 
-      <!-- 2. 信号管理 (新) -->
+      <!-- 2. 策略管理 (新) -->
       <div class="fw-admin-tab-panel" data-tab-panel="auto-tasks">
         <div class="fw-admin-toolbar">
-          <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-signal-provider-new">➕ 新建信号源</button>
+          <button class="fwui-btn fwui-btn--sm fwui-btn--primary" id="btn-signal-provider-new">➕ 新建策略</button>
           <button class="fwui-btn fwui-btn--sm" id="btn-signal-provider-refresh">🔄 刷新</button>
         </div>
 
         <div id="signal-provider-list" style="margin-top:12px;"></div>
       </div>
 
-      <!-- 2.5 信号源编辑弹窗（新建 + 编辑参数值） -->
+      <!-- 2.5 策略编辑弹窗（新建 + 编辑参数值） -->
       <div id="signal-provider-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
         <div style="background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:12px;padding:24px;min-width:520px;max-width:640px;max-height:90vh;overflow-y:auto;">
           <h3 id="signal-provider-modal-title" style="margin:0 0 16px;">新建信号源</h3>
@@ -1357,13 +1371,13 @@
               <span class="fw-auto-refresh-text">15s</span>
             </span>
           </label>
-          <button class="fwui-btn fwui-btn--sm" id="btn-goto-task-log" style="margin-left:auto;">📜 任务日志</button>
+          <button class="fwui-btn fwui-btn--sm" id="btn-goto-task-log" style="margin-left:auto;">📜 策略日志</button>
         </div>
 
         <!-- 搜索 / 排序 / 列设置 工具栏 -->
         <div class="fw-task-list-toolbar" style="margin-bottom:12px;">
           <div class="fw-task-list-toolbar__search">
-            <input type="text" id="auto-task-search-input" placeholder="🔍 搜索任务名称 / 信号源 / 状态 / ID...">
+            <input type="text" id="auto-task-search-input" placeholder="🔍 搜索策略名称 / 策略源 / 状态 / ID...">
             <button class="fwui-btn fwui-btn--sm" id="auto-task-search-clear" title="清除搜索">✕</button>
           </div>
           <div class="fw-task-list-toolbar__sort">
@@ -1738,7 +1752,7 @@
       var editingTaskId = null;
       var editingSignalProviderName = null;
 
-      // #auto-tasks -> 信号管理, #tasks -> 自动任务, #task-log -> 任务日志
+      // #auto-tasks -> 策略管理, #tasks -> 自动策略, #task-log -> 策略日志
       var HASH_ALIAS = {
         "tasks_list": "task-log",
         "taskslist": "task-log",
@@ -1887,6 +1901,100 @@
       document.getElementById("btn-seed-mock").onclick = async function () {
         var r = await call("/api/admin/seed-mock?n_accounts=20&n_votes=50", "POST", {}, "播种 MOCK");
         log(r.message || JSON.stringify(r), r.success ? "success" : "error");
+        FWUI.toast[r.success ? "success" : "error"](r.message);
+      };
+
+      // 重置主数据库
+      document.getElementById("btn-reset-db").onclick = async function () {
+        var html = ''
+          + '<div style="background:#fff7f0;border:1px solid #ffb74d;border-radius:8px;padding:12px 16px;margin-bottom:14px;">'
+          +   '<div style="font-size:14px;font-weight:700;color:#e65100;margin-bottom:8px;">📋 当前操作：重置主数据库 (fwsort.db)</div>'
+          +   '<div style="font-size:13px;color:#555;line-height:1.7;">'
+          +     '<div>✅ <b>将清空</b>：执行账户、自动任务、任务日志、策略绩效、订单记录、投票记录等交易数据</div>'
+          +     '<div>🛡️ <b>将保留</b>：用户账号、系统配置、权重配置、通知设置</div>'
+          +     '<div>💾 <b>自动备份</b>：重置前会自动备份当前数据库到 data/backups/ 目录</div>'
+          +   '</div>'
+          + '</div>'
+          + '<div style="background:#ffebee;border:1px solid #ef5350;border-radius:8px;padding:12px 16px;margin-bottom:14px;">'
+          +   '<div style="font-size:13px;color:#c62828;font-weight:600;">⚠️ 此操作不可撤销！清空后数据无法恢复（仅可从备份手动恢复）</div>'
+          + '</div>'
+          + '<div style="background:#e3f2fd;border:1px solid #42a5f5;border-radius:8px;padding:12px 16px;">'
+          +   '<div style="font-size:13px;color:#1565c0;font-weight:600;margin-bottom:6px;">🔑 请输入确认令牌以继续</div>'
+          +   '<div style="font-size:13px;color:#555;">在下方输入框中输入 <code style="background:#fff;padding:2px 8px;border-radius:4px;font-weight:700;color:#d84315;border:1px solid #ddd;">RESET_DB</code>（区分大小写）</div>'
+          + '</div>';
+
+        var input = await FWUI.modal.prompt({
+          title: "⚠️ 重置主数据库 (fwsort.db)",
+          type: "danger",
+          content: html,
+          okText: "确认执行重置",
+          inputFields: [
+            { name: "token", label: "确认令牌", placeholder: "请输入 RESET_DB", required: true }
+          ],
+        });
+        if (!input || !input.token) return;
+
+        var token = input.token.trim();
+        log("▶ 开始重置主数据库...");
+        var r = await call("/api/admin/reset-db?confirm_token=" + encodeURIComponent(token) + "&mode=prod", "POST", {}, "重置主数据库");
+        log(r.message || JSON.stringify(r), r.success ? "success" : "error");
+        if (r.success && r.data && r.data.cleared_tables) {
+          log("✅ 已清空表: " + r.data.cleared_tables.join(", "), "success");
+        }
+        if (r.success && r.data && r.data.backup_path) {
+          log("💾 数据库已备份至: " + r.data.backup_path, "success");
+        } else if (r.success) {
+          log("⚠️ 备份失败或跳过", "warning");
+        }
+        FWUI.toast[r.success ? "success" : "error"](r.message);
+        if (r.success) {
+          setTimeout(() => location.reload(), 2000);
+        }
+      };
+
+      // 重置演示数据库
+      document.getElementById("btn-reset-demo-db").onclick = async function () {
+        var html = ''
+          + '<div style="background:#fff7f0;border:1px solid #ffb74d;border-radius:8px;padding:12px 16px;margin-bottom:14px;">'
+          +   '<div style="font-size:14px;font-weight:700;color:#e65100;margin-bottom:8px;">📋 当前操作：重置演示数据库 (fwsort_demo.db)</div>'
+          +   '<div style="font-size:13px;color:#555;line-height:1.7;">'
+          +     '<div>✅ <b>将清空</b>：演示库中所有数据（包括账户、任务、日志、配置、用户）</div>'
+          +     '<div>💾 <b>自动备份</b>：重置前会自动备份当前演示数据库到 data/backups/ 目录</div>'
+          +     '<div>🌱 <b>自动播种</b>：清空后将自动恢复演示数据（20 账户 + 50 投票 + 绩效 + 订单）</div>'
+          +   '</div>'
+          + '</div>'
+          + '<div style="background:#ffebee;border:1px solid #ef5350;border-radius:8px;padding:12px 16px;margin-bottom:14px;">'
+          +   '<div style="font-size:13px;color:#c62828;font-weight:600;">⚠️ 此操作不可撤销！将生成全新的演示数据，原有数据仅可从备份手动恢复</div>'
+          + '</div>'
+          + '<div style="background:#e3f2fd;border:1px solid #42a5f5;border-radius:8px;padding:12px 16px;">'
+          +   '<div style="font-size:13px;color:#1565c0;font-weight:600;margin-bottom:6px;">🔑 请输入确认令牌以继续</div>'
+          +   '<div style="font-size:13px;color:#555;">在下方输入框中输入 <code style="background:#fff;padding:2px 8px;border-radius:4px;font-weight:700;color:#d84315;border:1px solid #ddd;">RESET_DEMO_DB</code>（区分大小写）</div>'
+          + '</div>';
+
+        var input = await FWUI.modal.prompt({
+          title: "⚠️ 重置演示数据库并播种 (fwsort_demo.db)",
+          type: "danger",
+          content: html,
+          okText: "确认重置并播种",
+          inputFields: [
+            { name: "token", label: "确认令牌", placeholder: "请输入 RESET_DEMO_DB", required: true }
+          ],
+        });
+        if (!input || !input.token) return;
+
+        var token = input.token.trim();
+        log("▶ 开始重置演示数据库...");
+        var r = await call("/api/admin/reset-db?confirm_token=" + encodeURIComponent(token) + "&mode=demo", "POST", {}, "重置演示数据库");
+        log(r.message || JSON.stringify(r), r.success ? "success" : "error");
+        if (r.success && r.data && r.data.cleared_tables) {
+          log("✅ 已清空表: " + r.data.cleared_tables.join(", "), "success");
+        }
+        if (r.success && r.data && r.data.backup_path) {
+          log("💾 数据库已备份至: " + r.data.backup_path, "success");
+        }
+        if (r.success && r.data && r.data.seeded) {
+          log("🌱 演示数据已自动播种 (20账户 + 50投票)", "success");
+        }
         FWUI.toast[r.success ? "success" : "error"](r.message);
       };
 
@@ -2311,6 +2419,8 @@
           if (activeTab && activeTab.dataset.tabPanel === "auto-tasks" && FWUI.api.getToken()) {
             loadAutoTasks();
           }
+          // 启动日志自动刷新
+          startLogAutoRefresh();
         } else {
           setTimeout(init, 100);
         }
@@ -2329,7 +2439,7 @@
       var TL_COLUMNS = [
         { key: 'id',           label: 'ID',           width: 60,  sortable: 'id',           default: true,  always: true },
         { key: 'name',         label: '任务名称',     width: null, sortable: 'name',         default: true,  always: true },
-        { key: 'source',       label: '信号源',       width: null, sortable: 'source',       default: true },
+        { key: 'source',       label: '策略源',       width: null, sortable: 'source',       default: true },
         { key: 'gateway',      label: '网关',         width: 110, sortable: 'gateway',      default: false },
         { key: 'interval',     label: '间隔',         width: 90,  sortable: 'interval',     default: true },
         { key: 'status',       label: '状态',         width: 80,  sortable: 'status',       default: true,  align: 'center' },
@@ -2733,7 +2843,7 @@
             cHtml += '    <span class="fw-tl-card__status ' + st.cls + '">' + st.text + '</span>';
             cHtml += '  </div>';
             cHtml += '  <div class="fw-tl-card__body">';
-            cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">信号源</span><span class="fw-tl-card__body-value">' + _tlSourceLabel(t) + '</span></div>';
+            cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">策略源</span><span class="fw-tl-card__body-value">' + _tlSourceLabel(t) + '</span></div>';
             cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">间隔</span><span class="fw-tl-card__body-value">' + t.interval + ' 分钟</span></div>';
             cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">倒计时</span><span class="fw-tl-card__body-value" data-countdown-task-list="' + t.id + '" style="' + _tlCountdownColor(t) + '">' + _tlCountdownText(t) + '</span></div>';
             cHtml += '    <div class="fw-tl-card__body-item"><span class="fw-tl-card__body-label">最近执行</span><span class="fw-tl-card__body-value">' + (t.last_executed_at ? escapeHtml(t.last_executed_at) : '—') + '</span></div>';
@@ -3315,7 +3425,7 @@
         document.getElementById("auto-task-max-count").value = task.max_daily_count;
         document.getElementById("auto-task-max-fail").value = task.max_consecutive_failures;
         document.getElementById("auto-task-modal").style.display = "flex";
-        // 动态加载启用的信号源，然后设置当前值
+        // 动态加载启用的策略，然后设置当前值
         await loadActiveSignalProvidersForSelect();
         document.getElementById("auto-task-source").value = task.signal_source;
       };
@@ -3566,7 +3676,7 @@
         // 构建弹窗HTML
         modal.innerHTML = '<div class="fw-task-log-modal__content">' +
           '  <div class="fw-task-log-modal__header">' +
-          '    <h3 class="fw-task-log-modal__title">📜 任务日志 - ' + escapeHtml(taskName) + '</h3>' +
+          '    <h3 class="fw-task-log-modal__title">📜 策略日志 - ' + escapeHtml(taskName) + '</h3>' +
           '    <button class="fwui-btn fwui-btn--sm" id="log-modal-close">关闭</button>' +
           '  </div>' +
           '  <div class="fw-task-log-modal__tabs">' +
@@ -3695,13 +3805,13 @@
         document.getElementById("auto-task-max-count").value = "50";
         document.getElementById("auto-task-max-fail").value = "5";
         document.getElementById("auto-task-modal").style.display = "flex";
-        // 动态加载启用的信号源
+        // 动态加载启用的策略
         await loadActiveSignalProvidersForSelect();
       };
 
       document.getElementById("btn-auto-task-refresh").onclick = function () {
         _autoRefreshCountdown = 15;
-        loadAutoTasks();
+        loadAutoTasks(false);
       };
 
       // 自动刷新开关
@@ -4261,7 +4371,10 @@
         var refreshBtn = document.getElementById('task-log-refresh');
         if (refreshBtn && !refreshBtn._bound) {
           refreshBtn._bound = true;
-          refreshBtn.addEventListener('click', function () { loadTaskLogs(); });
+          refreshBtn.addEventListener('click', function () {
+            _logRefreshCountdown = 15;
+            loadTaskLogs(false);
+          });
         }
         // 分页
         var prevBtn = document.getElementById('task-log-prev');

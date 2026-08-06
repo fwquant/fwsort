@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from typing import Any
 
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.es_client import async_es, es_available
 

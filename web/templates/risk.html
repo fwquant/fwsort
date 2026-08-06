@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>风控管理 · 福纹排行榜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="fwui-nav">
+    <div class="fwui-nav__logo">🛡️ 风控管理 · 福纹排行榜</div>
+    <div class="fwui-nav__links">
+      <a class="fwui-nav__link" href="/">📊 榜单</a>
+      <a class="fwui-nav__link" href="/accounts">💼 我的策略</a>
+      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
+      <a class="fwui-nav__link" href="/risk" title="风控中心">🛡️ 风控</a>
+      <a class="fwui-nav__link" href="/admin" title="控制台">⚙️</a>
+      <a class="fwui-nav__link is-active" href="/risk">🛡️ 风控</a>
+    </div>
+    <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
+    <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
+  </nav>
+
+  <main class="fwui-main risk-main">
+    <!-- 顶部摘要卡片（管理员可见） -->
+    <section id="risk-summary" class="risk-summary" style="display:none;">
+      <div class="fwui-grid fwui-grid--4 risk-summary__grid">
+        <div class="risk-summary-card">
+          <div class="risk-summary-card__label">⚠️ 冻结账户</div>
+          <div class="risk-summary-card__value" id="summary-frozen">0</div>
+        </div>
+        <div class="risk-summary-card">
+          <div class="risk-summary-card__label">🛑 近 24h 拦截</div>
+          <div class="risk-summary-card__value" id="summary-blocked">0</div>
+        </div>
+        <div class="risk-summary-card">
+          <div class="risk-summary-card__label">🥶 近 24h 冻结</div>
+          <div class="risk-summary-card__value" id="summary-freeze">0</div>
+        </div>
+        <div class="risk-summary-card">
+          <div class="risk-summary-card__label">🔥 近 24h 解冻</div>
+          <div class="risk-summary-card__value" id="summary-unfreeze">0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 移动端顶部 Tab -->
+    <div class="profile-mobile-tabs risk-mobile-tabs">
+      <div class="profile-mobile-tab is-active" data-tab="accounts">
+        <span class="profile-mobile-tab__icon">💼</span>
+        <span class="profile-mobile-tab__label">账户风控</span>
+      </div>
+      <div class="profile-mobile-tab" data-tab="tasks">
+        <span class="profile-mobile-tab__icon">🤖</span>
+        <span class="profile-mobile-tab__label">任务风控</span>
+      </div>
+      <div class="profile-mobile-tab" data-tab="profiles">
+        <span class="profile-mobile-tab__icon">📋</span>
+        <span class="profile-mobile-tab__label">模板</span>
+      </div>
+      <div class="profile-mobile-tab" data-tab="events">
+        <span class="profile-mobile-tab__icon">📝</span>
+        <span class="profile-mobile-tab__label">事件日志</span>
+      </div>
+    </div>
+
+    <div class="profile-layout risk-layout">
+      <!-- 左侧栏（PC） -->
+      <aside class="profile-sidebar risk-sidebar">
+        <div class="profile-sidebar__user" style="padding:16px 18px;">
+          <div class="profile-sidebar__avatar" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">
+            <span>🛡️</span>
+          </div>
+          <div class="profile-sidebar__name">风控中心</div>
+          <div class="profile-sidebar__email" id="risk-current-role">加载中...</div>
+        </div>
+        <nav class="profile-sidebar__menu">
+          <div class="profile-sidebar__item is-active" data-tab="accounts">
+            <span class="profile-sidebar__icon">💼</span>
+            <span class="profile-sidebar__label">账户级风控</span>
+          </div>
+          <div class="profile-sidebar__item" data-tab="tasks">
+            <span class="profile-sidebar__icon">🤖</span>
+            <span class="profile-sidebar__label">自动任务风控</span>
+          </div>
+          <div class="profile-sidebar__item" data-tab="profiles">
+            <span class="profile-sidebar__icon">📋</span>
+            <span class="profile-sidebar__label">风控模板</span>
+          </div>
+          <div class="profile-sidebar__item" data-tab="events">
+            <span class="profile-sidebar__icon">📝</span>
+            <span class="profile-sidebar__label">风控事件日志</span>
+            <span id="events-badge" class="risk-item-badge" style="display:none;">0</span>
+          </div>
+        </nav>
+        <div class="profile-sidebar__decor"></div>
+      </aside>
+
+      <!-- 右侧内容区 -->
+      <section class="profile-content risk-content">
+
+        <!-- Tab 1：账户级风控 -->
+        <div class="profile-panel risk-panel is-active" data-panel="accounts">
+          <div class="fwui-card">
+            <div class="risk-section-header">
+              <h2>💼 账户级风控配置</h2>
+              <div>
+                <select id="risk-account-select" class="fwui-input" style="display:inline-block;max-width:320px;">
+                  <option value="">-- 请选择账户 --</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="risk-account-empty" style="display:none;text-align:center;padding:48px 16px;color:var(--fwui-text-muted);">
+              请先选择账户，或前往 <a href="/accounts" style="color:var(--fwui-primary);">我的策略</a> 创建账户。
+            </div>
+
+            <form id="risk-account-form" class="risk-form" style="display:none;">
+              <div class="risk-form__row risk-form__row--status">
+                <div class="risk-status-chips">
+                  <div id="risk-frozen-status" class="risk-chip risk-chip--ok">✅ 未冻结</div>
+                  <div id="risk-last-check" class="risk-chip risk-chip--neutral">上次检查：--</div>
+                  <div class="risk-frozen-actions">
+                    <button type="button" id="btn-freeze-account" class="fwui-btn fwui-btn--danger fwui-btn--sm">⚠️ 冻结账户</button>
+                    <button type="button" id="btn-unfreeze-account" class="fwui-btn fwui-btn--primary fwui-btn--sm">✨ 解除冻结</button>
+                  </div>
+                </div>
+                <div id="risk-frozen-reason-wrap" style="display:none;margin-top:10px;">
+                  <span style="color:var(--fwui-danger);font-weight:600;">冻结原因：</span>
+                  <code id="risk-frozen-reason" style="background:var(--fwui-bg-subtle);padding:2px 8px;border-radius:6px;"></code>
+                </div>
+              </div>
+
+              <div class="risk-form__grid">
+                <div>
+                  <label>📋 关联风控模板（留空=使用系统默认）
+                    <select name="risk_profile_id" class="fwui-input">
+                      <option value="">-- 系统默认 / 个性化配置 --</option>
+                    </select>
+                  </label>
+                </div>
+                <div>
+                  <label>📛 单笔下单比例（占账户余额 %）
+                    <input name="risk_single_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1" placeholder="例如：0.05 = 5%">
+                  </label>
+                </div>
+                <div>
+                  <label>📉 日亏比例阈值（触发冻结，占初始资金 %）
+                    <input name="risk_daily_loss_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1" placeholder="例如：0.05 = 日亏 5% 冻结">
+                  </label>
+                </div>
+                <div>
+                  <label>💰 单日累计下单金额上限 (USD)
+                    <input name="max_daily_amount" class="fwui-input" type="number" step="0.01" min="0" placeholder="例如：2000">
+                  </label>
+                </div>
+                <div>
+                  <label>🔢 单日累计下单次数上限
+                    <input name="max_daily_count" class="fwui-input" type="number" step="1" min="0" placeholder="例如：10">
+                  </label>
+                </div>
+                <div>
+                  <label>💥 连续失败次数阈值（触发冻结/熔断）
+                    <input name="max_consecutive_failures" class="fwui-input" type="number" step="1" min="0" placeholder="例如：8">
+                  </label>
+                </div>
+                <div>
+                  <label>📊 最大回撤比例阈值（占初始资金 %）
+                    <input name="max_drawdown_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1" placeholder="例如：0.15 = 15%">
+                  </label>
+                </div>
+                <div>
+                  <label>🔁 最大同时持仓数
+                    <input name="max_open_positions" class="fwui-input" type="number" step="1" min="0" placeholder="例如：3">
+                  </label>
+                </div>
+                <div>
+                  <label>🛑 止损比例（下单后触发卖出，%）
+                    <input name="stop_loss_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1" placeholder="例如：0.05 = 下跌 5% 止损">
+                  </label>
+                </div>
+                <div>
+                  <label>🎯 止盈比例（下单后触发卖出，%）
+                    <input name="take_profit_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1" placeholder="例如：0.10 = 上涨 10% 止盈">
+                  </label>
+                </div>
+              </div>
+
+              <div class="risk-form__row risk-form__row--actions">
+                <button type="submit" class="fwui-btn fwui-btn--primary">💾 保存账户风控配置</button>
+                <button type="reset" class="fwui-btn">↩️ 重置</button>
+                <span id="risk-account-saved" style="color:var(--fwui-success);font-weight:600;display:none;">✅ 已保存</span>
+              </div>
+
+              <hr style="border:none;border-top:1px dashed var(--fwui-border);margin:20px 0;">
+
+              <div>
+                <h3 style="margin:0 0 10px;font-size:15px;">📐 最终生效参数（模板 + 个性化合并后）</h3>
+                <div id="risk-account-effective" class="risk-effective-params">
+                  <div class="risk-effective__skeleton">加载中...</div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Tab 2：自动任务风控 -->
+        <div class="profile-panel risk-panel" data-panel="tasks">
+          <div class="fwui-card">
+            <div class="risk-section-header">
+              <h2>🤖 自动任务级风控配置</h2>
+              <div>
+                <select id="risk-task-select" class="fwui-input" style="display:inline-block;max-width:320px;">
+                  <option value="">-- 请选择自动任务 --</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="risk-task-empty" style="display:none;text-align:center;padding:48px 16px;color:var(--fwui-text-muted);">
+              请先选择任务，或前往 <a href="/accounts/tasks" style="color:var(--fwui-primary);">任务监控</a> 创建自动任务。
+            </div>
+
+            <form id="risk-task-form" class="risk-form" style="display:none;">
+              <div class="risk-form__grid">
+                <div>
+                  <label>📋 关联风控模板
+                    <select name="risk_profile_id" class="fwui-input">
+                      <option value="">-- 系统默认 / 个性化配置 --</option>
+                    </select>
+                  </label>
+                </div>
+                <div>
+                  <label>📛 单笔下单比例（覆盖模板/全局）
+                    <input name="risk_single_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1">
+                  </label>
+                </div>
+                <div>
+                  <label>📉 任务日亏比例阈值
+                    <input name="risk_daily_loss_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1">
+                  </label>
+                </div>
+                <div>
+                  <label>💰 任务单日累计金额上限 (USD)
+                    <input name="max_daily_amount" class="fwui-input" type="number" step="0.01" min="0">
+                  </label>
+                </div>
+                <div>
+                  <label>🔢 任务单日次数上限
+                    <input name="max_daily_count" class="fwui-input" type="number" step="1" min="0">
+                  </label>
+                </div>
+                <div>
+                  <label>💥 任务连续失败阈值（熔断）
+                    <input name="max_consecutive_failures" class="fwui-input" type="number" step="1" min="0">
+                  </label>
+                </div>
+                <div>
+                  <label>📊 最大回撤（净值最大跌幅）
+                    <input name="max_drawdown_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1">
+                  </label>
+                </div>
+                <div class="risk-task-runtime">
+                  <label>当前连续失败次数（运行时）
+                    <input name="__read_consecutive_failures" class="fwui-input" type="number" step="1" min="0" disabled style="background:var(--fwui-bg-subtle);color:var(--fwui-text-muted);">
+                  </label>
+                </div>
+              </div>
+
+              <div class="risk-form__row risk-form__row--actions">
+                <button type="submit" class="fwui-btn fwui-btn--primary">💾 保存任务风控配置</button>
+                <button type="reset" class="fwui-btn">↩️ 重置</button>
+                <span id="risk-task-saved" style="color:var(--fwui-success);font-weight:600;display:none;">✅ 已保存</span>
+              </div>
+
+              <hr style="border:none;border-top:1px dashed var(--fwui-border);margin:20px 0;">
+
+              <div>
+                <h3 style="margin:0 0 10px;font-size:15px;">📐 任务最终生效参数（优先级：任务个性化 > 模板 > 全局）</h3>
+                <div id="risk-task-effective" class="risk-effective-params">
+                  <div class="risk-effective__skeleton">加载中...</div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Tab 3：风控模板 -->
+        <div class="profile-panel risk-panel" data-panel="profiles">
+          <div class="fwui-card">
+            <div class="risk-section-header">
+              <h2>📋 风控模板管理</h2>
+              <button type="button" id="btn-new-profile" class="fwui-btn fwui-btn--primary fwui-btn--sm">➕ 新建模板</button>
+            </div>
+            <div id="risk-profiles-list" class="risk-profiles-list">
+              <div class="risk-effective__skeleton">加载中...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4：风控事件日志 -->
+        <div class="profile-panel risk-panel" data-panel="events">
+          <div class="fwui-card">
+            <div class="risk-section-header">
+              <h2>📝 风控事件日志（审计）</h2>
+              <div class="risk-event-filters">
+                <select id="event-filter-type" class="fwui-input" style="max-width:180px;">
+                  <option value="">所有类型</option>
+                  <option value="1">✅ 通过</option>
+                  <option value="2">🛑 拦截</option>
+                  <option value="3">🥶 冻结</option>
+                  <option value="4">🔥 解冻</option>
+                  <option value="5">✏️ 参数变更</option>
+                </select>
+                <select id="event-filter-severity" class="fwui-input" style="max-width:160px;">
+                  <option value="">所有级别</option>
+                  <option value="1">ℹ️ 信息</option>
+                  <option value="2">⚠️ 警告</option>
+                  <option value="3">🚨 严重</option>
+                </select>
+                <select id="event-filter-stage" class="fwui-input" style="max-width:180px;">
+                  <option value="">所有阶段</option>
+                  <option value="pre_vote">投票前</option>
+                  <option value="pre_order">下单前</option>
+                  <option value="post_settle">结算后</option>
+                  <option value="manual">手动操作</option>
+                </select>
+                <button type="button" id="btn-event-refresh" class="fwui-btn fwui-btn--sm">🔄 刷新</button>
+              </div>
+            </div>
+            <div id="risk-events-total" style="margin-bottom:8px;color:var(--fwui-text-muted);font-size:13px;"></div>
+            <div id="risk-events-list" class="risk-events-list">
+              <div class="risk-effective__skeleton">加载中...</div>
+            </div>
+            <div style="text-align:center;margin-top:18px;">
+              <button type="button" id="btn-event-loadmore" class="fwui-btn" style="display:none;">📜 加载更多</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/js/fwui/api.js"></script>
+  <script src="/static/js/fwui/utils.js"></script>
+  <script src="/static/js/fwui/theme.js"></script>
+  <script src="/static/js/fwui/toast.js"></script>
+  <script src="/static/js/fwui/modal.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/risk.js"></script>
+</body>
+</html>

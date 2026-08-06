@@ -6,7 +6,9 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     DECIMAL,
+    Float,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -457,11 +459,11 @@ class SystemConfig(Base):
     )
 
 
-# ========== 19. 自动任务表（信号管理器 + 自动下单）==========
-class AutoTask(Base):
-    """自动任务：定时获取信号 → 下单 → 记录日志"""
+# ========== 19. 自动策略表（信号管理器 + 自动下单）==========
+class AutoStrategy(Base):
+    """自动策略：定时获取信号 → 下单 → 记录日志"""
 
-    __tablename__ = "auto_task"
+    __tablename__ = "auto_strategy"
 
     id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
     task_name: Mapped[str] = mapped_column(String(128), nullable=False, comment="任务名称")
@@ -480,23 +482,37 @@ class AutoTask(Base):
     total_success: Mapped[int] = mapped_column(Integer, default=0, comment="成功次数")
     total_failed: Mapped[int] = mapped_column(Integer, default=0, comment="失败次数")
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, comment="当前连续失败次数")
+    # 关联执行账户（1:1，创建任务时自动创建）
+    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True, index=True, comment="关联执行账户ID")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+    # === 新增：资金与统计字段 ===
+    initial_balance: Mapped[DECIMAL] = mapped_column(DECIMAL(18, 6), default=1000.0, comment="初始资金 USDC")
+    current_balance: Mapped[DECIMAL] = mapped_column(DECIMAL(18, 6), default=1000.0, comment="当前净值 USDC")
+    total_pnl: Mapped[DECIMAL] = mapped_column(DECIMAL(18, 6), default=0.0, comment="累计盈亏 USDC")
+    total_trades: Mapped[int] = mapped_column(Integer, default=0, comment="总交易次数")
+    win_trades: Mapped[int] = mapped_column(Integer, default=0, comment="盈利次数")
+    loss_trades: Mapped[int] = mapped_column(Integer, default=0, comment="亏损次数")
+    win_rate: Mapped[float] = mapped_column(Float, default=0.0, comment="胜率 %")
+    max_drawdown: Mapped[float] = mapped_column(Float, default=0.0, comment="最大回撤率 %")
+    sharpe_ratio: Mapped[float] = mapped_column(Float, default=0.0, comment="夏普比率")
+    profit_loss_ratio: Mapped[float] = mapped_column(Float, default=0.0, comment="盈亏比")
 
-    logs: Mapped[list["AutoTaskLog"]] = relationship(back_populates="task")
+    logs: Mapped[list["AutoStrategyLog"]] = relationship(back_populates="task")
+    account: Mapped["ExecutionAccount | None"] = relationship(foreign_keys=[account_id])
 
 
-# ========== 20. 自动任务执行日志表 ==========
-class AutoTaskLog(Base):
-    """自动任务日志：执行日志 + 操作日志 + 盈亏追踪"""
+# ========== 20. 自动策略执行日志表 ==========
+class AutoStrategyLog(Base):
+    """自动策略日志：执行日志 + 操作日志 + 盈亏追踪"""
 
-    __tablename__ = "auto_task_log"
+    __tablename__ = "auto_strategy_log"
 
     id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
-    task_id: Mapped[int] = mapped_column(FKType, ForeignKey("auto_task.id"), nullable=False, index=True)
+    task_id: Mapped[int] = mapped_column(FKType, ForeignKey("auto_strategy.id"), nullable=False, index=True)
     log_type: Mapped[int] = mapped_column(
         SmallInteger, default=0, index=True, comment="0-执行日志 1-操作日志"
     )
@@ -522,9 +538,116 @@ class AutoTaskLog(Base):
     pnl_percent: Mapped[float] = mapped_column(default=0.0, comment="盈亏百分比(%)")
     is_profit: Mapped[bool] = mapped_column(default=False, comment="是否盈利")
     market_resolved: Mapped[bool] = mapped_column(default=False, comment="市场是否已结算")
+    # 开平仓价格（为资金曲线/滑点统计服务）
+    entry_price: Mapped[float | None] = mapped_column(default=None, comment="开仓价（成本价）")
+    exit_price: Mapped[float | None] = mapped_column(default=None, comment="平仓价（结算价）")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
-    task: Mapped["AutoTask"] = relationship(back_populates="logs")
+    task: Mapped["AutoStrategy"] = relationship(back_populates="logs")
+
+
+# ========== 21. 策略交易明细表（每笔已成交记录） ==========
+class StrategyTrade(Base):
+    """策略交易明细表 - 每笔已成交的交易记录（含持仓中与已平仓）"""
+    __tablename__ = "strategy_trade"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+    trade_uid: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False, comment="交易唯一ID TRD-{yyyymmdd}-{8hex}")
+
+    # 策略维度
+    strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True, comment="策略名")
+    auto_strategy_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("auto_strategy.id"), nullable=True, index=True, comment="关联自动策略")
+    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True, index=True, comment="关联账户")
+    source_strategy: Mapped[str] = mapped_column(String(64), default="", index=True, comment="引用的策略名")
+
+    # 标的维度
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, comment="polymarket/okx")
+    symbol: Mapped[str] = mapped_column(String(64), default="", comment="交易对/市场标识")
+    market_question: Mapped[str] = mapped_column(String(512), default="", comment="Polymarket 市场问题")
+    market_slug: Mapped[str] = mapped_column(String(128), default="", comment="市场 slug")
+
+    # 交易核心字段
+    direction: Mapped[str] = mapped_column(String(16), default="", index=True, comment="方向: UP/DOWN/NEUTRAL")
+    side: Mapped[int] = mapped_column(SmallInteger, nullable=False, comment="1-买入 2-卖出")
+    order_type: Mapped[int] = mapped_column(SmallInteger, default=2, comment="1-限价 2-市价")
+    order_id: Mapped[str] = mapped_column(String(128), default="", index=True, comment="交易所订单ID")
+
+    # 价格与数量
+    entry_price: Mapped[float] = mapped_column(Float, nullable=False, comment="开仓价")
+    exit_price: Mapped[float | None] = mapped_column(Float, nullable=True, comment="平仓价")
+    quantity: Mapped[float] = mapped_column(Float, default=0.0, comment="数量")
+    amount_usd: Mapped[float] = mapped_column(Float, nullable=False, comment="下单金额 USDC")
+
+    # 盈亏字段
+    pnl_amount: Mapped[float] = mapped_column(Float, default=0.0, comment="盈亏金额 USD")
+    pnl_percent: Mapped[float] = mapped_column(Float, default=0.0, comment="盈亏百分比 %")
+    is_profit: Mapped[bool] = mapped_column(Boolean, default=False, index=True, comment="是否盈利")
+    is_win: Mapped[bool] = mapped_column(Boolean, default=False, index=True, comment="是否胜利（方向判断正确）")
+
+    # 时间字段
+    entry_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True, comment="开仓时间")
+    exit_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True, comment="平仓时间")
+    hold_duration_seconds: Mapped[int] = mapped_column(Integer, default=0, comment="持仓时长（秒）")
+
+    # 状态字段
+    status: Mapped[int] = mapped_column(SmallInteger, default=0, index=True, comment="0-持仓中 1-已平仓盈利 2-已平仓亏损 3-已平仓持平 4-已撤销 5-失败")
+    market_resolved: Mapped[bool] = mapped_column(Boolean, default=False, index=True, comment="市场是否已结算")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="结算时间")
+
+    # 风控与执行质量
+    slippage: Mapped[float] = mapped_column(Float, default=0.0, comment="滑点")
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0, comment="下单延迟")
+    execution_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="执行详情")
+    result_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="结果详情")
+
+    # 软删除与时间戳
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_strategy_trade_name_time", "strategy_name", "entry_at"),
+        Index("idx_strategy_trade_name_status", "strategy_name", "status"),
+        Index("idx_strategy_trade_profit", "strategy_name", "is_profit"),
+        Index("idx_strategy_trade_source", "source_strategy", "entry_at"),
+    )
+
+
+# ========== 22. 策略净值曲线表（每日快照） ==========
+class StrategyEquityCurve(Base):
+    """策略净值曲线 - 每日快照，支撑资金曲线图和回撤曲线图"""
+    __tablename__ = "strategy_equity_curve"
+
+    id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
+
+    # 策略维度
+    strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True, comment="策略名")
+    auto_strategy_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("auto_strategy.id"), nullable=True, index=True)
+    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True, index=True)
+
+    # 净值数据
+    snapshot_date: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True, comment="快照时间（每日）")
+    equity: Mapped[float] = mapped_column(Float, nullable=False, comment="净值 USDC")
+    balance: Mapped[float] = mapped_column(Float, nullable=False, comment="余额 USDC")
+    daily_pnl: Mapped[float] = mapped_column(Float, default=0.0, comment="当日盈亏 USDC")
+    daily_pnl_percent: Mapped[float] = mapped_column(Float, default=0.0, comment="当日盈亏 %")
+
+    # 回撤数据
+    peak_equity: Mapped[float] = mapped_column(Float, default=0.0, comment="历史峰值净值")
+    drawdown: Mapped[float] = mapped_column(Float, default=0.0, comment="当前回撤 USDC")
+    drawdown_percent: Mapped[float] = mapped_column(Float, default=0.0, comment="当前回撤率 %")
+    max_drawdown_percent: Mapped[float] = mapped_column(Float, default=0.0, comment="历史最大回撤率 %")
+
+    # 持仓数据
+    position_count: Mapped[int] = mapped_column(Integer, default=0, comment="当日持仓数")
+    trade_count: Mapped[int] = mapped_column(Integer, default=0, comment="当日交易数")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_equity_strategy_date", "strategy_name", "snapshot_date"),
+        Index("idx_equity_account_date", "account_id", "snapshot_date"),
+    )
 
 
 # (signal_provider_config 表已移除，信号源配置迁移到 .py 文件驱动架构)

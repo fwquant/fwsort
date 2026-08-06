@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from loguru import logger
+from fwsort.fwlogs import logger
 
 
 # ========== 网关异常 ==========

@@ -14,7 +14,7 @@ from pathlib import Path
 
 # 尝试导入 loguru，如果失败则使用标准 logging 模块作为后备
 try:
-    from loguru import logger as loguru_logger
+    from fwsort.fwlogs import logger as loguru_logger
 
     _loguru_available = True
 except ImportError:

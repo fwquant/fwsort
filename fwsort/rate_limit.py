@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Request
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.config import settings
 from fwsort.exceptions import AuthError

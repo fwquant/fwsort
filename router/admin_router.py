@@ -657,3 +657,37 @@ async def config_meta(user: User = Depends(require_admin)) -> dict:
         "configs": config_list,
         "architecture": "database-primary",
     }, message="config meta")
+
+
+# ========== 20. 重置数据库：清空交易数据，保留配置 ==========
+@router.post("/reset-db", response_model=dict)
+async def reset_database(
+    confirm_token: str,
+    mode: str = "prod",  # "prod" = 主数据库, "demo" = 演示数据库
+    db: AsyncSession = Depends(get_async_db),
+    user: User | None = Depends(current_user_optional),
+) -> dict:
+    """重置数据库：清空所有交易数据，保留配置
+
+    Args:
+        confirm_token: 确认令牌，主库需要 "RESET_DB"，演示库需要 "RESET_DEMO_DB"
+        mode: "prod" 重置主数据库 (fwsort.db), "demo" 重置演示数据库 (fwsort_demo.db)
+
+    Returns:
+        dict: {"status": "ok", "cleared_tables": [...], "message": "..."}
+    """
+    await _bootstrap_or_admin(db, user)
+
+    if mode == "demo":
+        from fwsort.database import reset_demo_db
+        result = reset_demo_db(confirm_token=confirm_token)
+    else:
+        from fwsort.database import reset_db
+        result = reset_db(confirm_token=confirm_token)
+
+    if result["status"] == "ok":
+        logger.bind(action="reset_db", mode=mode).info(result["message"])
+    else:
+        logger.bind(action="reset_db", mode=mode).error(result["message"])
+
+    return success(data=result, message=result.get("message", ""))

@@ -2,7 +2,7 @@
 import json
 import time
 
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.agents.base import BaseAgent, PredictionResult
 from fwsort.config import settings

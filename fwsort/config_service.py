@@ -17,7 +17,7 @@ import time
 from typing import Any
 
 from sqlalchemy import select
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.database import AsyncSessionLocal
 from fwsort.models import SystemConfig

@@ -8,8 +8,8 @@ from pathlib import Path
 # 把项目根加入 import 路径
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fwsort.signals.parser import parse_target_url, is_valid_target_url
-from fwsort.signals.generator import generate_signal, signal_to_direction, UP, DOWN, NEUTRAL
+from fwsort.strategy.parser import parse_target_url, is_valid_target_url
+from fwsort.strategy.generator import generate_signal, signal_to_direction, UP, DOWN, NEUTRAL
 
 
 class TestParser:

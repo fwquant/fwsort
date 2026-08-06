@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.gateway.base import BaseGateway
 

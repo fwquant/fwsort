@@ -25,7 +25,7 @@
 
   async function init() {
     if (!window.__FW_DEMO_MODE__ && !FWUI.api.getToken()) {
-      document.getElementById("tasks-cards-wrap").innerHTML = '<div class="fwui-empty-card"><div style="font-size:32px;margin-bottom:12px;">🔒</div><div style="margin-bottom:16px;">登录后查看任务状态</div><button class="fwui-btn fwui-btn--primary" onclick="FWUI.toast.info(\'请点击右上角登录\')">去登录</button></div>';
+      document.getElementById("tasks-cards-wrap").innerHTML = '<div class="fwui-empty-card"><div style="font-size:32px;margin-bottom:12px;">🔒</div><div style="margin-bottom:16px;">登录后查看任务状态</div><button class="fwui-btn fwui-btn--primary" onclick="FWUI.auth.openLoginModal()">去登录</button></div>';
       return;
     }
     document.getElementById("btn-refresh-tasks").onclick = load;

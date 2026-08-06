@@ -21,7 +21,7 @@
         <div class="fwui-empty-card">
           <div style="font-size:32px;margin-bottom:12px;">🔒</div>
           <div style="margin-bottom:16px;">登录后查看您的执行账户</div>
-          <button class="fwui-btn fwui-btn--primary" onclick="FWUI.toast.info('请点击右上角登录')">去登录</button>
+          <button class="fwui-btn fwui-btn--primary" onclick="FWUI.auth.openLoginModal()">去登录</button>
         </div>
       `;
       return;
@@ -190,7 +190,46 @@
       container.className = "accounts-view accounts-view--card fwui-card-grid fwui-card-grid--wide";
       container.innerHTML = renderCards(_filteredData);
       bindCardActions();
+      loadSparklines();
     }
+  }
+
+  // ========== 资金曲线 Sparkline ==========
+  async function loadSparklines() {
+    const sparkEls = document.querySelectorAll("[data-account-id]");
+    for (const el of sparkEls) {
+      const accId = el.getAttribute("data-account-id");
+      try {
+        const res = await FWUI.api.equityCurve(accId, 50);
+        if (res && res.data && res.data.curve && res.data.curve.length > 1) {
+          renderSparkline(el, res.data.curve);
+        } else {
+          el.querySelector("text").textContent = "暂无交易数据";
+        }
+      } catch (e) {
+        el.querySelector("text").textContent = "曲线加载失败";
+      }
+    }
+  }
+
+  function renderSparkline(el, curve) {
+    const values = curve.map((p) => p.cumulative);
+    const w = 200, h = 40;
+    const min = Math.min(...values, 0);
+    const max = Math.max(...values, 0);
+    const range = max - min || 1;
+    const points = values.map((v, i) => {
+      const x = (i / (values.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 4) - 2;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const color = values[values.length - 1] >= 0 ? "var(--fwui-up)" : "var(--fwui-down)";
+    el.innerHTML = `
+      <svg width="100%" height="40" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+        <polyline fill="none" stroke="${color}" stroke-width="1.5" points="${points}"/>
+        <line x1="0" y1="${h - 2 - ((0 - min) / range) * (h - 4)}" x2="${w}" y2="${h - 2 - ((0 - min) / range) * (h - 4)}" stroke="var(--fwui-border)" stroke-width="0.5" stroke-dasharray="2 2"/>
+      </svg>
+    `;
   }
 
   // ========== 卡片视图 ==========
@@ -208,6 +247,18 @@
     const publicTag = a.public_enabled
       ? `<span class="fwui-tag fwui-tag--primary" title="参与总榜单">🌍 公开</span>`
       : `<span class="fwui-tag" title="不参与总榜单">🔒 私有</span>`;
+    // 绩效指标
+    const totalPnl = a.total_pnl || 0;
+    const totalPnlCls = totalPnl >= 0 ? "fwui-up" : "fwui-down";
+    const winRate = (a.win_rate || 0) * 100;
+    const winRateCls = winRate >= 50 ? "fwui-up" : "fwui-down";
+    const tradeCount = a.trade_count || 0;
+    const score = a.composite_score || 0;
+    const scoreCls = score >= 60 ? "fwui-up" : (score >= 30 ? "" : "fwui-down");
+    const sharpe = a.sharpe_ratio || 0;
+    const sharpeCls = sharpe >= 1 ? "fwui-up" : (sharpe < 0 ? "fwui-down" : "");
+    const dd = (a.max_drawdown || 0) * 100;
+    const plRatio = a.profit_loss_ratio || 0;
     return `
       <div class="fwui-card account-card">
         <div class="account-card__head">
@@ -230,17 +281,42 @@
             <div class="account-card__stat-value ${pnlCls}">${(a.daily_pnl >= 0 ? "+" : "")}${FWUI.utils.fmtUsd(a.daily_pnl, 2)}</div>
           </div>
           <div class="account-card__stat">
-            <div class="account-card__stat-label">信号</div>
-            <div class="account-card__stat-value"><span class="fwui-tag fwui-tag--${sigColor}">${escapeHtml(a.signal || "NEUTRAL")}</span></div>
+            <div class="account-card__stat-label">总盈亏</div>
+            <div class="account-card__stat-value ${totalPnlCls}">${(totalPnl >= 0 ? "+" : "")}${FWUI.utils.fmtUsd(totalPnl, 2)}</div>
           </div>
           <div class="account-card__stat">
-            <div class="account-card__stat-label">下单金额</div>
-            <div class="account-card__stat-value">$${FWUI.utils.fmtNumber(a.order_amount_usd || 0, 0)}</div>
+            <div class="account-card__stat-label">交易笔数</div>
+            <div class="account-card__stat-value">${tradeCount}</div>
           </div>
+        </div>
+        <div class="account-card__stats">
+          <div class="account-card__stat">
+            <div class="account-card__stat-label">胜率</div>
+            <div class="account-card__stat-value ${winRateCls}">${winRate.toFixed(1)}%</div>
+          </div>
+          <div class="account-card__stat">
+            <div class="account-card__stat-label">盈亏比</div>
+            <div class="account-card__stat-value">${plRatio.toFixed(2)}</div>
+          </div>
+          <div class="account-card__stat">
+            <div class="account-card__stat-label">夏普率</div>
+            <div class="account-card__stat-value ${sharpeCls}">${sharpe.toFixed(2)}</div>
+          </div>
+          <div class="account-card__stat">
+            <div class="account-card__stat-label">综合分</div>
+            <div class="account-card__stat-value ${scoreCls}">${score.toFixed(1)}</div>
+          </div>
+        </div>
+        <div class="account-card__sparkline" id="spark-${a.id}" data-account-id="${a.id}">
+          <svg width="100%" height="40" viewBox="0 0 200 40" preserveAspectRatio="none">
+            <polyline class="spark-line" fill="none" stroke="var(--fwui-text-muted)" stroke-width="1.5" points="0,20 200,20"/>
+            <text x="100" y="24" text-anchor="middle" fill="var(--fwui-text-muted)" font-size="10">资金曲线加载中...</text>
+          </svg>
         </div>
         <div class="account-card__extra" style="font-size:12px;color:var(--fwui-text-muted);padding:0 16px 8px;">
           标的：<strong>${escapeHtml(a.target_symbol || a.target_url || "未设置")}</strong>
           · 最近下单：<strong>${a.last_order_at ? escapeHtml(a.last_order_at.replace("T", " ").slice(0, 16)) : "—"}</strong>
+          · 最大回撤：<strong class="${dd > 20 ? 'fwui-down' : ''}">${dd.toFixed(1)}%</strong>
         </div>
         <div class="account-card__actions">
           <button class="fwui-btn fwui-btn--primary fwui-btn--sm" data-action="vote" data-id="${a.id}" ${a.risk_frozen || a.status !== 0 ? "disabled" : ""}>🧠 触发投票</button>

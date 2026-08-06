@@ -8,11 +8,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from loguru import logger
+
 
 from fwsort.config import settings
 from fwsort.es_client import ensure_order_log_index, close_es_client
 from fwsort.exceptions import FwsortError
+from fwsort.fwlogs import logger
 from fwsort.response import fail
 from router import (
     admin_router,
@@ -25,8 +26,11 @@ from router import (
     polymarket_router,
     ranking_router,
     rental_router,
-    signal_provider_router,
-    task_router,
+    risk_router,
+    strategy_router,
+    auto_strategy_router,
+    strategy_trade_router,
+    equity_curve_router,
 )
 
 
@@ -45,10 +49,6 @@ class InterceptHandler(logging.Handler):
         # 过滤 SQLAlchemy 等高频日志
         if record.name in self._FILTERED_LOGGERS and record.levelno < self._FILTERED_LEVEL:
             return
-        try:
-            level = logger.level(record.levelname).name
-        except ValueError:
-            level = record.levelno
         # WP-Fix: 转义 loguru 颜色标签字符 < > 与 [ ]，避免 elastic_transport 等
         # 第三方库日志中的 <Node(...)> / [xxx] 触发 loguru Colorizer ValueError
         try:
@@ -61,7 +61,21 @@ class InterceptHandler(logging.Handler):
             )
         except Exception:  # noqa: BLE001
             safe = record.getMessage()
-        logger.opt(depth=6, exception=record.exc_info).log(level, safe)
+        if record.exc_info:
+            import traceback
+            tb = "".join(traceback.format_exception(*record.exc_info))
+            safe = safe + "\n" + tb
+        level = record.levelname
+        if level == "DEBUG":
+            logger.debug(safe)
+        elif level == "INFO":
+            logger.info(safe)
+        elif level == "WARNING":
+            logger.warning(safe)
+        elif level in ("ERROR", "CRITICAL"):
+            logger.error(safe)
+        else:
+            logger.info(safe)
 
 
 logging.basicConfig(handlers=[InterceptHandler()], level=0)
@@ -423,7 +437,7 @@ async def lifespan(app: FastAPI):
     async def _sync_signal_providers() -> None:
         try:
             await asyncio.sleep(2)
-            from fwsort.signals import list_providers
+            from fwsort.strategy import list_providers
             # 新架构：信号源由 manager._discover_providers() 自动发现
             logger.info("[signal-providers] auto-discovered %d providers", len(list_providers()))
         except Exception as e:
@@ -452,25 +466,25 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(_init_es())
 
     # 启动内置自动任务调度器（不依赖 Celery，内置轮询机制）
-    async def _start_auto_task_dispatcher() -> None:
+    async def _start_auto_strategy_dispatcher() -> None:
         try:
             await asyncio.sleep(3)  # 等待数据库和 Redis 初始化完成
-            from fwsort.tasks.dispatcher import start_dispatcher, get_dispatcher_status
+            from fwsort.strategy.dispatcher import start_dispatcher, get_dispatcher_status
             start_dispatcher()
             status = get_dispatcher_status()
-            logger.info(f"[AutoTaskDispatcher] 状态: {status}")
+            logger.info("[AutoStrategyDispatcher] 状态: {}", status)
         except Exception as e:
-            logger.warning(f"[AutoTaskDispatcher] 启动失败（非致命）: {e}")
-    asyncio.create_task(_start_auto_task_dispatcher())
+            logger.warning(f"[AutoStrategyDispatcher] 启动失败（非致命）: {e}")
+    asyncio.create_task(_start_auto_strategy_dispatcher())
 
     logger.info(f"fwsort started | env={settings.APP_ENV} | mode={settings.TRADE_MODE} | demo={settings.APP_DEMO_MODE}")
     yield
     # 关闭内置自动任务调度器
     try:
-        from fwsort.tasks.dispatcher import stop_dispatcher
+        from fwsort.strategy.dispatcher import stop_dispatcher
         stop_dispatcher()
     except Exception as e:
-        logger.warning(f"[AutoTaskDispatcher] 停止失败: {e}")
+        logger.warning(f"[AutoStrategyDispatcher] 停止失败: {e}")
 
     try:
         await close_es_client()
@@ -701,8 +715,12 @@ app.include_router(follow_router.router, prefix="/api/follow", tags=["follow"])
 app.include_router(rental_router.router, prefix="/api/rental", tags=["rental"])
 app.include_router(notification_router.router, prefix="/api/notify", tags=["notify"])
 app.include_router(polymarket_router.router, prefix="/api/polymarket", tags=["polymarket"])
-app.include_router(task_router.router, prefix="/api/tasks", tags=["tasks"])
-app.include_router(signal_provider_router.router, tags=["signal-providers"])
+app.include_router(auto_strategy_router.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(strategy_router.router, tags=["signal-providers"])
+app.include_router(strategy_trade_router.router, tags=["strategy-trades"])
+app.include_router(equity_curve_router.router, tags=["equity-curves"])
+# 风控独立模块（与 strategy 平级）
+app.include_router(risk_router.router)
 
 
 # ========== WP-06：把所有 /api/* 路由镜像到 /api/demo/*（独立数据通道）==========
@@ -713,15 +731,37 @@ def _mirror_router_to_demo(router_obj, prefix: str) -> int:
     """把一个 APIRouter 下的所有路由镜像到 /api/demo{prefix}/* 路径
     - prefix 形如 '/api/ranking'（已含 /api）
     - new_path = '/api/demo' + prefix[4:] + r.path  →  '/api/demo/ranking/xxx'
+    - 对于已包含完整 /api 路径的路由（如 strategy_router），自动识别并正确处理
     """
     from fastapi.routing import APIRoute
 
-    demo_prefix = "/api/demo" + prefix[len("/api"):]  # 去掉 prefix 中的 /api 段
+    # 检查路由是否已经包含完整 /api 路径
+    routes = list(router_obj.routes)
+    has_full_api_paths = any(
+        isinstance(r, APIRoute) and r.path.startswith("/api/")
+        for r in routes
+    )
+
     count = 0
-    for r in list(router_obj.routes):
+    for r in routes:
         if not isinstance(r, APIRoute):
             continue
-        new_path = f"{demo_prefix}{r.path}"
+
+        if has_full_api_paths:
+            # 路由已包含 /api 前缀，只需在 /api 后插入 /demo
+            # 例如: /api/signal-providers/xxx → /api/demo/signal-providers/xxx
+            route_path = r.path
+            if route_path.startswith("/api/"):
+                new_path = "/api/demo" + route_path[4:]
+            elif route_path == "/api":
+                new_path = "/api/demo"
+            else:
+                new_path = route_path  # 无法识别，保持原样
+        else:
+            # 标准模式：prefix + 相对路径
+            demo_prefix = "/api/demo" + prefix[len("/api"):]
+            new_path = f"{demo_prefix}{r.path}"
+
         try:
             app.add_api_route(
                 new_path,
@@ -749,7 +789,10 @@ _total_mirrored += _mirror_router_to_demo(follow_router.router, "/api/follow")
 _total_mirrored += _mirror_router_to_demo(rental_router.router, "/api/rental")
 _total_mirrored += _mirror_router_to_demo(notification_router.router, "/api/notify")
 _total_mirrored += _mirror_router_to_demo(polymarket_router.router, "/api/polymarket")
-_total_mirrored += _mirror_router_to_demo(task_router.router, "/api/tasks")
+_total_mirrored += _mirror_router_to_demo(auto_strategy_router.router, "/api/tasks")
+_total_mirrored += _mirror_router_to_demo(strategy_router.router, "/api/signal-providers")
+_total_mirrored += _mirror_router_to_demo(strategy_trade_router.router, "/api/strategy-trades")
+_total_mirrored += _mirror_router_to_demo(equity_curve_router.router, "/api/equity-curves")
 logger.info(f"WP-06: mirrored {_total_mirrored} /api/* routes to /api/demo/*")
 
 
@@ -836,6 +879,7 @@ _PAGE_TEMPLATES = {
     "guide": "web/templates/guide.html",
     "profile": "web/templates/profile.html",
     "polymarket_debug": "web/templates/polymarket_debug.html",
+    "risk": "web/templates/risk.html",
 }
 
 def _render_page_sync(name: str, demo: bool = False, initial_tab: str = "global") -> HTMLResponse:
@@ -926,6 +970,11 @@ async def admin_task_list_page() -> HTMLResponse:
 async def profile_page() -> HTMLResponse:
     return await _render_page("profile")
 
+@app.get("/risk", response_class=HTMLResponse)
+async def risk_page() -> HTMLResponse:
+    """风控独立模块页面：参数配置（账户/策略/模板） + 事件日志"""
+    return await _render_page("risk")
+
 @app.get("/polymarket", response_class=HTMLResponse)
 async def polymarket_debug_page() -> HTMLResponse:
     """Polymarket F3 调试页面"""
@@ -995,6 +1044,11 @@ async def demo_admin_task_list_page() -> HTMLResponse:
 @app.get("/demo/profile", response_class=HTMLResponse)
 async def demo_profile_page() -> HTMLResponse:
     return await _render_page("profile", demo=True)
+
+@app.get("/demo/risk", response_class=HTMLResponse)
+async def demo_risk_page() -> HTMLResponse:
+    """演示模式风控页面"""
+    return await _render_page("risk", demo=True)
 
 @app.get("/demo/guide", response_class=HTMLResponse)
 async def demo_guide_page() -> HTMLResponse:

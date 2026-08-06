@@ -34,14 +34,14 @@ def vote(
     - 3 同方向 → 10 美元 (double_10)
     - 2:1 多数 → 5 美元 (base_5)
     - 无共识（3 不同）→ 0 不交易 (no_consensus)
-    - 风控：单笔 ≤ 余额 20%
-    - 风控：日亏 ≥ 30% → 强停
+    - 风控：单笔 ≤ 余额 20%（通过 RiskControlService 检查，保留 reason 格式以兼容）
+    - 风控：日亏 ≥ 30% → 强停（通过 RiskControlService 检查，保留 reason 格式以兼容）
     """
     up = sum(1 for d in directions if d == Direction.UP)
     down = sum(1 for d in directions if d == Direction.DOWN)
     flat = sum(1 for d in directions if d == Direction.FLAT)
 
-    # 风控：日亏上限
+    # 风控：日亏上限（兼容旧 reason 格式）
     if initial_balance > 0:
         loss_ratio = abs(min(daily_pnl, 0)) / initial_balance
         if loss_ratio >= settings.RISK_DAILY_LOSS_RATIO:
@@ -63,7 +63,7 @@ def vote(
     else:
         amount, direction, reason = 0.0, Direction.FLAT, "no_consensus"
 
-    # 风控：单笔上限
+    # 风控：单笔上限（兼容旧 reason 格式）
     if amount > 0:
         max_single = account_balance * settings.RISK_SINGLE_RATIO
         if amount > max_single:

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fwsort.agents.hermes_moa import build_hermes_moa
-from fwsort.database import get_async_db
+from fwsort.database import get_async_db, get_sync_db
 from fwsort.exceptions import NotFoundError, ParamError, RiskControlError
 from fwsort.fwlogs import logger
 from fwsort.gateway.gateway import ExecutionResult, get_gateway
@@ -19,6 +19,7 @@ from fwsort.models import (
     VoteDecision,
 )
 from fwsort.response import success
+from fwsort.risk.service import RiskControlService
 from fwsort.schemas import AgentPredictionItem, AgentPredictionReq, VoteResultResp
 from fwsort.voting import vote
 from router.auth_router import current_user
@@ -60,8 +61,16 @@ async def predict_and_vote(
     ).scalar_one_or_none()
     if not acc:
         raise NotFoundError("execution account not found")
-    if acc.risk_frozen:
-        raise RiskControlError("account is frozen by risk control")
+    # 风控冻结检查（统一真源走 RiskControlService，同步镜像回 async acc.risk_frozen）
+    with get_sync_db() as sync_db:
+        frozen, frozen_reason = RiskControlService.is_account_frozen(sync_db, account_id)
+        if frozen:
+            # 镜像回 async session（兼容旧字段 acc.risk_frozen）
+            acc.risk_frozen = True
+            await db.flush()
+            raise RiskControlError(frozen_reason or "account is frozen by risk control")
+    # 同步：确保 async ORM 对象和风控表一致
+    acc.risk_frozen = False
     if acc.status != 0:
         raise ParamError(f"account status={acc.status}, cannot trade")
 
@@ -88,8 +97,23 @@ async def predict_and_vote(
         db_preds.append(ap)
     await db.flush()
 
-    # 4) 投票引擎
+    # 4) 投票引擎（投票前先通过统一风控入口检查冻结/金额截断）
     directions = [p.direction for p in moa_result.layer1_results]
+    with get_sync_db() as sync_db:
+        pre_risk, _ = RiskControlService.check_before_vote(
+            sync_db,
+            account_id=account_id,
+            account_balance=float(acc.current_balance),
+            daily_pnl=float(acc.daily_pnl),
+            initial_balance=float(acc.initial_balance),
+            proposed_amount=settings.ORDER_DOUBLE_USD,
+            user_id=user.id,
+        )
+        if pre_risk.should_freeze:
+            # 统一冻结入口（已内部镜像 acc.risk_frozen）
+            sync_db.commit()
+            raise RiskControlError(pre_risk.freeze_reason or pre_risk.message)
+
     v = vote(
         directions=directions,
         account_balance=float(acc.current_balance),
@@ -97,8 +121,15 @@ async def predict_and_vote(
         initial_balance=float(acc.initial_balance),
     )
 
-    # 若风控冻结，更新账户
+    # 若投票内嵌风控触发冻结（兼容旧 reason 字符串），走统一冻结入口
     if "risk_freeze" in v.reason:
+        with get_sync_db() as sync_db:
+            RiskControlService.freeze_account(
+                sync_db, account_id, reason=v.reason,
+                rule_name="VotingEmbeddedDailyLoss",
+                operator_user_id=user.id,
+            )
+            sync_db.commit()
         acc.risk_frozen = True
         await db.flush()
         raise RiskControlError(v.reason)
@@ -226,7 +257,12 @@ async def list_my_accounts(
     db: AsyncSession = Depends(get_async_db),
     user: User = Depends(current_user),
 ) -> dict:
-    """当前用户的所有执行账户（1对N；WP-05 过滤已软删）"""
+    """当前用户的所有执行账户（1对N；WP-05 过滤已软删）
+
+    返回字段包含绩效摘要（win_rate / total_pnl / trade_count / composite_score）
+    """
+    from fwsort.models import StrategyPerformance
+
     rows = (
         await db.execute(
             select(ExecutionAccount)
@@ -234,6 +270,22 @@ async def list_my_accounts(
             .where(ExecutionAccount.deleted_at.is_(None))
         )
     ).scalars().all()
+
+    # 批量查询绩效（period_type=4 总周期）
+    account_ids = [a.id for a in rows]
+    perf_map: dict[int, StrategyPerformance] = {}
+    if account_ids:
+        perfs = (
+            await db.execute(
+                select(StrategyPerformance)
+                .where(
+                    StrategyPerformance.account_id.in_(account_ids),
+                    StrategyPerformance.period_type == 4,
+                )
+            )
+        ).scalars().all()
+        perf_map = {p.account_id: p for p in perfs}
+
     return success(data={"count": len(rows), "accounts": [
         {
             "id": a.id,
@@ -254,6 +306,14 @@ async def list_my_accounts(
             "last_order_at": a.last_order_at.isoformat() if a.last_order_at else None,
             "public_enabled": a.public_enabled,
             "created_at": a.created_at.isoformat() if a.created_at else None,
+            # 绩效摘要（从 StrategyPerformance 聚合）
+            "win_rate": float(perf.win_rate) if (perf := perf_map.get(a.id)) else 0.0,
+            "trade_count": perf.trade_count if (perf := perf_map.get(a.id)) else 0,
+            "total_pnl": float(a.current_balance) - float(a.initial_balance),
+            "composite_score": float(perf.composite_score) if (perf := perf_map.get(a.id)) else 0.0,
+            "sharpe_ratio": float(perf.sharpe_ratio) if (perf := perf_map.get(a.id)) else 0.0,
+            "max_drawdown": float(perf.max_drawdown) if (perf := perf_map.get(a.id)) else 0.0,
+            "profit_loss_ratio": float(perf.profit_loss_ratio) if (perf := perf_map.get(a.id)) else 0.0,
         }
         for a in rows
     ]})
@@ -274,7 +334,7 @@ async def create_account(
     """创建执行账户（每个用户可创建 N 个）"""
     import uuid
 
-    from fwsort.signals.parser import parse_target_url
+    from fwsort.strategy.parser import parse_target_url
 
     if platform not in ("polymarket", "okx"):
         raise ParamError("platform must be polymarket or okx")
@@ -328,7 +388,7 @@ async def update_account(
     - 支持 JSON body 局部更新
     - target_url 修改时自动解析 target_symbol
     """
-    from fwsort.signals.parser import parse_target_url
+    from fwsort.strategy.parser import parse_target_url
 
     acc = (
         await db.execute(
@@ -382,6 +442,33 @@ async def update_account(
     )
 
 
+# ========== 接口：资金曲线 ==========
+@router.get("/accounts/{account_id}/equity-curve", response_model=dict)
+async def get_equity_curve(
+    account_id: int,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_async_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """获取账户资金曲线（累计 PnL 序列，用于前端 sparkline）"""
+    from fwsort.strategy.performance_aggregator import get_account_equity_curve
+
+    # 权限校验
+    acc = (
+        await db.execute(
+            select(ExecutionAccount)
+            .where(ExecutionAccount.id == account_id)
+            .where(ExecutionAccount.owner_id == user.id)
+            .where(ExecutionAccount.deleted_at.is_(None))
+        )
+    ).scalars().first()
+    if not acc:
+        return fail(code=404, message="account not found")
+
+    curve = get_account_equity_curve(account_id, limit=limit)
+    return success(data={"curve": curve, "count": len(curve)})
+
+
 # ========== 接口：刷新信号（生成一次信号，可选 source）==========
 @router.post("/accounts/{account_id}/signal/refresh", response_model=dict)
 async def refresh_account_signal(
@@ -393,7 +480,7 @@ async def refresh_account_signal(
     """立即生成一次信号（写入账户.signal 字段）"""
     from datetime import datetime
 
-    from fwsort.signals.generator import generate_signal
+    from fwsort.strategy.generator import generate_signal
 
     if source not in ("random", "gpt-4o", "claude", "gemini", "moa"):
         raise ParamError("source must be random/gpt-4o/claude/gemini/moa")

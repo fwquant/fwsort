@@ -40,15 +40,19 @@
       const modalClass = type ? `fwui-modal fwui-modal--${type}` : "fwui-modal";
 
       let bodyHtml = "";
+      const contentHtml = typeof content === "string" && content
+        ? `<div class="fwui-modal__content">${content}</div>`
+        : "";
       if (inputFields && inputFields.length) {
-        bodyHtml = inputFields.map((f) => `
+        const fieldsHtml = inputFields.map((f) => `
           <div class="fwui-form-row">
-            <label>${escapeHtml(f.label || f.name)}</label>
+            ${f.label ? `<label>${escapeHtml(f.label)}</label>` : ""}
             <input class="fwui-input" name="${escapeHtml(f.name)}" value="${escapeHtml(f.value || "")}" placeholder="${escapeHtml(f.placeholder || "")}" ${f.required ? "required" : ""} />
           </div>
         `).join("");
-      } else if (typeof content === "string") {
-        bodyHtml = `<div>${content}</div>`;
+        bodyHtml = contentHtml + fieldsHtml;
+      } else if (contentHtml) {
+        bodyHtml = contentHtml;
       }
 
       const mask = document.createElement("div");
@@ -88,6 +92,8 @@
         mask.style.animation = "none";
         mask.style.opacity = "0";
         mask.style.transition = "opacity 0.18s ease";
+        document.removeEventListener("keydown", escHandler);
+        document.removeEventListener("keydown", enterHandler);
         setTimeout(() => {
           if (mask.parentNode) mask.remove();
           resolve(result);
@@ -137,10 +143,25 @@
         if (e.key === "Escape") {
           onCancel && onCancel();
           close(false);
-          document.removeEventListener("keydown", escHandler);
         }
       };
       document.addEventListener("keydown", escHandler);
+
+      // Enter 提交（焦点在模态框内输入框时）
+      const enterHandler = (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          const active = document.activeElement;
+          if (active && active.tagName === "INPUT" && active.closest(".fwui-modal")) {
+            // 检查输入框类型：textarea 允许换行，普通 input 回车提交
+            if (active.type !== "textarea") {
+              e.preventDefault();
+              const okBtn = mask.querySelector('[data-action="ok"]');
+              if (okBtn) okBtn.click();
+            }
+          }
+        }
+      };
+      document.addEventListener("keydown", enterHandler);
     });
   }
 

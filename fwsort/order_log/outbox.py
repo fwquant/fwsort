@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Any
 
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.es_client import async_es, es_available
 from fwsort.redis_client import sync_redis

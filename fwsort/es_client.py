@@ -4,7 +4,7 @@ from typing import Optional
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.exceptions import ApiError
 from elastic_transport import TransportError
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.config import settings
 

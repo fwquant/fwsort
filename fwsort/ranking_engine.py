@@ -143,7 +143,7 @@ def refresh_redis_zset(db, rank_type: int | None = None) -> dict:
         try:
             sync_redis.delete(zkey)
         except Exception as e:  # noqa: BLE001
-            from loguru import logger
+            from fwsort.fwlogs import logger
 
             logger.warning(f"redis delete {zkey} failed: {e}")
 
@@ -161,12 +161,12 @@ def refresh_redis_zset(db, rank_type: int | None = None) -> dict:
                 try:
                     sync_redis.zadd(zkey, {p.uid: new_score})
                 except Exception as e:  # noqa: BLE001
-                    from loguru import logger
+                    from fwsort.fwlogs import logger
 
                     logger.warning(f"redis zadd {p.uid} failed: {e}")
                 updated += 1
             except Exception as e:  # noqa: BLE001
-                from loguru import logger
+                from fwsort.fwlogs import logger
 
                 logger.warning(f"refresh_redis_zset uid={p.uid} failed: {e}")
                 failed += 1

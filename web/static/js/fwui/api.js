@@ -148,6 +148,9 @@
     // 权重
     getWeights:   (rankType = 1) => request("GET", `/api/ranking/config/weights?rank_type=${rankType}`),
     updateWeights:(rankType, payload) => request("PUT", `/api/ranking/config/weights?rank_type=${rankType}`, payload),
+
+    // 资金曲线
+    equityCurve:  (accountId, limit = 50) => request("GET", `/api/agent/accounts/${accountId}/equity-curve?limit=${limit}`),
   };
 
   global.FWUI = global.FWUI || {};

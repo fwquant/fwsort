@@ -5,13 +5,14 @@ from datetime import datetime, timedelta
 
 from celery import Celery
 from celery.schedules import crontab
-from loguru import logger
+from fwsort.fwlogs import logger
 
 from fwsort.config import settings
 from fwsort.database import get_sync_db
 from fwsort.models import RankSnapshot, StrategyPerformance
 from fwsort.ranking_engine import composite_score
 from fwsort.redis_client import RankType, rank_key, sync_redis
+from fwsort.risk.service import RiskControlService
 
 # ========== Celery 实例 ==========
 celery_app = Celery(
@@ -73,8 +74,13 @@ celery_app.conf.update(
         },
         # 自动任务调度器：每分钟扫描一次，根据任务 interval 触发
         "auto-task-dispatcher": {
-            "task": "fwsort.scheduler.auto_task_dispatcher",
+            "task": "fwsort.scheduler.auto_strategy_dispatcher",
             "schedule": crontab(minute="*"),
+        },
+        # 绩效聚合：每 5 分钟从 AutoStrategyLog 聚合到 StrategyPerformance
+        "aggregate-performance": {
+            "task": "fwsort.scheduler.aggregate_performance",
+            "schedule": crontab(minute="*/5"),
         },
     },
 )
@@ -284,14 +290,34 @@ def follow_auto_copy() -> int:
 def notify_scan() -> int:
     """每 10 分钟扫一次系统状态，发现异常推通知"""
     from fwsort.models import ExecutionAccount, FollowSubscription, Notification
+    from fwsort.risk.models import AccountRiskProfile
 
     pushed = 0
     now = datetime.now()
     with get_sync_db() as db:
-        # 1) 风控冻结通知
-        frozen = db.query(ExecutionAccount).filter(ExecutionAccount.risk_frozen == True).all()  # noqa: E712
-        for a in frozen:
-            # 同一账户 1 天内只推一次
+        # 1) 风控冻结通知（从真源 AccountRiskProfile 查，镜像字段也能查到以兼容）
+        frozen_rows = (
+            db.query(AccountRiskProfile, ExecutionAccount)
+            .outerjoin(ExecutionAccount, AccountRiskProfile.account_id == ExecutionAccount.id)
+            .filter(AccountRiskProfile.is_frozen == True)  # noqa: E712
+            .all()
+        )
+        if not frozen_rows:
+            # 兜底：兼容老数据（直接从 ExecutionAccount.risk_frozen 查）
+            acc_frozen = db.query(ExecutionAccount).filter(ExecutionAccount.risk_frozen == True).all()  # noqa: E712
+            for a in acc_frozen:
+                recent = (
+                    db.query(Notification)
+                    .filter(Notification.user_id == a.owner_id, Notification.ntype == 3, Notification.content.like(f"%{a.uid}%"))
+                    .filter(Notification.created_at > now - timedelta(days=1))
+                    .first()
+                )
+                if not recent:
+                    db.add(Notification(user_id=a.owner_id, ntype=3, title="风控冻结", content=f"账户 {a.uid} 已被风控冻结（兼容旧字段）"))
+                    pushed += 1
+        for rp, a in frozen_rows:
+            if a is None:
+                continue
             recent = (
                 db.query(Notification)
                 .filter(Notification.user_id == a.owner_id, Notification.ntype == 3, Notification.content.like(f"%{a.uid}%"))
@@ -299,7 +325,12 @@ def notify_scan() -> int:
                 .first()
             )
             if not recent:
-                db.add(Notification(user_id=a.owner_id, ntype=3, title="风控冻结", content=f"账户 {a.uid} 因日亏超限已被风控冻结"))
+                reason = rp.frozen_reason or "风控自动冻结"
+                db.add(Notification(
+                    user_id=a.owner_id, ntype=3,
+                    title="风控冻结",
+                    content=f"账户 {a.uid} 因风控触发已被冻结：{reason}",
+                ))
                 pushed += 1
         # 2) 订阅 7 天内到期
         soon = db.query(FollowSubscription).filter(
@@ -322,7 +353,7 @@ def refresh_account_signals() -> dict:
     from datetime import datetime
 
     from fwsort.models import ExecutionAccount
-    from fwsort.signals.generator import generate_signal
+    from fwsort.strategy.generator import generate_signal
 
     updated = 0
     failed = 0
@@ -362,7 +393,7 @@ def auto_predict_vote_trade() -> dict:
         OrderExecutionLog,
         VoteDecision,
     )
-    from fwsort.signals.generator import signal_to_direction
+    from fwsort.strategy.generator import signal_to_direction
     from fwsort.voting import vote
 
     started = datetime.now()
@@ -375,9 +406,24 @@ def auto_predict_vote_trade() -> dict:
     with get_sync_db() as db:
         accounts = db.query(ExecutionAccount).filter(
             ExecutionAccount.status == 0,
-            ExecutionAccount.risk_frozen == False,  # noqa: E712
         ).all()
-        for acc in accounts:
+        # 过滤：从统一风控真源排除冻结账户（同时镜像 ExecutionAccount.risk_frozen 以兼容）
+        active_accounts = []
+        for a in accounts:
+            frozen, _ = RiskControlService.is_account_frozen(db, a.id)
+            if frozen:
+                # 确保镜像字段一致
+                if not a.risk_frozen:
+                    a.risk_frozen = True
+                fail_count += 1
+                continue
+            # 反向同步：若风控表未冻结但 ExecutionAccount.risk_frozen=True，解除镜像
+            if a.risk_frozen:
+                a.risk_frozen = False
+            active_accounts.append(a)
+        db.flush()
+
+        for acc in active_accounts:
             try:
                 symbol = acc.target_symbol or "BTC-USDT"
                 # 已无信号则跳过
@@ -404,6 +450,20 @@ def auto_predict_vote_trade() -> dict:
                     db_preds.append(ap)
                 db.flush()
                 directions = [p.direction for p in moa_result.layer1_results]
+                # 投票前先统一跑风控
+                pre_risk, _ = RiskControlService.check_before_vote(
+                    db,
+                    account_id=acc.id,
+                    account_balance=float(acc.current_balance),
+                    daily_pnl=float(acc.daily_pnl),
+                    initial_balance=float(acc.initial_balance),
+                    proposed_amount=settings.ORDER_DOUBLE_USD,
+                    user_id=acc.owner_id,
+                )
+                if pre_risk.should_freeze:
+                    fail_count += 1
+                    continue
+
                 v = vote(
                     directions=directions,
                     account_balance=float(acc.current_balance),
@@ -411,8 +471,12 @@ def auto_predict_vote_trade() -> dict:
                     initial_balance=float(acc.initial_balance),
                 )
                 if "risk_freeze" in v.reason:
-                    acc.risk_frozen = True
-                    db.flush()
+                    # 兼容旧 reason 字符串：走统一冻结入口
+                    RiskControlService.freeze_account(
+                        db, acc.id, reason=v.reason,
+                        rule_name="SchedulerVoteDailyLoss",
+                        operator_user_id=acc.owner_id,
+                    )
                     fail_count += 1
                     continue
                 vote_row = VoteDecision(
@@ -488,6 +552,21 @@ def flush_outbox() -> dict:
     return result
 
 
+# ========== 任务 11：绩效聚合（AutoStrategyLog → StrategyPerformance）==========
+@celery_app.task(name="fwsort.scheduler.aggregate_performance")
+def aggregate_performance() -> dict:
+    """每 5 分钟从 AutoStrategyLog 聚合到 StrategyPerformance，重算 composite_score"""
+    try:
+        from fwsort.strategy.performance_aggregator import aggregate_all_accounts
+        result = aggregate_all_accounts()
+        _record_task_status("aggregate_performance", "ok", result)
+        return result
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[scheduler] aggregate_performance failed: {e}")
+        _record_task_status("aggregate_performance", "error", {"error": str(e)})
+        return {"updated": 0, "failed": 0, "error": str(e)}
+
+
 # ========== 工具：记录任务状态到 Redis（供 /api/agent/tasks 查询）==========
 def _record_task_status(task_name: str, status: str, payload: dict) -> None:
     """把任务最近一次执行状态写入 Redis HASH"""
@@ -519,7 +598,8 @@ def get_all_task_status() -> list[dict]:
         "refresh_account_signals",
         "auto_predict_vote_trade",
         "flush_outbox",  # WP-09
-        "auto_task_dispatcher",  # 自动任务调度器
+        "auto_strategy_dispatcher",  # 自动任务调度器
+        "aggregate_performance",  # 绩效聚合
     ]
     result: list[dict] = []
     try:
@@ -591,25 +671,25 @@ def mock_fill_rankings(n: int = 30) -> None:
 
 
 # ========== 任务 10：自动任务调度器（信号管理器 + 自动下单）==========
-@celery_app.task(name="fwsort.scheduler.auto_task_dispatcher")
-def auto_task_dispatcher() -> dict:
+@celery_app.task(name="fwsort.scheduler.auto_strategy_dispatcher")
+def auto_strategy_dispatcher() -> dict:
     """每分钟扫描所有活跃的自动任务，根据 interval 触发执行
 
     使用 Redis 记录每个任务的上次执行时间戳，实现多任务独立调度。
     """
     import json as _json
 
-    from fwsort.models import AutoTask
+    from fwsort.models import AutoStrategy
 
-    dispatcher_key = "fwsort:auto_task:last_run"
+    dispatcher_key = "fwsort:auto_strategy:last_run"
     now = int(time.time())
     triggered: list[int] = []
     skipped: list[int] = []
 
     with get_sync_db() as db:
-        active_tasks = db.query(AutoTask).filter(
-            AutoTask.is_active == True,
-            AutoTask.deleted_at.is_(None),
+        active_tasks = db.query(AutoStrategy).filter(
+            AutoStrategy.is_active == True,
+            AutoStrategy.deleted_at.is_(None),
         ).all()
 
         for task in active_tasks:
@@ -618,7 +698,7 @@ def auto_task_dispatcher() -> dict:
                 # 循环已完成，停止任务
                 task.is_active = False
                 db.commit()
-                logger.info(f"[auto_task_dispatcher] task {task.id} loop completed ({task.executed_count}/{task.loop_count}), stopped")
+                logger.info(f"[auto_strategy_dispatcher] task {task.id} loop completed ({task.executed_count}/{task.loop_count}), stopped")
                 skipped.append(task.id)
                 continue
 
@@ -644,9 +724,9 @@ def auto_task_dispatcher() -> dict:
 
                 # 异步投递到独立的执行任务（多任务多进程并发）
                 try:
-                    execute_auto_task.delay(task.id)
+                    execute_auto_strategy.delay(task.id)
                 except Exception as e:
-                    logger.error(f"[auto_task_dispatcher] failed to dispatch task {task.id}: {e}")
+                    logger.error(f"[auto_strategy_dispatcher] failed to dispatch task {task.id}: {e}")
             else:
                 skipped.append(task.id)
 
@@ -655,22 +735,22 @@ def auto_task_dispatcher() -> dict:
         "skipped": skipped,
         "active_count": len(active_tasks) if 'active_tasks' in dir() else 0,
     }
-    _record_task_status("auto_task_dispatcher", "ok", result)
+    _record_task_status("auto_strategy_dispatcher", "ok", result)
     return result
 
 
-@celery_app.task(name="fwsort.scheduler.execute_auto_task", bind=True, max_retries=0)
-def execute_auto_task(self, task_id: int) -> dict:
+@celery_app.task(name="fwsort.scheduler.execute_auto_strategy", bind=True, max_retries=0)
+def execute_auto_strategy(self, task_id: int) -> dict:
     """执行单个自动任务（独立 Celery 任务，多进程并发）
 
     流程：获取信号 → 风控检查 → 下单 → 记录日志
     """
-    from fwsort.tasks.service import execute_task
+    from fwsort.strategy.service import execute_task
 
     try:
         result = execute_task(task_id)
-        logger.info(f"[execute_auto_task] task={task_id} result={result.get('status')}")
+        logger.info(f"[execute_auto_strategy] task={task_id} result={result.get('status')}")
         return result
     except Exception as e:
-        logger.error(f"[execute_auto_task] task={task_id} failed: {e}")
+        logger.error(f"[execute_auto_strategy] task={task_id} failed: {e}")
         return {"task_id": task_id, "status": "error", "error": str(e)}
