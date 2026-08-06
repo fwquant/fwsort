@@ -74,14 +74,14 @@ class SftpStrategy(StrategyBase):
     host: str = "100.64.0.9"
     username: str = "khadas"
     password: str = ""
-    amount: float = 2.0
+    amount: float = 1.0
     long_connection: bool = False
     # 策略参数
     UP价格上限: float = 80
     UP价格下限: float = 10
 
     周期时间比例上限: float = 0.6
-    周期秒数: int = 1200
+    周期秒数: int = None  # 自动根据标的代码调整
 
     # 显示参数（Web 可编辑 其值 ）
     parameters = ["host", "username", "amount", "UP价格上限", "周期时间比例上限", "周期秒数"]
@@ -113,8 +113,8 @@ class SftpStrategy(StrategyBase):
                                                                                  self.long_connection)
         self.long_connection = bool(lc)
         self.UP价格上限 = max_up_price if max_up_price is not None else self.config.get("max_up_price", self.UP价格上限)
-        self.UP价格下限 = max_up_price if min_down_price is not None else self.config.get("min_down_price",
-                                                                                          self.UP价格上限)
+        self.UP价格下限 = min_down_price if min_down_price is not None else self.config.get("min_down_price",
+                                                                                          self.UP价格下限)
 
         self.周期时间比例上限 = max_cycle_ratio if max_cycle_ratio is not None else self.config.get("max_cycle_ratio",
                                                                                                     self.周期时间比例上限)
