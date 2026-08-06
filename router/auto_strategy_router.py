@@ -10,6 +10,7 @@ from fwsort.strategy.service import (
     create_task,
     delete_task,
     execute_task,
+    get_strategy_leaderboard,
     get_task,
     get_task_log_count,
     get_task_logs,
@@ -18,6 +19,7 @@ from fwsort.strategy.service import (
     start_task,
     start_task_async,
     stop_task,
+    update_settlement_for_task,
     update_task,
 )
 from fwsort.strategy.dispatcher import get_dispatcher_status, start_dispatcher, stop_dispatcher
@@ -32,6 +34,16 @@ async def list_all_tasks(include_deleted: bool = Query(default=False)):
     """查询策略列表"""
     tasks = list_tasks(include_deleted=include_deleted)
     return {"success": True, "data": tasks, "message": "ok"}
+
+
+@router.get("/leaderboard")
+async def strategy_leaderboard(
+    sort_by: str = Query(default="win_rate"),
+    sort_dir: str = Query(default="desc"),
+):
+    """策略排行榜：按策略ID统计开仓次数、胜负、胜率"""
+    data = get_strategy_leaderboard(sort_by=sort_by, sort_dir=sort_dir)
+    return {"success": True, "data": data, "message": "ok"}
 
 
 @router.get("/dispatcher/status")
@@ -294,6 +306,23 @@ async def get_task_execution_logs(
     logs = get_task_logs(task_id, limit=limit, offset=offset, log_type=log_type)
     total = get_task_log_count(task_id, log_type=log_type)
     return {"success": True, "data": {"logs": logs, "total": total}, "message": "ok"}
+
+
+@router.post("/{task_id}/update-settlement")
+async def update_task_settlement(
+    task_id: int,
+    _admin=Depends(require_admin),
+) -> dict:
+    """手动更新任务的结算方向（回查所有未结算交易）
+
+    扫描该任务所有 market_resolved=False 的执行日志，
+    逐个查询 Polymarket 市场结算状态，若已结算则更新盈亏和结算方向。
+    """
+    try:
+        result = update_settlement_for_task(task_id)
+        return {"success": True, "data": result, "message": result.get("message", "ok")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"结算回查失败: {e}")
 
 
 def _format_file_size(size: int) -> str:

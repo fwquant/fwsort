@@ -46,6 +46,23 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
   flex-shrink: 0;
 }
+.fwui-nav__logo-link {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.fwui-nav__logo-link:hover .fwui-nav__logo {
+  opacity: 0.8;
+}
+.fwui-nav__dropdown-trigger.fwui-nav__link--active {
+  color: var(--fwui-primary);
+  background: var(--fwui-primary-soft);
+}
+.fwui-nav__dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+}
 .fwui-nav__links {
   display: flex;
   gap: 8px;
@@ -63,6 +80,24 @@ a:hover { text-decoration: underline; }
 }
 .fwui-nav__link:hover { background: var(--fwui-bg-hover); text-decoration: none; }
 .fwui-nav__link--active { color: var(--fwui-primary); background: var(--fwui-primary-soft); }
+
+/* 下拉菜单（通用） */
+.fwui-nav__dropdown { position: relative; display: inline-block; padding-bottom: 4px; }
+.fwui-nav__dropdown-trigger { cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }
+.fwui-nav__dropdown-trigger::after { content: '▾'; font-size: 10px; margin-left: 2px; opacity: 0.6; }
+.fwui-nav__dropdown-menu {
+  display: none; position: absolute; top: 100%; left: 0; min-width: 160px;
+  background: var(--fwui-bg, #fff); border: 1px solid var(--fwui-border, #e5e7eb);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 6px; z-index: 200; margin-top: 0;
+}
+.fwui-nav__dropdown:hover .fwui-nav__dropdown-menu { display: block; }
+.fwui-nav__dropdown-item {
+  display: block; padding: 8px 14px; font-size: 13px;
+  color: var(--fwui-text-muted, #6b7280); text-decoration: none;
+  border-radius: 8px; transition: all 0.15s; white-space: nowrap;
+}
+.fwui-nav__dropdown-item:hover { color: var(--fwui-text, #1f2937); background: var(--fwui-bg-secondary, #f3f4f6); }
 .fwui-nav__actions {
   display: flex;
   align-items: center;
@@ -74,6 +109,36 @@ a:hover { text-decoration: underline; }
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+/* ========== 面包屑导航 ========== */
+.fwui-breadcrumb {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 12px 24px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fwui-text-muted);
+}
+.fwui-breadcrumb__home {
+  color: var(--fwui-text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.fwui-breadcrumb__home:hover {
+  color: var(--fwui-primary);
+  text-decoration: none;
+}
+.fwui-breadcrumb__sep {
+  color: var(--fwui-text-muted);
+  opacity: 0.5;
+  font-size: 12px;
+}
+.fwui-breadcrumb__current {
+  color: var(--fwui-text);
+  font-weight: 500;
 }
 
 /* ========== 主内容区 ========== */
@@ -1619,4 +1684,375 @@ a:hover { text-decoration: underline; }
   .profile-stats__number { font-size: 24px; }
   .profile-mobile-tab { padding: 6px 12px; font-size: 13px; }
   .profile-card__title { font-size: 16px; }
+}
+
+/* ========== 策略任务列表样式 ========== */
+.fw-task-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--fwui-bg-elevated);
+  border: 1px solid var(--fwui-border);
+  border-radius: 10px;
+}
+.fw-task-list-toolbar__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+}
+.fw-task-list-toolbar__search input {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--fwui-border);
+  background: var(--fwui-bg-input);
+  color: var(--fwui-text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.fw-task-list-toolbar__search input:focus {
+  border-color: var(--fwui-primary);
+}
+.fw-task-list-toolbar__filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fw-task-list-toolbar__sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fw-task-list-toolbar__sort label,
+.fw-task-list-toolbar__filter label {
+  font-size: 13px;
+  color: var(--fwui-text-muted);
+  white-space: nowrap;
+}
+.fw-task-list-toolbar__stats {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--fwui-text-muted);
+}
+.fw-task-list-toolbar__stats strong {
+  color: var(--fwui-text);
+}
+.fw-task-list-toolbar__col-settings {
+  position: relative;
+}
+
+/* 列设置面板 */
+.fw-col-settings-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 180px;
+  background: var(--fwui-bg-elevated);
+  border: 1px solid var(--fwui-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 10px;
+  z-index: 200;
+}
+.fw-col-settings-panel.is-open {
+  display: block;
+}
+.fw-col-settings-panel__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fwui-text);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--fwui-border);
+}
+.fw-col-settings-panel__reset {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--fwui-border);
+}
+.fw-col-settings-panel label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: var(--fwui-text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fw-col-settings-panel label:hover {
+  background: var(--fwui-bg-hover);
+}
+
+/* 任务列表表格 */
+.fw-task-list-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--fwui-border);
+  background: var(--fwui-bg-elevated);
+}
+.fw-task-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+.fw-task-list-table th,
+.fw-task-list-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--fwui-border);
+  font-size: 13px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.fw-task-list-table th {
+  background: var(--fwui-bg);
+  font-weight: 600;
+  color: var(--fwui-text-muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.fw-task-list-table tbody tr {
+  transition: background 0.15s;
+}
+.fw-task-list-table tbody tr:hover {
+  background: var(--fwui-bg-hover);
+}
+.fw-task-list-table .fw-task-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.fw-task-status--running { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+.fw-task-status--stopped { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
+.fw-task-status--error { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.fw-task-status--waiting { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+
+.fw-task-name {
+  font-weight: 600;
+  color: var(--fwui-text);
+}
+.fw-task-provider {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--fwui-bg-secondary);
+  font-size: 12px;
+  color: var(--fwui-text-muted);
+}
+.fw-task-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.fw-task-countdown.fw-task-countdown--soon {
+  color: #ef4444;
+}
+.fw-task-countdown.fw-task-countdown--warning {
+  color: #eab308;
+}
+.fw-task-countdown.fw-task-countdown--normal {
+  color: var(--fwui-text-secondary);
+}
+
+.fw-task-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+/* 任务卡片（移动端） */
+.fw-task-list-cards {
+  display: none;
+  gap: 12px;
+  flex-direction: column;
+}
+.fw-task-card {
+  background: var(--fwui-bg-elevated);
+  border: 1px solid var(--fwui-border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.fw-task-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.fw-task-card__name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--fwui-text);
+}
+.fw-task-card__info {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.fw-task-card__info-item {
+  display: flex;
+  flex-direction: column;
+}
+.fw-task-card__info-label {
+  font-size: 11px;
+  color: var(--fwui-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.fw-task-card__info-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fwui-text);
+}
+.fw-task-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* 自动刷新 */
+.fw-auto-refresh-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--fwui-text-muted);
+}
+.fw-auto-refresh-toggle input {
+  width: auto;
+  cursor: pointer;
+}
+.fw-auto-refresh-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fw-auto-refresh-indicator.fw-auto-refresh-indicator--paused .fw-auto-refresh-dot {
+  background: #9ca3af;
+}
+.fw-auto-refresh-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: fw-pulse 2s infinite;
+}
+@keyframes fw-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.fw-auto-refresh-text {
+  font-size: 12px;
+  color: var(--fwui-text-muted);
+}
+
+/* 任务日志搜索栏 */
+.fw-tl-search-bar {
+  margin-bottom: 10px;
+}
+.fw-tl-search-bar__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.fw-tl-search-bar__input-wrap input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--fwui-border);
+  background: var(--fwui-bg-input);
+  color: var(--fwui-text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.fw-tl-search-bar__input-wrap input:focus {
+  border-color: var(--fwui-primary);
+}
+.fw-tl-search-bar__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.fw-tl-filter-bar {
+  margin-bottom: 12px;
+}
+.fw-tl-date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 分页 */
+.fw-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+}
+
+/* 响应式：移动端显示卡片，隐藏表格 */
+@media (max-width: 768px) {
+  .fw-task-list-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+  }
+  .fw-task-list-toolbar__search {
+    min-width: 0;
+  }
+  .fw-task-list-toolbar__filter,
+  .fw-task-list-toolbar__sort {
+    justify-content: flex-start;
+  }
+  .fw-task-list-toolbar__stats {
+    margin-left: 0;
+  }
+  .fw-task-list-table-wrap {
+    display: none;
+  }
+  .fw-task-list-cards {
+    display: flex;
+  }
+  .fw-task-list-cards:empty::after {
+    content: "暂无数据";
+    text-align: center;
+    padding: 40px;
+    color: var(--fwui-text-muted);
+  }
+  .fw-tl-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .fw-tl-date-range {
+    flex-wrap: wrap;
+  }
 }

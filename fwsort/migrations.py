@@ -4,7 +4,6 @@ from sqlalchemy import inspect, text
 
 from fwsort.database import sync_engine
 
-
 # 本期新增字段：(table, column, sql_type, default_sql)
 # default_sql 为 NULL 时表示"无默认值，nullable=True"
 _PATCHES = [
@@ -55,21 +54,21 @@ _PATCHES = [
     ("auto_strategy", "profit_loss_ratio", "FLOAT", "0"),
 ]
 
-
 # WP-03：本次新增的整张表（无法用 ADD COLUMN 表达，独立处理）
 _NEW_TABLES_DDL: list[tuple[str, str]] = [
     # (table_name, create_ddl) - 第一条为 SQLite 语法，第二条为 PostgreSQL 语法
     (
         "login_attempt",
         """
-        CREATE TABLE IF NOT EXISTS login_attempt (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email VARCHAR(128) NOT NULL,
-            ip VARCHAR(64) NOT NULL,
-            success BOOLEAN NOT NULL DEFAULT 0,
+        CREATE TABLE IF NOT EXISTS login_attempt
+        (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            email      VARCHAR(128) NOT NULL,
+            ip         VARCHAR(64)  NOT NULL,
+            success    BOOLEAN      NOT NULL DEFAULT 0,
             user_agent VARCHAR(256) NOT NULL DEFAULT '',
-            reason VARCHAR(64) NOT NULL DEFAULT '',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            reason     VARCHAR(64)  NOT NULL DEFAULT '',
+            created_at DATETIME              DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -77,14 +76,15 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
         "login_attempt",
         # PostgreSQL 变体
         """
-        CREATE TABLE IF NOT EXISTS login_attempt (
-            id BIGSERIAL PRIMARY KEY,
-            email VARCHAR(128) NOT NULL,
-            ip VARCHAR(64) NOT NULL,
-            success BOOLEAN NOT NULL DEFAULT FALSE,
+        CREATE TABLE IF NOT EXISTS login_attempt
+        (
+            id         BIGSERIAL PRIMARY KEY,
+            email      VARCHAR(128) NOT NULL,
+            ip         VARCHAR(64)  NOT NULL,
+            success    BOOLEAN      NOT NULL DEFAULT FALSE,
             user_agent VARCHAR(256) NOT NULL DEFAULT '',
-            reason VARCHAR(64) NOT NULL DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            reason     VARCHAR(64)  NOT NULL DEFAULT '',
+            created_at TIMESTAMP             DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -92,16 +92,17 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
     (
         "outbox_event",
         """
-        CREATE TABLE IF NOT EXISTS outbox_event (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_type VARCHAR(64) NOT NULL DEFAULT 'order_log_index',
-            payload_json TEXT NOT NULL,
-            status SMALLINT NOT NULL DEFAULT 0,
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error VARCHAR(512) NOT NULL DEFAULT '',
+        CREATE TABLE IF NOT EXISTS outbox_event
+        (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type    VARCHAR(64)  NOT NULL DEFAULT 'order_log_index',
+            payload_json  TEXT         NOT NULL,
+            status        SMALLINT     NOT NULL DEFAULT 0,
+            retry_count   INTEGER      NOT NULL DEFAULT 0,
+            last_error    VARCHAR(512) NOT NULL DEFAULT '',
             next_retry_at DATETIME,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at    DATETIME              DEFAULT CURRENT_TIMESTAMP,
+            updated_at    DATETIME              DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -109,16 +110,17 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
         "outbox_event",
         # PostgreSQL 变体
         """
-        CREATE TABLE IF NOT EXISTS outbox_event (
-            id BIGSERIAL PRIMARY KEY,
-            event_type VARCHAR(64) NOT NULL DEFAULT 'order_log_index',
-            payload_json TEXT NOT NULL,
-            status SMALLINT NOT NULL DEFAULT 0,
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error VARCHAR(512) NOT NULL DEFAULT '',
+        CREATE TABLE IF NOT EXISTS outbox_event
+        (
+            id            BIGSERIAL PRIMARY KEY,
+            event_type    VARCHAR(64)  NOT NULL DEFAULT 'order_log_index',
+            payload_json  TEXT         NOT NULL,
+            status        SMALLINT     NOT NULL DEFAULT 0,
+            retry_count   INTEGER      NOT NULL DEFAULT 0,
+            last_error    VARCHAR(512) NOT NULL DEFAULT '',
             next_retry_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at    TIMESTAMP             DEFAULT CURRENT_TIMESTAMP,
+            updated_at    TIMESTAMP             DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -126,42 +128,43 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
     (
         "strategy_trade",
         """
-        CREATE TABLE IF NOT EXISTS strategy_trade (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            trade_uid VARCHAR(64) NOT NULL UNIQUE,
-            strategy_name VARCHAR(128) NOT NULL,
-            auto_strategy_id INTEGER,
-            account_id INTEGER,
-            source_strategy VARCHAR(64) DEFAULT '',
-            platform VARCHAR(32) NOT NULL,
-            symbol VARCHAR(64) DEFAULT '',
-            market_question VARCHAR(512) DEFAULT '',
-            market_slug VARCHAR(128) DEFAULT '',
-            direction VARCHAR(16) DEFAULT '',
-            side SMALLINT NOT NULL,
-            order_type SMALLINT DEFAULT 2,
-            order_id VARCHAR(128) DEFAULT '',
-            entry_price FLOAT NOT NULL,
-            exit_price FLOAT,
-            quantity FLOAT DEFAULT 0,
-            amount_usd FLOAT NOT NULL,
-            pnl_amount FLOAT DEFAULT 0,
-            pnl_percent FLOAT DEFAULT 0,
-            is_profit BOOLEAN DEFAULT 0,
-            is_win BOOLEAN DEFAULT 0,
-            entry_at DATETIME NOT NULL,
-            exit_at DATETIME,
-            hold_duration_seconds INTEGER DEFAULT 0,
-            status SMALLINT DEFAULT 0,
-            market_resolved BOOLEAN DEFAULT 0,
-            resolved_at DATETIME,
-            slippage FLOAT DEFAULT 0,
-            latency_ms INTEGER DEFAULT 0,
-            execution_detail_json TEXT DEFAULT '{}',
-            result_detail_json TEXT DEFAULT '{}',
-            deleted_at DATETIME,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS strategy_trade
+        (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            trade_uid             VARCHAR(64)  NOT NULL UNIQUE,
+            strategy_name         VARCHAR(128) NOT NULL,
+            auto_strategy_id      INTEGER,
+            account_id            INTEGER,
+            source_strategy       VARCHAR(64)  DEFAULT '',
+            platform              VARCHAR(32)  NOT NULL,
+            symbol                VARCHAR(64)  DEFAULT '',
+            market_question       VARCHAR(512) DEFAULT '',
+            market_slug           VARCHAR(128) DEFAULT '',
+            direction             VARCHAR(16)  DEFAULT '',
+            side                  SMALLINT     NOT NULL,
+            order_type            SMALLINT     DEFAULT 2,
+            order_id              VARCHAR(128) DEFAULT '',
+            entry_price           FLOAT        NOT NULL,
+            exit_price            FLOAT,
+            quantity              FLOAT        DEFAULT 0,
+            amount_usd            FLOAT        NOT NULL,
+            pnl_amount            FLOAT        DEFAULT 0,
+            pnl_percent           FLOAT        DEFAULT 0,
+            is_profit             BOOLEAN      DEFAULT 0,
+            is_win                BOOLEAN      DEFAULT 0,
+            entry_at              DATETIME     NOT NULL,
+            exit_at               DATETIME,
+            hold_duration_seconds INTEGER      DEFAULT 0,
+            status                SMALLINT     DEFAULT 0,
+            market_resolved       BOOLEAN      DEFAULT 0,
+            resolved_at           DATETIME,
+            slippage              FLOAT        DEFAULT 0,
+            latency_ms            INTEGER      DEFAULT 0,
+            execution_detail_json TEXT         DEFAULT '{}',
+            result_detail_json    TEXT         DEFAULT '{}',
+            deleted_at            DATETIME,
+            created_at            DATETIME     DEFAULT CURRENT_TIMESTAMP,
+            updated_at            DATETIME     DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -169,42 +172,43 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
         "strategy_trade",
         # PostgreSQL 变体
         """
-        CREATE TABLE IF NOT EXISTS strategy_trade (
-            id BIGSERIAL PRIMARY KEY,
-            trade_uid VARCHAR(64) NOT NULL UNIQUE,
-            strategy_name VARCHAR(128) NOT NULL,
-            auto_strategy_id BIGINT,
-            account_id BIGINT,
-            source_strategy VARCHAR(64) DEFAULT '',
-            platform VARCHAR(32) NOT NULL,
-            symbol VARCHAR(64) DEFAULT '',
-            market_question VARCHAR(512) DEFAULT '',
-            market_slug VARCHAR(128) DEFAULT '',
-            direction VARCHAR(16) DEFAULT '',
-            side SMALLINT NOT NULL,
-            order_type SMALLINT DEFAULT 2,
-            order_id VARCHAR(128) DEFAULT '',
-            entry_price FLOAT NOT NULL,
-            exit_price FLOAT,
-            quantity FLOAT DEFAULT 0,
-            amount_usd FLOAT NOT NULL,
-            pnl_amount FLOAT DEFAULT 0,
-            pnl_percent FLOAT DEFAULT 0,
-            is_profit BOOLEAN DEFAULT FALSE,
-            is_win BOOLEAN DEFAULT FALSE,
-            entry_at TIMESTAMP NOT NULL,
-            exit_at TIMESTAMP,
-            hold_duration_seconds INTEGER DEFAULT 0,
-            status SMALLINT DEFAULT 0,
-            market_resolved BOOLEAN DEFAULT FALSE,
-            resolved_at TIMESTAMP,
-            slippage FLOAT DEFAULT 0,
-            latency_ms INTEGER DEFAULT 0,
-            execution_detail_json TEXT DEFAULT '{}',
-            result_detail_json TEXT DEFAULT '{}',
-            deleted_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS strategy_trade
+        (
+            id                    BIGSERIAL PRIMARY KEY,
+            trade_uid             VARCHAR(64)  NOT NULL UNIQUE,
+            strategy_name         VARCHAR(128) NOT NULL,
+            auto_strategy_id      BIGINT,
+            account_id            BIGINT,
+            source_strategy       VARCHAR(64)  DEFAULT '',
+            platform              VARCHAR(32)  NOT NULL,
+            symbol                VARCHAR(64)  DEFAULT '',
+            market_question       VARCHAR(512) DEFAULT '',
+            market_slug           VARCHAR(128) DEFAULT '',
+            direction             VARCHAR(16)  DEFAULT '',
+            side                  SMALLINT     NOT NULL,
+            order_type            SMALLINT     DEFAULT 2,
+            order_id              VARCHAR(128) DEFAULT '',
+            entry_price           FLOAT        NOT NULL,
+            exit_price            FLOAT,
+            quantity              FLOAT        DEFAULT 0,
+            amount_usd            FLOAT        NOT NULL,
+            pnl_amount            FLOAT        DEFAULT 0,
+            pnl_percent           FLOAT        DEFAULT 0,
+            is_profit             BOOLEAN      DEFAULT FALSE,
+            is_win                BOOLEAN      DEFAULT FALSE,
+            entry_at              TIMESTAMP    NOT NULL,
+            exit_at               TIMESTAMP,
+            hold_duration_seconds INTEGER      DEFAULT 0,
+            status                SMALLINT     DEFAULT 0,
+            market_resolved       BOOLEAN      DEFAULT FALSE,
+            resolved_at           TIMESTAMP,
+            slippage              FLOAT        DEFAULT 0,
+            latency_ms            INTEGER      DEFAULT 0,
+            execution_detail_json TEXT         DEFAULT '{}',
+            result_detail_json    TEXT         DEFAULT '{}',
+            deleted_at            TIMESTAMP,
+            created_at            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            updated_at            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -212,23 +216,24 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
     (
         "strategy_equity_curve",
         """
-        CREATE TABLE IF NOT EXISTS strategy_equity_curve (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            strategy_name VARCHAR(128) NOT NULL,
-            auto_strategy_id INTEGER,
-            account_id INTEGER,
-            snapshot_date DATETIME NOT NULL,
-            equity FLOAT NOT NULL,
-            balance FLOAT NOT NULL,
-            daily_pnl FLOAT DEFAULT 0,
-            daily_pnl_percent FLOAT DEFAULT 0,
-            peak_equity FLOAT DEFAULT 0,
-            drawdown FLOAT DEFAULT 0,
-            drawdown_percent FLOAT DEFAULT 0,
-            max_drawdown_percent FLOAT DEFAULT 0,
-            position_count INTEGER DEFAULT 0,
-            trade_count INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS strategy_equity_curve
+        (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            strategy_name        VARCHAR(128) NOT NULL,
+            auto_strategy_id     INTEGER,
+            account_id           INTEGER,
+            snapshot_date        DATETIME     NOT NULL,
+            equity               FLOAT        NOT NULL,
+            balance              FLOAT        NOT NULL,
+            daily_pnl            FLOAT    DEFAULT 0,
+            daily_pnl_percent    FLOAT    DEFAULT 0,
+            peak_equity          FLOAT    DEFAULT 0,
+            drawdown             FLOAT    DEFAULT 0,
+            drawdown_percent     FLOAT    DEFAULT 0,
+            max_drawdown_percent FLOAT    DEFAULT 0,
+            position_count       INTEGER  DEFAULT 0,
+            trade_count          INTEGER  DEFAULT 0,
+            created_at           DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -236,24 +241,25 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
     (
         "risk_profile",
         """
-        CREATE TABLE IF NOT EXISTS risk_profile (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name VARCHAR(64) NOT NULL,
-            owner_id INTEGER,
-            is_default BOOLEAN DEFAULT FALSE,
-            description VARCHAR(512) DEFAULT '',
-            is_active BOOLEAN DEFAULT TRUE,
-            risk_single_ratio NUMERIC(10,4),
-            risk_daily_loss_ratio NUMERIC(10,4),
-            max_daily_amount NUMERIC(18,6),
-            max_daily_count INTEGER,
+        CREATE TABLE IF NOT EXISTS risk_profile
+        (
+            id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                     VARCHAR(64) NOT NULL,
+            owner_id                 INTEGER,
+            is_default               BOOLEAN      DEFAULT FALSE,
+            description              VARCHAR(512) DEFAULT '',
+            is_active                BOOLEAN      DEFAULT TRUE,
+            risk_single_ratio        NUMERIC(10, 4),
+            risk_daily_loss_ratio    NUMERIC(10, 4),
+            max_daily_amount         NUMERIC(18, 6),
+            max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
-            max_drawdown_ratio NUMERIC(10,4),
-            max_open_positions INTEGER,
-            stop_loss_ratio NUMERIC(10,4),
-            take_profit_ratio NUMERIC(10,4),
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            max_drawdown_ratio       NUMERIC(10, 4),
+            max_open_positions       INTEGER,
+            stop_loss_ratio          NUMERIC(10, 4),
+            take_profit_ratio        NUMERIC(10, 4),
+            created_at               DATETIME     DEFAULT CURRENT_TIMESTAMP,
+            updated_at               DATETIME     DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
@@ -261,215 +267,249 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
         "risk_profile",
         # PostgreSQL 变体
         """
-        CREATE TABLE IF NOT EXISTS risk_profile (
-            id BIGSERIAL PRIMARY KEY,
-            name VARCHAR(64) NOT NULL,
-            owner_id BIGINT,
-            is_default BOOLEAN DEFAULT FALSE,
-            description VARCHAR(512) DEFAULT '',
-            is_active BOOLEAN DEFAULT TRUE,
-            risk_single_ratio NUMERIC(10,4),
-            risk_daily_loss_ratio NUMERIC(10,4),
-            max_daily_amount NUMERIC(18,6),
-            max_daily_count INTEGER,
+        CREATE TABLE IF NOT EXISTS risk_profile
+        (
+            id                       BIGSERIAL PRIMARY KEY,
+            name                     VARCHAR(64) NOT NULL,
+            owner_id                 BIGINT,
+            is_default               BOOLEAN      DEFAULT FALSE,
+            description              VARCHAR(512) DEFAULT '',
+            is_active                BOOLEAN      DEFAULT TRUE,
+            risk_single_ratio        NUMERIC(10, 4),
+            risk_daily_loss_ratio    NUMERIC(10, 4),
+            max_daily_amount         NUMERIC(18, 6),
+            max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
-            max_drawdown_ratio NUMERIC(10,4),
-            max_open_positions INTEGER,
-            stop_loss_ratio NUMERIC(10,4),
-            take_profit_ratio NUMERIC(10,4),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            max_drawdown_ratio       NUMERIC(10, 4),
+            max_open_positions       INTEGER,
+            stop_loss_ratio          NUMERIC(10, 4),
+            take_profit_ratio        NUMERIC(10, 4),
+            created_at               TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            updated_at               TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
     (
         "account_risk_profile",
         """
-        CREATE TABLE IF NOT EXISTS account_risk_profile (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id INTEGER NOT NULL UNIQUE,
-            risk_profile_id INTEGER,
-            risk_single_ratio NUMERIC(10,4),
-            risk_daily_loss_ratio NUMERIC(10,4),
-            max_daily_amount NUMERIC(18,6),
-            max_daily_count INTEGER,
+        CREATE TABLE IF NOT EXISTS account_risk_profile
+        (
+            id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id               INTEGER NOT NULL UNIQUE,
+            risk_profile_id          INTEGER,
+            risk_single_ratio        NUMERIC(10, 4),
+            risk_daily_loss_ratio    NUMERIC(10, 4),
+            max_daily_amount         NUMERIC(18, 6),
+            max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
-            max_drawdown_ratio NUMERIC(10,4),
-            max_open_positions INTEGER,
-            stop_loss_ratio NUMERIC(10,4),
-            take_profit_ratio NUMERIC(10,4),
-            consecutive_failures INTEGER DEFAULT 0,
-            is_frozen BOOLEAN DEFAULT FALSE,
-            frozen_reason VARCHAR(256),
-            frozen_at DATETIME,
-            last_check_at DATETIME,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            max_drawdown_ratio       NUMERIC(10, 4),
+            max_open_positions       INTEGER,
+            stop_loss_ratio          NUMERIC(10, 4),
+            take_profit_ratio        NUMERIC(10, 4),
+            consecutive_failures     INTEGER  DEFAULT 0,
+            is_frozen                BOOLEAN  DEFAULT FALSE,
+            frozen_reason            VARCHAR(256),
+            frozen_at                DATETIME,
+            last_check_at            DATETIME,
+            created_at               DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at               DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
     (
         "account_risk_profile",
         """
-        CREATE TABLE IF NOT EXISTS account_risk_profile (
-            id BIGSERIAL PRIMARY KEY,
-            account_id BIGINT NOT NULL UNIQUE,
-            risk_profile_id BIGINT,
-            risk_single_ratio NUMERIC(10,4),
-            risk_daily_loss_ratio NUMERIC(10,4),
-            max_daily_amount NUMERIC(18,6),
-            max_daily_count INTEGER,
+        CREATE TABLE IF NOT EXISTS account_risk_profile
+        (
+            id                       BIGSERIAL PRIMARY KEY,
+            account_id               BIGINT NOT NULL UNIQUE,
+            risk_profile_id          BIGINT,
+            risk_single_ratio        NUMERIC(10, 4),
+            risk_daily_loss_ratio    NUMERIC(10, 4),
+            max_daily_amount         NUMERIC(18, 6),
+            max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
-            max_drawdown_ratio NUMERIC(10,4),
-            max_open_positions INTEGER,
-            stop_loss_ratio NUMERIC(10,4),
-            take_profit_ratio NUMERIC(10,4),
-            consecutive_failures INTEGER DEFAULT 0,
-            is_frozen BOOLEAN DEFAULT FALSE,
-            frozen_reason VARCHAR(256),
-            frozen_at TIMESTAMP,
-            last_check_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            max_drawdown_ratio       NUMERIC(10, 4),
+            max_open_positions       INTEGER,
+            stop_loss_ratio          NUMERIC(10, 4),
+            take_profit_ratio        NUMERIC(10, 4),
+            consecutive_failures     INTEGER   DEFAULT 0,
+            is_frozen                BOOLEAN   DEFAULT FALSE,
+            frozen_reason            VARCHAR(256),
+            frozen_at                TIMESTAMP,
+            last_check_at            TIMESTAMP,
+            created_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
     (
         "strategy_risk_profile",
         """
-        CREATE TABLE IF NOT EXISTS strategy_risk_profile (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            auto_strategy_id INTEGER NOT NULL UNIQUE,
-            risk_profile_id INTEGER,
-            risk_single_ratio NUMERIC(10,4),
-            risk_daily_loss_ratio NUMERIC(10,4),
-            max_daily_amount NUMERIC(18,6),
-            max_daily_count INTEGER,
+        CREATE TABLE IF NOT EXISTS strategy_risk_profile
+        (
+            id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+            auto_strategy_id         INTEGER NOT NULL UNIQUE,
+            risk_profile_id          INTEGER,
+            risk_single_ratio        NUMERIC(10, 4),
+            risk_daily_loss_ratio    NUMERIC(10, 4),
+            max_daily_amount         NUMERIC(18, 6),
+            max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
-            max_drawdown_ratio NUMERIC(10,4),
-            consecutive_failures INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            max_drawdown_ratio       NUMERIC(10, 4),
+            consecutive_failures     INTEGER  DEFAULT 0,
+            created_at               DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at               DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
     (
         "strategy_risk_profile",
         """
-        CREATE TABLE IF NOT EXISTS strategy_risk_profile (
-            id BIGSERIAL PRIMARY KEY,
-            auto_strategy_id BIGINT NOT NULL UNIQUE,
-            risk_profile_id BIGINT,
-            risk_single_ratio NUMERIC(10,4),
-            risk_daily_loss_ratio NUMERIC(10,4),
-            max_daily_amount NUMERIC(18,6),
-            max_daily_count INTEGER,
+        CREATE TABLE IF NOT EXISTS strategy_risk_profile
+        (
+            id                       BIGSERIAL PRIMARY KEY,
+            auto_strategy_id         BIGINT NOT NULL UNIQUE,
+            risk_profile_id          BIGINT,
+            risk_single_ratio        NUMERIC(10, 4),
+            risk_daily_loss_ratio    NUMERIC(10, 4),
+            max_daily_amount         NUMERIC(18, 6),
+            max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
-            max_drawdown_ratio NUMERIC(10,4),
-            consecutive_failures INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            max_drawdown_ratio       NUMERIC(10, 4),
+            consecutive_failures     INTEGER   DEFAULT 0,
+            created_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
     (
         "risk_event_log",
         """
-        CREATE TABLE IF NOT EXISTS risk_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_uid VARCHAR(32) NOT NULL UNIQUE,
-            account_id INTEGER,
-            auto_strategy_id INTEGER,
-            user_id INTEGER,
-            rule_name VARCHAR(64) DEFAULT '',
-            event_type SMALLINT NOT NULL DEFAULT 1,
-            severity SMALLINT NOT NULL DEFAULT 1,
-            stage VARCHAR(32) DEFAULT '',
-            title VARCHAR(128) NOT NULL DEFAULT '',
-            message TEXT DEFAULT '',
-            detail_json TEXT DEFAULT '{}',
-            balance_snapshot NUMERIC(18,6) DEFAULT 0,
-            daily_pnl_snapshot NUMERIC(18,6) DEFAULT 0,
-            order_amount_snapshot NUMERIC(18,6) DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS risk_event_log
+        (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_uid             VARCHAR(32)  NOT NULL UNIQUE,
+            account_id            INTEGER,
+            auto_strategy_id      INTEGER,
+            user_id               INTEGER,
+            rule_name             VARCHAR(64)           DEFAULT '',
+            event_type            SMALLINT     NOT NULL DEFAULT 1,
+            severity              SMALLINT     NOT NULL DEFAULT 1,
+            stage                 VARCHAR(32)           DEFAULT '',
+            title                 VARCHAR(128) NOT NULL DEFAULT '',
+            message               TEXT                  DEFAULT '',
+            detail_json           TEXT                  DEFAULT '{}',
+            balance_snapshot      NUMERIC(18, 6)        DEFAULT 0,
+            daily_pnl_snapshot    NUMERIC(18, 6)        DEFAULT 0,
+            order_amount_snapshot NUMERIC(18, 6)        DEFAULT 0,
+            created_at            DATETIME              DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
     (
         "risk_event_log",
         """
-        CREATE TABLE IF NOT EXISTS risk_event_log (
-            id BIGSERIAL PRIMARY KEY,
-            event_uid VARCHAR(32) NOT NULL UNIQUE,
-            account_id BIGINT,
-            auto_strategy_id BIGINT,
-            user_id BIGINT,
-            rule_name VARCHAR(64) DEFAULT '',
-            event_type SMALLINT NOT NULL DEFAULT 1,
-            severity SMALLINT NOT NULL DEFAULT 1,
-            stage VARCHAR(32) DEFAULT '',
-            title VARCHAR(128) NOT NULL DEFAULT '',
-            message TEXT DEFAULT '',
-            detail_json TEXT DEFAULT '{}',
-            balance_snapshot NUMERIC(18,6) DEFAULT 0,
-            daily_pnl_snapshot NUMERIC(18,6) DEFAULT 0,
-            order_amount_snapshot NUMERIC(18,6) DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS risk_event_log
+        (
+            id                    BIGSERIAL PRIMARY KEY,
+            event_uid             VARCHAR(32)  NOT NULL UNIQUE,
+            account_id            BIGINT,
+            auto_strategy_id      BIGINT,
+            user_id               BIGINT,
+            rule_name             VARCHAR(64)           DEFAULT '',
+            event_type            SMALLINT     NOT NULL DEFAULT 1,
+            severity              SMALLINT     NOT NULL DEFAULT 1,
+            stage                 VARCHAR(32)           DEFAULT '',
+            title                 VARCHAR(128) NOT NULL DEFAULT '',
+            message               TEXT                  DEFAULT '',
+            detail_json           TEXT                  DEFAULT '{}',
+            balance_snapshot      NUMERIC(18, 6)        DEFAULT 0,
+            daily_pnl_snapshot    NUMERIC(18, 6)        DEFAULT 0,
+            order_amount_snapshot NUMERIC(18, 6)        DEFAULT 0,
+            created_at            TIMESTAMP             DEFAULT CURRENT_TIMESTAMP
         )
         """,
     ),
 ]
-
 
 # WP-10：关键查询补索引（性能优化）
 # 采用"双语法"：SQLite 用 IF NOT EXISTS，PostgreSQL 用 IF NOT EXISTS（也支持）
 _INDEX_DDL: list[tuple[str, str]] = [
     # strategy_performance: 榜单主查询走 (period_type, composite_score DESC)
-    ("idx_perf_period_score", "CREATE INDEX IF NOT EXISTS idx_perf_period_score ON strategy_performance (period_type, composite_score DESC)"),
-    ("idx_perf_account_period", "CREATE INDEX IF NOT EXISTS idx_perf_account_period ON strategy_performance (account_id, period_type)"),
-    ("idx_perf_uid_period", "CREATE INDEX IF NOT EXISTS idx_perf_uid_period ON strategy_performance (uid, period_type)"),
+    ("idx_perf_period_score",
+     "CREATE INDEX IF NOT EXISTS idx_perf_period_score ON strategy_performance (period_type, composite_score DESC)"),
+    ("idx_perf_account_period",
+     "CREATE INDEX IF NOT EXISTS idx_perf_account_period ON strategy_performance (account_id, period_type)"),
+    ("idx_perf_uid_period",
+     "CREATE INDEX IF NOT EXISTS idx_perf_uid_period ON strategy_performance (uid, period_type)"),
     # order_execution_log: 订单流水按 uid+时间翻页
-    ("idx_orderlog_uid_time", "CREATE INDEX IF NOT EXISTS idx_orderlog_uid_time ON order_execution_log (uid, created_at DESC)"),
-    ("idx_orderlog_account_time", "CREATE INDEX IF NOT EXISTS idx_orderlog_account_time ON order_execution_log (account_id, created_at DESC)"),
+    ("idx_orderlog_uid_time",
+     "CREATE INDEX IF NOT EXISTS idx_orderlog_uid_time ON order_execution_log (uid, created_at DESC)"),
+    ("idx_orderlog_account_time",
+     "CREATE INDEX IF NOT EXISTS idx_orderlog_account_time ON order_execution_log (account_id, created_at DESC)"),
     ("idx_orderlog_vote", "CREATE INDEX IF NOT EXISTS idx_orderlog_vote ON order_execution_log (vote_id)"),
     # follow_subscription: 订阅查询按 (subscriber_id, leader_uid, status)
-    ("idx_follow_sub_leader_status", "CREATE INDEX IF NOT EXISTS idx_follow_sub_leader_status ON follow_subscription (subscriber_id, leader_uid, status)"),
-    ("idx_follow_leader_status", "CREATE INDEX IF NOT EXISTS idx_follow_leader_status ON follow_subscription (leader_uid, status)"),
+    ("idx_follow_sub_leader_status",
+     "CREATE INDEX IF NOT EXISTS idx_follow_sub_leader_status ON follow_subscription (subscriber_id, leader_uid, status)"),
+    ("idx_follow_leader_status",
+     "CREATE INDEX IF NOT EXISTS idx_follow_leader_status ON follow_subscription (leader_uid, status)"),
     # follow_order: 跟单成交按 (subscription_id, created_at DESC)
-    ("idx_follow_order_sub_time", "CREATE INDEX IF NOT EXISTS idx_follow_order_sub_time ON follow_order (subscription_id, created_at DESC)"),
+    ("idx_follow_order_sub_time",
+     "CREATE INDEX IF NOT EXISTS idx_follow_order_sub_time ON follow_order (subscription_id, created_at DESC)"),
     # notification: 未读查询按 (user_id, is_read, created_at DESC)
-    ("idx_notify_user_unread", "CREATE INDEX IF NOT EXISTS idx_notify_user_unread ON notification (user_id, is_read, created_at DESC)"),
+    ("idx_notify_user_unread",
+     "CREATE INDEX IF NOT EXISTS idx_notify_user_unread ON notification (user_id, is_read, created_at DESC)"),
     # rank_snapshot: 榜单快照按 (rank_type, period_end_time DESC)
-    ("idx_snapshot_rank_type_time", "CREATE INDEX IF NOT EXISTS idx_snapshot_rank_type_time ON rank_snapshot (rank_type, period_end_time DESC, rank)"),
+    ("idx_snapshot_rank_type_time",
+     "CREATE INDEX IF NOT EXISTS idx_snapshot_rank_type_time ON rank_snapshot (rank_type, period_end_time DESC, rank)"),
     # execution_account: 软删除过滤 + owner 查询
-    ("idx_acc_owner_deleted", "CREATE INDEX IF NOT EXISTS idx_acc_owner_deleted ON execution_account (owner_id, deleted_at)"),
-    ("idx_acc_platform_deleted", "CREATE INDEX IF NOT EXISTS idx_acc_platform_deleted ON execution_account (platform, deleted_at)"),
+    ("idx_acc_owner_deleted",
+     "CREATE INDEX IF NOT EXISTS idx_acc_owner_deleted ON execution_account (owner_id, deleted_at)"),
+    ("idx_acc_platform_deleted",
+     "CREATE INDEX IF NOT EXISTS idx_acc_platform_deleted ON execution_account (platform, deleted_at)"),
     # vote_decision: 投票按 (account_id, created_at DESC)
-    ("idx_vote_account_time", "CREATE INDEX IF NOT EXISTS idx_vote_account_time ON vote_decision (account_id, created_at DESC)"),
+    ("idx_vote_account_time",
+     "CREATE INDEX IF NOT EXISTS idx_vote_account_time ON vote_decision (account_id, created_at DESC)"),
     # agent_prediction: 智能体预测按 (symbol, timeframe, created_at DESC)
-    ("idx_prediction_symbol_time", "CREATE INDEX IF NOT EXISTS idx_prediction_symbol_time ON agent_prediction (symbol, timeframe, created_at DESC)"),
+    ("idx_prediction_symbol_time",
+     "CREATE INDEX IF NOT EXISTS idx_prediction_symbol_time ON agent_prediction (symbol, timeframe, created_at DESC)"),
     # auto_strategy_log: 策略日志按 (task_id, log_type, created_at DESC)
-    ("idx_auto_strategy_log_task_type", "CREATE INDEX IF NOT EXISTS idx_auto_strategy_log_task_type ON auto_strategy_log (task_id, log_type, created_at DESC)"),
+    ("idx_auto_strategy_log_task_type",
+     "CREATE INDEX IF NOT EXISTS idx_auto_strategy_log_task_type ON auto_strategy_log (task_id, log_type, created_at DESC)"),
     # auto_strategy: 按关联账户查询
-    ("idx_auto_strategy_account_id", "CREATE INDEX IF NOT EXISTS idx_auto_strategy_account_id ON auto_strategy (account_id)"),
+    ("idx_auto_strategy_account_id",
+     "CREATE INDEX IF NOT EXISTS idx_auto_strategy_account_id ON auto_strategy (account_id)"),
     # strategy_trade: 策略交易明细查询
-    ("idx_strategy_trade_name_time", "CREATE INDEX IF NOT EXISTS idx_strategy_trade_name_time ON strategy_trade (strategy_name, entry_at)"),
-    ("idx_strategy_trade_name_status", "CREATE INDEX IF NOT EXISTS idx_strategy_trade_name_status ON strategy_trade (strategy_name, status)"),
-    ("idx_strategy_trade_profit", "CREATE INDEX IF NOT EXISTS idx_strategy_trade_profit ON strategy_trade (strategy_name, is_profit)"),
-    ("idx_strategy_trade_source", "CREATE INDEX IF NOT EXISTS idx_strategy_trade_source ON strategy_trade (source_strategy, entry_at)"),
+    ("idx_strategy_trade_name_time",
+     "CREATE INDEX IF NOT EXISTS idx_strategy_trade_name_time ON strategy_trade (strategy_name, entry_at)"),
+    ("idx_strategy_trade_name_status",
+     "CREATE INDEX IF NOT EXISTS idx_strategy_trade_name_status ON strategy_trade (strategy_name, status)"),
+    ("idx_strategy_trade_profit",
+     "CREATE INDEX IF NOT EXISTS idx_strategy_trade_profit ON strategy_trade (strategy_name, is_profit)"),
+    ("idx_strategy_trade_source",
+     "CREATE INDEX IF NOT EXISTS idx_strategy_trade_source ON strategy_trade (source_strategy, entry_at)"),
     # strategy_equity_curve: 净值曲线查询
-    ("idx_equity_strategy_date", "CREATE INDEX IF NOT EXISTS idx_equity_strategy_date ON strategy_equity_curve (strategy_name, snapshot_date)"),
-    ("idx_equity_account_date", "CREATE INDEX IF NOT EXISTS idx_equity_account_date ON strategy_equity_curve (account_id, snapshot_date)"),
+    ("idx_equity_strategy_date",
+     "CREATE INDEX IF NOT EXISTS idx_equity_strategy_date ON strategy_equity_curve (strategy_name, snapshot_date)"),
+    ("idx_equity_account_date",
+     "CREATE INDEX IF NOT EXISTS idx_equity_account_date ON strategy_equity_curve (account_id, snapshot_date)"),
     # ===== 20260807 风控模块独立：新表索引 =====
-    ("idx_risk_profile_owner", "CREATE INDEX IF NOT EXISTS idx_risk_profile_owner ON risk_profile (owner_id, is_active)"),
-    ("idx_account_risk_frozen", "CREATE INDEX IF NOT EXISTS idx_account_risk_frozen ON account_risk_profile (is_frozen, account_id)"),
-    ("idx_strategy_risk_auto", "CREATE INDEX IF NOT EXISTS idx_strategy_risk_auto ON strategy_risk_profile (auto_strategy_id)"),
-    ("idx_risk_event_account", "CREATE INDEX IF NOT EXISTS idx_risk_event_account ON risk_event_log (account_id, created_at DESC)"),
-    ("idx_risk_event_strategy", "CREATE INDEX IF NOT EXISTS idx_risk_event_strategy ON risk_event_log (auto_strategy_id, created_at DESC)"),
-    ("idx_risk_event_user", "CREATE INDEX IF NOT EXISTS idx_risk_event_user ON risk_event_log (user_id, created_at DESC)"),
-    ("idx_risk_event_type_time", "CREATE INDEX IF NOT EXISTS idx_risk_event_type_time ON risk_event_log (event_type, created_at DESC)"),
+    ("idx_risk_profile_owner",
+     "CREATE INDEX IF NOT EXISTS idx_risk_profile_owner ON risk_profile (owner_id, is_active)"),
+    ("idx_account_risk_frozen",
+     "CREATE INDEX IF NOT EXISTS idx_account_risk_frozen ON account_risk_profile (is_frozen, account_id)"),
+    ("idx_strategy_risk_auto",
+     "CREATE INDEX IF NOT EXISTS idx_strategy_risk_auto ON strategy_risk_profile (auto_strategy_id)"),
+    ("idx_risk_event_account",
+     "CREATE INDEX IF NOT EXISTS idx_risk_event_account ON risk_event_log (account_id, created_at DESC)"),
+    ("idx_risk_event_strategy",
+     "CREATE INDEX IF NOT EXISTS idx_risk_event_strategy ON risk_event_log (auto_strategy_id, created_at DESC)"),
+    ("idx_risk_event_user",
+     "CREATE INDEX IF NOT EXISTS idx_risk_event_user ON risk_event_log (user_id, created_at DESC)"),
+    ("idx_risk_event_type_time",
+     "CREATE INDEX IF NOT EXISTS idx_risk_event_type_time ON risk_event_log (event_type, created_at DESC)"),
 ]
-
 
 # 20260806 表名重命名后遗留的旧索引（迁移时先 DROP 再重建为新名）
 _DROP_INDEXES: list[str] = [
@@ -520,7 +560,8 @@ def _create_login_attempt_indexes(insp) -> list[str]:
     idx_sql = [
         ("idx_login_attempt_email", "CREATE INDEX IF NOT EXISTS idx_login_attempt_email ON login_attempt (email)"),
         ("idx_login_attempt_ip", "CREATE INDEX IF NOT EXISTS idx_login_attempt_ip ON login_attempt (ip)"),
-        ("idx_login_attempt_created_at", "CREATE INDEX IF NOT EXISTS idx_login_attempt_created_at ON login_attempt (created_at)"),
+        ("idx_login_attempt_created_at",
+         "CREATE INDEX IF NOT EXISTS idx_login_attempt_created_at ON login_attempt (created_at)"),
     ]
     # SQLite / PostgreSQL 两者都支持 IF NOT EXISTS
     with sync_engine.begin() as conn:
@@ -648,34 +689,31 @@ def _migrate_030_risk_backfill(engine) -> list[str]:
         if system_default is None:
             try:
                 db.execute(text("""
-                INSERT INTO risk_profile (
-                    name, owner_id, is_default, description, is_active,
-                    risk_single_ratio, risk_daily_loss_ratio, max_daily_amount,
-                    max_daily_count, max_consecutive_failures, max_drawdown_ratio,
-                    max_open_positions, stop_loss_ratio, take_profit_ratio,
-                    created_at, updated_at
-                ) VALUES (
-                    :name, NULL, :is_default, :description, :is_active,
-                    :risk_single_ratio, :risk_daily_loss_ratio, :max_daily_amount,
-                    :max_daily_count, :max_consecutive_failures, :max_drawdown_ratio,
-                    :max_open_positions, :stop_loss_ratio, :take_profit_ratio,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """), {
-                    "name": "系统默认风控（保守）",
-                    "is_default": True,
-                    "description": "全局默认：日亏 5%、单日单量上限 2k USD、连续失败 8 次",
-                    "is_active": True,
-                    "risk_single_ratio": 0.05,
-                    "risk_daily_loss_ratio": 0.05,
-                    "max_daily_amount": 2000.0,
-                    "max_daily_count": 10,
-                    "max_consecutive_failures": 8,
-                    "max_drawdown_ratio": 0.15,
-                    "max_open_positions": 3,
-                    "stop_loss_ratio": 0.05,
-                    "take_profit_ratio": 0.10,
-                })
+                                INSERT INTO risk_profile (name, owner_id, is_default, description, is_active,
+                                                          risk_single_ratio, risk_daily_loss_ratio, max_daily_amount,
+                                                          max_daily_count, max_consecutive_failures, max_drawdown_ratio,
+                                                          max_open_positions, stop_loss_ratio, take_profit_ratio,
+                                                          created_at, updated_at)
+                                VALUES (:name, NULL, :is_default, :description, :is_active,
+                                        :risk_single_ratio, :risk_daily_loss_ratio, :max_daily_amount,
+                                        :max_daily_count, :max_consecutive_failures, :max_drawdown_ratio,
+                                        :max_open_positions, :stop_loss_ratio, :take_profit_ratio,
+                                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                """), {
+                               "name": "系统默认风控（保守）",
+                               "is_default": True,
+                               "description": "全局默认：日亏 5%、单日单量上限 2k USD、连续失败 8 次",
+                               "is_active": True,
+                               "risk_single_ratio": 0.05,
+                               "risk_daily_loss_ratio": 0.05,
+                               "max_daily_amount": 2000.0,
+                               "max_daily_count": 10,
+                               "max_consecutive_failures": 8,
+                               "max_drawdown_ratio": 0.15,
+                               "max_open_positions": 3,
+                               "stop_loss_ratio": 0.05,
+                               "take_profit_ratio": 0.10,
+                           })
                 applied.append("risk_profile: system default inserted")
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"insert system risk_profile failed: {e}")
@@ -697,22 +735,19 @@ def _migrate_030_risk_backfill(engine) -> list[str]:
             try:
                 frozen = bool(row["risk_frozen"])
                 db.execute(text("""
-                    INSERT INTO account_risk_profile (
-                        account_id, consecutive_failures, is_frozen,
-                        frozen_reason, frozen_at, last_check_at,
-                        created_at, updated_at
-                    ) VALUES (
-                        :account_id, 0, :is_frozen,
-                        :frozen_reason, :frozen_at, NULL,
-                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                    )
-                """), {
-                    "account_id": row["id"],
-                    "is_frozen": frozen,
-                    "frozen_reason": (row.get("risk_frozen_reason") or
-                                      ("日亏超限(旧数据迁移)" if frozen else None)),
-                    "frozen_at": datetime.utcnow() if frozen else None,
-                })
+                                INSERT INTO account_risk_profile (account_id, consecutive_failures, is_frozen,
+                                                                  frozen_reason, frozen_at, last_check_at,
+                                                                  created_at, updated_at)
+                                VALUES (:account_id, 0, :is_frozen,
+                                        :frozen_reason, :frozen_at, NULL,
+                                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                """), {
+                               "account_id": row["id"],
+                               "is_frozen": frozen,
+                               "frozen_reason": (row.get("risk_frozen_reason") or
+                                                 ("日亏超限(旧数据迁移)" if frozen else "")),
+                               "frozen_at": datetime.utcnow() if frozen else None,
+                           })
                 n_acc += 1
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"insert account_risk_profile failed acc={row.get('id')}: {e}")
@@ -723,33 +758,33 @@ def _migrate_030_risk_backfill(engine) -> list[str]:
         #    - 把 max_daily_amount / max_daily_count / max_consecutive_failures / consecutive_failures 复制
         all_tasks = db.execute(
             text("""
-            SELECT t.id, t.max_daily_amount, t.max_daily_count,
-                   t.max_consecutive_failures, t.consecutive_failures
-            FROM auto_strategy t
-            LEFT JOIN strategy_risk_profile p ON p.auto_strategy_id = t.id
-            WHERE p.id IS NULL
-            """)
+                 SELECT t.id,
+                        t.max_daily_amount,
+                        t.max_daily_count,
+                        t.max_consecutive_failures,
+                        t.consecutive_failures
+                 FROM auto_strategy t
+                          LEFT JOIN strategy_risk_profile p ON p.auto_strategy_id = t.id
+                 WHERE p.id IS NULL
+                 """)
         ).mappings().all()
         n_tasks = 0
         for row in all_tasks:
             try:
                 db.execute(text("""
-                    INSERT INTO strategy_risk_profile (
-                        auto_strategy_id, max_daily_amount, max_daily_count,
-                        max_consecutive_failures, consecutive_failures,
-                        created_at, updated_at
-                    ) VALUES (
-                        :auto_strategy_id, :max_daily_amount, :max_daily_count,
-                        :max_consecutive_failures, :consecutive_failures,
-                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                    )
-                """), {
-                    "auto_strategy_id": row["id"],
-                    "max_daily_amount": row["max_daily_amount"],
-                    "max_daily_count": row["max_daily_count"],
-                    "max_consecutive_failures": row["max_consecutive_failures"],
-                    "consecutive_failures": row.get("consecutive_failures") or 0,
-                })
+                                INSERT INTO strategy_risk_profile (auto_strategy_id, max_daily_amount, max_daily_count,
+                                                                   max_consecutive_failures, consecutive_failures,
+                                                                   created_at, updated_at)
+                                VALUES (:auto_strategy_id, :max_daily_amount, :max_daily_count,
+                                        :max_consecutive_failures, :consecutive_failures,
+                                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                """), {
+                               "auto_strategy_id": row["id"],
+                               "max_daily_amount": row["max_daily_amount"],
+                               "max_daily_count": row["max_daily_count"],
+                               "max_consecutive_failures": row["max_consecutive_failures"],
+                               "consecutive_failures": row.get("consecutive_failures") or 0,
+                           })
                 n_tasks += 1
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"insert strategy_risk_profile failed task={row.get('id')}: {e}")

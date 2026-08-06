@@ -4,7 +4,7 @@ import json
 import random
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,11 @@ from fwsort.models import ExecutionAccount, StrategyPerformance, User
 from router.auth_router import current_user
 
 router = APIRouter()
+
+
+def _is_demo_request(request: Request) -> bool:
+    """检测请求是否来自 /api/demo/* 演示通道（仅演示模式使用 Mock 数据）"""
+    return request.url.path.startswith("/api/demo/")
 
 
 # WP-10：keyset 分页游标编解码（base64 包装 JSON 避免泄露排序字段细节）
@@ -110,6 +115,7 @@ def _tier(score: float) -> str:
 # ========== 接口：总榜单（用户级，无需登录）==========
 @router.get("/global", response_model=dict)
 async def global_ranking(
+    request: Request,
     platform: str | None = Query(default=None, description="polymarket/okx"),
     sort_by: str = Query(default="composite", description="composite/return/capital"),
     sort_dir: str = Query(default="desc", description="asc/desc"),
@@ -175,30 +181,33 @@ async def global_ranking(
                 }
             )
     else:
-        # 无数据 → MOCK
-        mocks = _mock_global_users()
-        if platform:
-            mocks = [m for m in mocks if m["platform"] == platform]
-        reverse = sort_dir != "asc"
-        if sort_by == "return":
-            mocks.sort(key=lambda x: x["avg_return"], reverse=reverse)
-        elif sort_by == "capital":
-            mocks.sort(key=lambda x: x["total_capital"], reverse=reverse)
-        else:
-            mocks.sort(key=lambda x: x["avg_score"], reverse=reverse)
+        # 仅演示模式回退 Mock 数据，真实环境返回空
+        if _is_demo_request(request):
+            mocks = _mock_global_users()
+            if platform:
+                mocks = [m for m in mocks if m["platform"] == platform]
+            reverse = sort_dir != "asc"
+            if sort_by == "return":
+                mocks.sort(key=lambda x: x["avg_return"], reverse=reverse)
+            elif sort_by == "capital":
+                mocks.sort(key=lambda x: x["total_capital"], reverse=reverse)
+            else:
+                mocks.sort(key=lambda x: x["avg_score"], reverse=reverse)
 
-        total = len(mocks)
-        start = (page - 1) * page_size
-        end = start + page_size
-        page_items = mocks[start:end]
-        items = [
-            {
-                **m,
-                "rank": start + i + 1,
-                "tier": _tier(m["avg_score"]),
-            }
-            for i, m in enumerate(page_items)
-        ]
+            total = len(mocks)
+            start = (page - 1) * page_size
+            end = start + page_size
+            page_items = mocks[start:end]
+            items = [
+                {
+                    **m,
+                    "rank": start + i + 1,
+                    "tier": _tier(m["avg_score"]),
+                }
+                for i, m in enumerate(page_items)
+            ]
+        else:
+            total = 0
 
     return success(
         data={
@@ -223,60 +232,91 @@ async def my_ranking(
     user: User = Depends(current_user),
 ) -> dict:
     """我的榜单：仅返回当前用户的执行账户排名（需登录）"""
-    # 复用 list_ranking 逻辑，但限定 owner_id
-    stmt = (
-        select(ExecutionAccount, StrategyPerformance)
-        .join(StrategyPerformance, StrategyPerformance.account_id == ExecutionAccount.id)
+    # Step 1: 获取用户所有账户（不含 JOIN，确保无绩效数据的账户也能返回）
+    acc_stmt = (
+        select(ExecutionAccount)
         .where(ExecutionAccount.owner_id == user.id)
         .where(ExecutionAccount.deleted_at.is_(None))
     )
     if platform:
-        stmt = stmt.where(ExecutionAccount.platform == platform)
+        acc_stmt = acc_stmt.where(ExecutionAccount.platform == platform)
+    acc_rows = (await db.execute(acc_stmt)).scalars().all()
+
+    # Step 2: 批量加载绩效数据
+    account_ids = [a.id for a in acc_rows]
+    perf_map: dict[int, StrategyPerformance] = {}
+    if account_ids:
+        perfs = (
+            await db.execute(
+                select(StrategyPerformance)
+                .where(StrategyPerformance.account_id.in_(account_ids))
+                .where(StrategyPerformance.period_type == 4)
+            )
+        ).scalars().all()
+        perf_map = {p.account_id: p for p in perfs}
+
+    # Step 3: 组装数据 + 内存排序
+    items: list[dict] = []
+    for acc in acc_rows:
+        perf = perf_map.get(acc.id)
+        if perf:
+            items.append({
+                "uid": acc.uid,
+                "name": acc.name,
+                "platform": acc.platform,
+                "composite_score": float(perf.composite_score),
+                "annualized_return": float(perf.annualized_return),
+                "max_drawdown": float(perf.max_drawdown),
+                "calmar_ratio": float(perf.calmar_ratio),
+                "sharpe_ratio": float(perf.sharpe_ratio),
+                "win_rate": float(perf.win_rate),
+                "trade_count": perf.trade_count,
+                "execution_score": float(perf.execution_score),
+                "total_return": float(perf.total_return),
+                "volatility": float(perf.volatility),
+                "max_consecutive_loss": perf.max_consecutive_loss,
+                "tier": _tier(float(perf.composite_score)),
+            })
+        else:
+            items.append({
+                "uid": acc.uid,
+                "name": acc.name,
+                "platform": acc.platform,
+                "composite_score": 0.0,
+                "annualized_return": 0.0,
+                "max_drawdown": 0.0,
+                "calmar_ratio": 0.0,
+                "sharpe_ratio": 0.0,
+                "win_rate": 0.0,
+                "trade_count": 0,
+                "execution_score": 0.0,
+                "total_return": 0.0,
+                "volatility": 0.0,
+                "max_consecutive_loss": 0,
+                "tier": _tier(0),
+            })
 
     # 排序（支持升序/降序）
-    order_fn = asc if sort_dir == "asc" else desc
+    reverse = sort_dir != "asc"
     if sort_by == "return":
-        stmt = stmt.order_by(order_fn(StrategyPerformance.annualized_return))
+        items.sort(key=lambda x: x["annualized_return"], reverse=reverse)
     elif sort_by == "drawdown":
-        stmt = stmt.order_by(order_fn(StrategyPerformance.max_drawdown))
+        items.sort(key=lambda x: x["max_drawdown"], reverse=reverse)
     elif sort_by == "sharpe":
-        stmt = stmt.order_by(order_fn(StrategyPerformance.sharpe_ratio))
+        items.sort(key=lambda x: x["sharpe_ratio"], reverse=reverse)
     elif sort_by == "trades":
-        stmt = stmt.order_by(order_fn(StrategyPerformance.trade_count))
+        items.sort(key=lambda x: x["trade_count"], reverse=reverse)
     elif sort_by == "execution":
-        stmt = stmt.order_by(order_fn(StrategyPerformance.execution_score))
+        items.sort(key=lambda x: x["execution_score"], reverse=reverse)
     else:
-        stmt = stmt.order_by(order_fn(StrategyPerformance.composite_score))
+        items.sort(key=lambda x: x["composite_score"], reverse=reverse)
 
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    items: list[dict] = []
-    total = len(rows) if rows else 0
-    if rows:
-        start = (page - 1) * page_size
-        end = start + page_size
-        for idx, (acc, perf) in enumerate(rows[start:end], start=start + 1):
-            items.append(
-                {
-                    "rank": idx,
-                    "uid": acc.uid,
-                    "name": acc.name,
-                    "platform": acc.platform,
-                    "composite_score": float(perf.composite_score),
-                    "annualized_return": float(perf.annualized_return),
-                    "max_drawdown": float(perf.max_drawdown),
-                    "calmar_ratio": float(perf.calmar_ratio),
-                    "sharpe_ratio": float(perf.sharpe_ratio),
-                    "win_rate": float(perf.win_rate),
-                    "trade_count": perf.trade_count,
-                    "execution_score": float(perf.execution_score),
-                    "total_return": float(perf.total_return),
-                    "volatility": float(perf.volatility),
-                    "max_consecutive_loss": perf.max_consecutive_loss,
-                    "tier": _tier(float(perf.composite_score)),
-                }
-            )
+    total = len(items)
+    start = (page - 1) * page_size
+    end = start + page_size
+    paged_items = items[start:end]
+    for idx, item in enumerate(paged_items, start=start + 1):
+        item["rank"] = idx
 
     return success(
         data={
@@ -294,6 +334,7 @@ async def my_ranking(
 # ========== 接口：榜单列表 ==========
 @router.get("/list", response_model=dict)
 async def list_ranking(
+    request: Request,
     rank_type: str = Query(default=RankType.REALTIME, description="榜单类型"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -484,8 +525,8 @@ async def list_ranking(
                         }
                     )
 
-        # 无数据 → MOCK
-        if not items:
+        # 仅演示模式回退 Mock 数据，真实环境返回空
+        if not items and _is_demo_request(request):
             mocks = _mock_accounts()
             if platform:
                 mocks = [m for m in mocks if m["platform"] == platform]
@@ -503,6 +544,8 @@ async def list_ranking(
             page_items = mocks[start:end]
             items = [{"rank": start + i + 1, **m} for i, m in enumerate(page_items)]
             total = len(mocks)
+        elif not items:
+            total = total or 0
 
     # 填充段位
     rank_items = []
@@ -524,11 +567,13 @@ async def list_ranking(
 
 # ========== 接口：策略详情 ==========
 @router.get("/detail/{uid}", response_model=dict)
-async def ranking_detail(uid: str, db: AsyncSession = Depends(get_async_db)) -> dict:
+async def ranking_detail(request: Request, uid: str, db: AsyncSession = Depends(get_async_db)) -> dict:
     """单个执行账户或用户的榜单详情
     - uid 支持两种格式：账户级 (ACC-DEMO1000) / 用户级 (USER-0001)
     - 用户级：聚合该用户所有账户的绩效
     """
+    is_demo = _is_demo_request(request)
+
     # 用户级（USER-XXXX）→ 聚合查询
     if uid.startswith("USER-"):
         try:
@@ -540,17 +585,18 @@ async def ranking_detail(uid: str, db: AsyncSession = Depends(get_async_db)) -> 
         user_stmt = select(User).where(User.id == user_id)
         user_row = (await db.execute(user_stmt)).first()
         if not user_row:
-            # 兜底 MOCK：找名字匹配
-            mocks = _mock_global_users()
-            for m in mocks:
-                if m["uid"] == uid:
-                    return success(data={
-                        **m,
-                        "rank_history": [
-                            {"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "rank": random.randint(1, 20)}
-                            for i in range(30)
-                        ],
-                    })
+            # 仅演示模式回退 MOCK
+            if is_demo:
+                mocks = _mock_global_users()
+                for m in mocks:
+                    if m["uid"] == uid:
+                        return success(data={
+                            **m,
+                            "rank_history": [
+                                {"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "rank": random.randint(1, 20)}
+                                for i in range(30)
+                            ],
+                        })
             raise NotFoundError(f"uid {uid} not found")
         user = user_row[0]
 
@@ -611,102 +657,151 @@ async def ranking_detail(uid: str, db: AsyncSession = Depends(get_async_db)) -> 
         )
 
     # 账户级（ACC-XXXX / MOCK-XXXX）
-    stmt = (
-        select(ExecutionAccount, StrategyPerformance)
-        .join(StrategyPerformance, StrategyPerformance.account_id == ExecutionAccount.id)
+    # 先单独查账户（不依赖绩效表），确保无绩效数据时也能返回基本信息
+    acc_stmt = (
+        select(ExecutionAccount)
         .where(ExecutionAccount.uid == uid)
         .where(ExecutionAccount.deleted_at.is_(None))
     )
-    result = await db.execute(stmt)
-    row = result.first()
-    if not row:
-        # MOCK 详情
-        mocks = _mock_accounts()
-        for m in mocks:
-            if m["uid"] == uid:
-                return success(
-                    data={
-                        "uid": m["uid"],
-                        "name": m["name"],
-                        "platform": m["platform"],
-                        "tier": _tier(m["composite_score"]),
-                        **m,
-                        "rank_history": [
-                            {"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "rank": random.randint(1, 20)}
-                            for i in range(30)
-                        ],
-                    }
-                )
+    acc_result = await db.execute(acc_stmt)
+    acc = acc_result.scalar_one_or_none()
+
+    if not acc:
+        # 仅演示模式回退 MOCK
+        if is_demo:
+            mocks = _mock_accounts()
+            for m in mocks:
+                if m["uid"] == uid:
+                    return success(
+                        data={
+                            "uid": m["uid"],
+                            "name": m["name"],
+                            "platform": m["platform"],
+                            "tier": _tier(m["composite_score"]),
+                            **m,
+                            "rank_history": [
+                                {"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "rank": random.randint(1, 20)}
+                                for i in range(30)
+                            ],
+                        }
+                    )
         raise NotFoundError(f"uid {uid} not found")
 
-    acc, perf = row
-    return success(
-        data={
-            "uid": acc.uid,
-            "name": acc.name,
-            "platform": acc.platform,
-            "tier": _tier(float(perf.composite_score)),
-            "annualized_return": float(perf.annualized_return),
-            "max_drawdown": float(perf.max_drawdown),
-            "calmar_ratio": float(perf.calmar_ratio),
-            "sharpe_ratio": float(perf.sharpe_ratio),
-            "win_rate": float(perf.win_rate),
-            "trade_count": perf.trade_count,
-            "execution_score": float(perf.execution_score),
-            "composite_score": float(perf.composite_score),
-            "current_balance": float(acc.current_balance),
-            # 开发计划B §2.1 新增风险/收益字段
-            "total_return": float(perf.total_return),
-            "volatility": float(perf.volatility),
-            "max_consecutive_loss": perf.max_consecutive_loss,
-        }
+    # 查绩效（可能不存在，不存在则返回默认值）
+    perf_stmt = (
+        select(StrategyPerformance)
+        .where(StrategyPerformance.account_id == acc.id)
+        .where(StrategyPerformance.period_type == 4)
     )
+    perf_result = await db.execute(perf_stmt)
+    perf = perf_result.scalar_one_or_none()
+
+    if perf:
+        tier_score = float(perf.composite_score)
+        return success(
+            data={
+                "uid": acc.uid,
+                "name": acc.name,
+                "platform": acc.platform,
+                "tier": _tier(tier_score),
+                "annualized_return": float(perf.annualized_return),
+                "max_drawdown": float(perf.max_drawdown),
+                "calmar_ratio": float(perf.calmar_ratio),
+                "sharpe_ratio": float(perf.sharpe_ratio),
+                "win_rate": float(perf.win_rate),
+                "trade_count": perf.trade_count,
+                "execution_score": float(perf.execution_score),
+                "composite_score": tier_score,
+                "current_balance": float(acc.current_balance),
+                "total_return": float(perf.total_return),
+                "volatility": float(perf.volatility),
+                "max_consecutive_loss": perf.max_consecutive_loss,
+            }
+        )
+    else:
+        # 无绩效数据时返回账户基本信息 + 默认值
+        return success(
+            data={
+                "uid": acc.uid,
+                "name": acc.name,
+                "platform": acc.platform,
+                "tier": _tier(0),
+                "annualized_return": 0.0,
+                "max_drawdown": 0.0,
+                "calmar_ratio": 0.0,
+                "sharpe_ratio": 0.0,
+                "win_rate": 0.0,
+                "trade_count": 0,
+                "execution_score": 0.0,
+                "composite_score": 0.0,
+                "current_balance": float(acc.current_balance),
+                "total_return": 0.0,
+                "volatility": 0.0,
+                "max_consecutive_loss": 0,
+                "note": "该账户暂无绩效数据，请先执行交易以生成排名。",
+            }
+        )
 
 
 # ========== 接口：榜单历史快照 ==========
 @router.get("/history", response_model=dict)
 async def ranking_history(
+    request: Request,
     rank_type: str = Query(default="daily"),
     days: int = Query(default=30, ge=1, le=365),
 ) -> dict:
     """历史榜单快照（用于回溯分析）"""
-    snapshots = [
-        {
-            "date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"),
-            "top1": _mock_accounts()[0]["name"],
-            "top1_score": round(random.uniform(70, 95), 2),
-        }
-        for i in range(days)
-    ]
+    # 仅演示模式生成 Mock 快照数据
+    if _is_demo_request(request):
+        snapshots = [
+            {
+                "date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"),
+                "top1": _mock_accounts()[0]["name"],
+                "top1_score": round(random.uniform(70, 95), 2),
+            }
+            for i in range(days)
+        ]
+    else:
+        snapshots = []
     return success(data={"rank_type": rank_type, "snapshots": snapshots})
 
 
 # ========== 接口：榜单变动 ==========
 @router.get("/change/{uid}", response_model=dict)
-async def ranking_change(uid: str, days: int = Query(default=7, ge=1, le=90)) -> dict:
+async def ranking_change(request: Request, uid: str, days: int = Query(default=7, ge=1, le=90)) -> dict:
     """单个账户排名变动趋势"""
-    history = [
-        {
-            "date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"),
-            "rank": random.randint(1, 20),
-            "score": round(random.uniform(20, 95), 2),
-        }
-        for i in range(days)
-    ]
-    history.reverse()
+    # 仅演示模式生成 Mock 历史数据
+    if _is_demo_request(request):
+        history = [
+            {
+                "date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"),
+                "rank": random.randint(1, 20),
+                "score": round(random.uniform(20, 95), 2),
+            }
+            for i in range(days)
+        ]
+        history.reverse()
+    else:
+        history = []
     return success(data={"uid": uid, "history": history})
 
 
 # ========== 接口：CSV 导出（架构文档 8.3）==========
 @router.get("/export", response_model=dict)
 async def export_ranking(
+    request: Request,
     rank_type: str = Query(default="daily"),
 ) -> dict:
     """导出榜单 CSV（实际项目中生成文件流）"""
+    # 仅演示模式使用 Mock 数据
+    if _is_demo_request(request):
+        rows = _mock_accounts()
+    else:
+        rows = []
     return success(
         data={
             "rank_type": rank_type,
-            "rows": _mock_accounts(),
+            "rows": rows,
             "export_url": f"/static/exports/{rank_type}_{datetime.now().strftime('%Y%m%d')}.csv",
         }
     )

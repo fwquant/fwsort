@@ -585,7 +585,7 @@ def _record_task_status(task_name: str, status: str, payload: dict) -> None:
 
 
 def get_all_task_status() -> list[dict]:
-    """读取所有任务最近一次执行状态（前端 /accounts/tasks 用）"""
+    """读取所有任务最近一次执行状态（前端 /myrank/tasks 用）"""
     import json as _json
 
     task_names = [

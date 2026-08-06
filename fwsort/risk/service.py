@@ -277,9 +277,7 @@ class RiskControlService:
             return True, profile.frozen_reason or "账户已风控冻结"
         return False, ""
 
-    # ---------------------------------------------------------
     #  自动任务（AutoStrategy）下单前检查：原 _run_risk_control + _check_circuit_breaker
-    # ---------------------------------------------------------
     @staticmethod
     def check_before_auto_strategy_order(
         db: Session,
@@ -382,13 +380,15 @@ class RiskControlService:
             extra={"manual": manual},
         )
 
-        # 账户已冻结：直接短路
+        # 账户已冻结：直接短路（显示具体冻结原因）
         if acc_frozen:
+            _, frozen_reason = RiskControlService.is_account_frozen(db, task.account_id)
+            reason_detail = f"（原因：{frozen_reason}）" if frozen_reason else ""
             result = RiskCheckResult(
                 passed=False, blocked=True, should_freeze=True,
-                freeze_reason="账户已处于风控冻结状态",
+                freeze_reason=frozen_reason or "账户已处于风控冻结状态",
                 amount_cap=None,
-                message="账户已处于风控冻结状态，请先联系管理员或手动解冻",
+                message=f"账户已处于风控冻结状态{reason_detail}，请先联系管理员或手动解冻",
                 rule_results=[],
             )
             _write_event_log(db, ctx=ctx, rule_results=[], user_id=user_id)

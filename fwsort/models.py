@@ -19,7 +19,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fwsort.database import Base
 
-
 # 跨方言主键类型：PostgreSQL 用 BigInteger，SQLite 用 Integer（走 ROWID 自动递增）
 PKType = BigInteger().with_variant(Integer(), "sqlite")
 FKType = BigInteger().with_variant(Integer(), "sqlite")
@@ -298,7 +297,8 @@ class FollowOrder(Base):
     __tablename__ = "follow_order"
 
     id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
-    subscription_id: Mapped[int] = mapped_column(FKType, ForeignKey("follow_subscription.id"), nullable=False, index=True)
+    subscription_id: Mapped[int] = mapped_column(FKType, ForeignKey("follow_subscription.id"), nullable=False,
+                                                 index=True)
     leader_order_id: Mapped[str] = mapped_column(String(128), nullable=False)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     side: Mapped[int] = mapped_column(SmallInteger, nullable=False, comment="1-买 2-卖")
@@ -395,7 +395,8 @@ class LoginAttempt(Base):
     ip: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     success: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     user_agent: Mapped[str] = mapped_column(String(256), default="", nullable=False)
-    reason: Mapped[str] = mapped_column(String(64), default="", nullable=False, comment="invalid_credentials/user_disabled/locked")
+    reason: Mapped[str] = mapped_column(String(64), default="", nullable=False,
+                                        comment="invalid_credentials/user_disabled/locked")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), index=True
     )
@@ -451,7 +452,8 @@ class SystemConfig(Base):
     value_type: Mapped[str] = mapped_column(String(16), nullable=False, default="str")
     group: Mapped[str] = mapped_column(String(32), nullable=False, default="general", index=True)
     description: Mapped[str] = mapped_column(String(256), default="", nullable=False)
-    readonly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="True 表示不可通过管理接口修改")
+    readonly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False,
+                                           comment="True 表示不可通过管理接口修改")
     updated_by: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -467,11 +469,13 @@ class AutoStrategy(Base):
 
     id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
     task_name: Mapped[str] = mapped_column(String(128), nullable=False, comment="任务名称")
-    signal_source: Mapped[str] = mapped_column(String(32), nullable=False, default="random", comment="信号来源: random/http")
+    signal_source: Mapped[str] = mapped_column(String(32), nullable=False, default="random",
+                                               comment="信号来源: random/http")
     gateway: Mapped[str] = mapped_column(String(32), nullable=False, default="polymarket_f3", comment="交易网关")
     interval: Mapped[int] = mapped_column(Integer, default=5, comment="调度间隔（分钟）")
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否启用")
-    start_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="首次执行时间（为空则启用后立即执行）")
+    start_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True,
+                                                        comment="首次执行时间（为空则启用后立即执行）")
     loop_count: Mapped[int] = mapped_column(Integer, default=0, comment="循环次数（0=无限循环，直到手动停止）")
     executed_count: Mapped[int] = mapped_column(Integer, default=0, comment="已执行次数（用于循环计数）")
     config_json: Mapped[str] = mapped_column(Text, default="{}", comment="任务额外配置 JSON")
@@ -483,7 +487,8 @@ class AutoStrategy(Base):
     total_failed: Mapped[int] = mapped_column(Integer, default=0, comment="失败次数")
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, comment="当前连续失败次数")
     # 关联执行账户（1:1，创建任务时自动创建）
-    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True, index=True, comment="关联执行账户ID")
+    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True,
+                                                   index=True, comment="关联执行账户ID")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -516,7 +521,8 @@ class AutoStrategyLog(Base):
     log_type: Mapped[int] = mapped_column(
         SmallInteger, default=0, index=True, comment="0-执行日志 1-操作日志"
     )
-    action_type: Mapped[str] = mapped_column(String(32), default="", comment="操作类型: start/stop/create/update/delete/execute_manual/init_gateway/fuse_triggered")
+    action_type: Mapped[str] = mapped_column(String(32), default="",
+                                             comment="操作类型: start/stop/create/update/delete/execute_manual/init_gateway/fuse_triggered")
     executed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     signal_json: Mapped[str] = mapped_column(Text, default="{}", comment="信号内容 JSON")
     order_result_json: Mapped[str] = mapped_column(Text, default="{}", comment="下单结果 JSON")
@@ -528,11 +534,14 @@ class AutoStrategyLog(Base):
     order_id: Mapped[str] = mapped_column(String(128), default="", comment="订单ID")
     detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="操作详情 JSON")
     # 增强：信号详情（含市场信息）
-    signal_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="信号详情 JSON(symbol/direction/amount/market_id/market_slug/market_question)")
+    signal_detail_json: Mapped[str] = mapped_column(Text, default="{}",
+                                                    comment="信号详情 JSON(symbol/direction/amount/market_id/market_slug/market_question)")
     # 增强：执行详情（含操作参数）
-    execution_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="执行详情 JSON(gateway/side/order_type/market_question/making_amount/taking_amount)")
+    execution_detail_json: Mapped[str] = mapped_column(Text, default="{}",
+                                                       comment="执行详情 JSON(gateway/side/order_type/market_question/making_amount/taking_amount)")
     # 增强：结果详情（含订单回执）
-    result_detail_json: Mapped[str] = mapped_column(Text, default="{}", comment="结果详情 JSON(order_id/status/filled_amount/price/tx_hash/market_result)")
+    result_detail_json: Mapped[str] = mapped_column(Text, default="{}",
+                                                    comment="结果详情 JSON(order_id/status/filled_amount/price/tx_hash/market_result)")
     # 盈亏追踪
     pnl_amount: Mapped[float] = mapped_column(default=0.0, comment="盈亏金额(USD)")
     pnl_percent: Mapped[float] = mapped_column(default=0.0, comment="盈亏百分比(%)")
@@ -552,12 +561,15 @@ class StrategyTrade(Base):
     __tablename__ = "strategy_trade"
 
     id: Mapped[int] = mapped_column(PKType, primary_key=True, autoincrement=True)
-    trade_uid: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False, comment="交易唯一ID TRD-{yyyymmdd}-{8hex}")
+    trade_uid: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False,
+                                           comment="交易唯一ID TRD-{yyyymmdd}-{8hex}")
 
     # 策略维度
     strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True, comment="策略名")
-    auto_strategy_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("auto_strategy.id"), nullable=True, index=True, comment="关联自动策略")
-    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True, index=True, comment="关联账户")
+    auto_strategy_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("auto_strategy.id"), nullable=True,
+                                                         index=True, comment="关联自动策略")
+    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True,
+                                                   index=True, comment="关联账户")
     source_strategy: Mapped[str] = mapped_column(String(64), default="", index=True, comment="引用的策略名")
 
     # 标的维度
@@ -590,7 +602,8 @@ class StrategyTrade(Base):
     hold_duration_seconds: Mapped[int] = mapped_column(Integer, default=0, comment="持仓时长（秒）")
 
     # 状态字段
-    status: Mapped[int] = mapped_column(SmallInteger, default=0, index=True, comment="0-持仓中 1-已平仓盈利 2-已平仓亏损 3-已平仓持平 4-已撤销 5-失败")
+    status: Mapped[int] = mapped_column(SmallInteger, default=0, index=True,
+                                        comment="0-持仓中 1-已平仓盈利 2-已平仓亏损 3-已平仓持平 4-已撤销 5-失败")
     market_resolved: Mapped[bool] = mapped_column(Boolean, default=False, index=True, comment="市场是否已结算")
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="结算时间")
 
@@ -622,8 +635,10 @@ class StrategyEquityCurve(Base):
 
     # 策略维度
     strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True, comment="策略名")
-    auto_strategy_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("auto_strategy.id"), nullable=True, index=True)
-    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True, index=True)
+    auto_strategy_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("auto_strategy.id"), nullable=True,
+                                                         index=True)
+    account_id: Mapped[int | None] = mapped_column(FKType, ForeignKey("execution_account.id"), nullable=True,
+                                                   index=True)
 
     # 净值数据
     snapshot_date: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True, comment="快照时间（每日）")
@@ -648,6 +663,5 @@ class StrategyEquityCurve(Base):
         Index("idx_equity_strategy_date", "strategy_name", "snapshot_date"),
         Index("idx_equity_account_date", "account_id", "snapshot_date"),
     )
-
 
 # (signal_provider_config 表已移除，信号源配置迁移到 .py 文件驱动架构)

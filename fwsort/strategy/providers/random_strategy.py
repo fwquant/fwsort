@@ -39,8 +39,8 @@ class RandomStrategy(StrategyBase):
     hidden_parameters = ["base_symbol"]
 
     # 参数默认值（会被 Web 界面修改）
-    interval_seconds: int = 14400
-    amount: float = 1.0
+    interval_seconds: int = 3600
+    amount: float = 2.5
     base_symbol: str = "btc-updown-4h"
 
     def __init__(self, config_json: dict | None = None):

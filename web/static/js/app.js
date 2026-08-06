@@ -54,7 +54,12 @@
     document.getElementById("btn-logout")?.addEventListener("click", () => {
       FWUI.api.clearToken();
       FWUI.toast.success("已退出");
-      setTimeout(() => location.reload(), 600);
+      // 演示模式：退出时跳转到生产环境根路径，避免自动重新登录
+      if (demoMode) {
+        setTimeout(() => { window.location.href = "/"; }, 600);
+      } else {
+        setTimeout(() => location.reload(), 600);
+      }
     });
 
     // 拉取当前用户 + 通知未读数
@@ -177,7 +182,7 @@
       onOk: async () => {
         const email = form.querySelector("[name=email]").value.trim();
         const password = form.querySelector("[name=password]").value;
-        if (!email || !password) { FWUI.toast.error("请填写完整"); throw new Error("validation"); }
+        if (!email || !password) { FWUI.toast.error("请填写完整"); return false; }
         try {
           const data = await FWUI.api.login({ email, password });
           FWUI.api.setToken(data.access_token);

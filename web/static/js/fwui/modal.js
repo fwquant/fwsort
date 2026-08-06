@@ -130,7 +130,7 @@
         const payload = inputVals || true;
         const ret = onOk ? onOk(payload) : undefined;
         if (ret && typeof ret.catch === "function") {
-          ret.then((ok) => { if (ok !== false) close(payload); });
+          ret.then((ok) => { if (ok !== false) close(payload); }).catch(() => { /* onOk rejected, keep modal open */ });
         } else {
           close(payload);
         }

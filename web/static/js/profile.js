@@ -267,7 +267,7 @@
           </div>
         </div>
         <div class="profile-privacy__hint">
-          💡 提示：账户级「参与总榜单」开关请到 <a href="${(window.__FW_DEMO_PREFIX__ || "") + "/accounts"}">我的账户</a> 单独配置
+          💡 提示：账户级「参与总榜单」开关请到 <a href="${window.__FW_DEMO_MODE__ ? "/demo/myrank" : "/myrank"}">我的执行账户排行榜</a> 单独配置
         </div>
       `;
       document.getElementById("toggle-share").onchange = (e) => updatePrivacy("share_to_global", e.target.checked);

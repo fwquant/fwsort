@@ -173,16 +173,11 @@ def reload_providers() -> dict:
 
     # 1. 先删除 providers 包下的所有子模块（从 sys.modules 中移除）
     # 注意：不删除 base 模块，因为 base 是基类，不会频繁修改
-    import fwsort.strategy.providers as providers_pkg
-    providers_dir_list = providers_pkg.__path__
-
-    # 先保存模块名列表，避免删除过程中修改迭代对象
+    # 必须递归移除所有嵌套子模块（如 hermes.sftp_strategy），否则修改不会生效
     modules_to_remove = []
-    for module_info in pkgutil.iter_modules(providers_dir_list):
-        module_name = module_info.name
-        full_module_name = f"fwsort.strategy.providers.{module_name}"
-        if full_module_name in sys.modules:
-            modules_to_remove.append(full_module_name)
+    for module_name in list(sys.modules.keys()):
+        if module_name.startswith("fwsort.strategy.providers."):
+            modules_to_remove.append(module_name)
 
     # 批量删除模块
     for full_module_name in modules_to_remove:

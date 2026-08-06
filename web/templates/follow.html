@@ -8,18 +8,51 @@
 </head>
 <body>
   <nav class="fwui-nav">
-    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <a href="/" class="fwui-nav__logo-link">
+      <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    </a>
     <div class="fwui-nav__links">
-      <a class="fwui-nav__link" href="/">📊 榜单</a>
-      <a class="fwui-nav__link" href="/accounts">💼 我的策略</a>
+      <!-- 榜单 -->
+      <div class="fwui-nav__dropdown" data-nav-group="ranking">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/">📊 榜单</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/">🌍 总榜单</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts">👤 我的执行账户</a>
+        </div>
+      </div>
+      <!-- 跟单 -->
       <a class="fwui-nav__link fwui-nav__link--active" href="/follow">👥 跟单</a>
-      <a class="fwui-nav__link" href="/risk" title="风控中心">🛡️ 风控</a>
-      <a class="fwui-nav__link" href="/admin" title="控制台">⚙️</a>
+      <!-- 策略 -->
+      <div class="fwui-nav__dropdown" data-nav-group="strategy">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/strategy/tasks">📡 策略</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/auto-tasks">🤖 自动策略</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/logs">📜 策略日志</a>
+        </div>
+      </div>
+      <!-- 齿轮 -->
+      <div class="fwui-nav__dropdown" data-nav-group="console">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/admin" title="控制台">⚙️</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/admin">⚙️ 控制台</a>
+          <a class="fwui-nav__dropdown-item" href="/risk">🛡️ 风控中心</a>
+          <a class="fwui-nav__dropdown-item" href="/rental">🤖 租用智能体</a>
+          <a class="fwui-nav__dropdown-item" href="/polymarket">🔮 Polymarket</a>
+        </div>
+      </div>
     </div>
     <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
     <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
   </nav>
 
+  
+  <!-- 面包屑 -->
+  <div class="fwui-breadcrumb">
+    <a href="/" class="fwui-breadcrumb__home">🏠 首页</a>
+    <span class="fwui-breadcrumb__sep">/</span>
+    <span class="fwui-breadcrumb__current">跟单</span>
+  </div>
   <main class="fwui-main">
     <h1 class="fwui-page-title">👥 跟单管理</h1>
     <p class="fwui-page-subtitle">订阅高胜算交易员，自动跟单其信号 · 支持"订阅费 + 利润分成"双轨</p>

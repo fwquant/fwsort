@@ -60,7 +60,7 @@
   // ========== URL Tab 参数支持 ==========
   function getTabFromUrl() {
     var params = new URLSearchParams(location.search);
-    return params.get("tab") || "status";
+    return params.get("tab") || "quickorder";
   }
   function setTabInUrl(tab) {
     var url = new URL(location.href);
@@ -96,6 +96,11 @@
         tab.title = "";
       }
     });
+    // ⚠️ 更新初始化提示横幅
+    var warningEl = document.getElementById("pm-init-warning");
+    if (warningEl) {
+      warningEl.style.display = _isInitialized ? "none" : "flex";
+    }
   }
 
   document.querySelectorAll(".pm-tab").forEach(function (tab) {
@@ -115,7 +120,20 @@
   // 初始化时从 URL 读取 tab
   var initialTab = getTabFromUrl();
   switchTab(initialTab);
-  updateTabStates();  // 初始时灰显未初始化 Tab
+  updateTabStates();  // 初始时灰显未初始化 Tab + 显示/隐藏提示横幅
+
+  // ⚠️ 初始化提示横幅按钮 → 切换到连接状态并滚动到初始化按钮
+  var warningBtn = document.getElementById("pm-init-warning-btn");
+  if (warningBtn) {
+    warningBtn.onclick = function () {
+      switchTab("status");
+      var initBtn = document.getElementById("btn-f3-init");
+      if (initBtn) {
+        initBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+        initBtn.style.animation = "none";
+      }
+    };
+  }
 
   function setTabBadge(state, text) {
     if (!tabBadge) return;
@@ -724,6 +742,136 @@
       renderLogBuffer();
     };
   });
+
+  // ========== 一键F3下单 ==========
+  function renderQuickSteps(steps) {
+    var container = document.getElementById("quickorder-steps");
+    container.innerHTML = "";
+    steps.forEach(function (step) {
+      var statusIcon = { ok: "✅", running: "⏳", error: "❌", warn: "⚠️", idle: "⏸️" };
+      var statusCls = { ok: "color:var(--fwui-success)", running: "color:var(--fwui-primary)", error: "color:var(--fwui-danger)", warn: "color:#d29922", idle: "color:var(--fwui-text-muted)" };
+      var icon = statusIcon[step.status] || "•";
+      var cls = statusCls[step.status] || "";
+      var div = document.createElement("div");
+      div.style.cssText = "display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:8px;background:var(--fwui-bg);font-size:13px;";
+      div.innerHTML = '<span style="font-weight:600;min-width:20px;' + cls + '">' + icon + '</span>' +
+        '<span style="min-width:70px;color:var(--fwui-text-secondary);">' + step.name + '</span>' +
+        '<span style="color:var(--fwui-text);">' + (step.detail || "") + '</span>';
+      container.appendChild(div);
+    });
+  }
+
+  function renderQuickResult(data) {
+    var el = document.getElementById("quickorder-result-content");
+    var html = "";
+    if (data.success) {
+      html += '<div style="padding:14px;border:1px solid var(--fwui-success);border-radius:12px;background:rgba(16,185,129,.08);margin-bottom:12px;">';
+      html += '<div style="font-size:15px;font-weight:700;color:var(--fwui-success);margin-bottom:8px;">✅ 下单成功</div>';
+      if (data.response) {
+        html += '<div style="font-size:13px;line-height:1.8;">';
+        html += '<div><strong>订单ID:</strong> ' + (data.response.order_id || "-") + '</div>';
+        html += '<div><strong>状态:</strong> ' + (data.response.status || "-") + '</div>';
+        html += '<div><strong>成交数量:</strong> ' + (data.response.making_amount || "-") + '</div>';
+        html += '<div><strong>花费金额:</strong> ' + (data.response.taking_amount || "-") + '</div>';
+        if (data.response.ok !== undefined) html += '<div><strong>OK:</strong> ' + data.response.ok + '</div>';
+        html += '</div>';
+      }
+      if (data.market_url) {
+        html += '<div style="margin-top:10px;"><a href="' + data.market_url + '" target="_blank" style="color:var(--fwui-primary);text-decoration:none;">🔗 查看市场 →</a></div>';
+      }
+      html += '</div>';
+      if (data.market) {
+        html += '<div style="padding:12px;border:1px solid var(--fwui-border);border-radius:10px;background:var(--fwui-bg);margin-bottom:12px;">';
+        html += '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">📊 市场信息</div>';
+        html += '<div style="font-size:12px;line-height:1.8;color:var(--fwui-text-secondary);">';
+        if (data.market.question) html += '<div>问题: ' + data.market.question + '</div>';
+        if (data.market.slug) html += '<div>Slug: ' + data.market.slug + '</div>';
+        if (data.market.condition_id) html += '<div>Condition: ' + data.market.condition_id + '</div>';
+        html += '</div></div>';
+      }
+    } else {
+      html += '<div style="padding:14px;border:1px solid var(--fwui-danger);border-radius:12px;background:rgba(239,68,68,.08);">';
+      html += '<div style="font-size:15px;font-weight:700;color:var(--fwui-danger);">❌ 下单失败</div>';
+      if (data.error) html += '<div style="margin-top:6px;font-size:13px;">' + data.error + '</div>';
+      html += '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  document.getElementById("btn-f3-quickorder").onclick = async function () {
+    var btn = this;
+    var slug = getSlug("quickorder-slug-select");
+    var amount = parseFloat(document.getElementById("quickorder-amount").value) || 1;
+    var outcome = document.querySelector('input[name="quickorder-direction"]:checked').value;
+    var progressEl = document.getElementById("quickorder-progress");
+    var resultEl = document.getElementById("quickorder-result");
+
+    btn.disabled = true;
+    btn.textContent = "⏳ 执行中...";
+    btn.style.opacity = "0.7";
+    progressEl.style.display = "";
+    resultEl.style.display = "none";
+
+    var initialSteps = [
+      { name: "检查配置", status: "ok", detail: "读取 .env 配置..." },
+      { name: "构建 RelayerApiKey", status: "ok", detail: "创建 Relayer 认证对象..." },
+      { name: "创建客户端", status: "ok", detail: "初始化 AsyncSecureClient (Relayer Gasless)..." },
+      { name: "获取市场", status: "ok", detail: "查询市场盘口..." },
+      { name: "下市价单", status: "running", detail: "⏳ 正在下单中..." },
+      { name: "查询持仓验证", status: "idle", detail: "" },
+      { name: "关闭连接", status: "idle", detail: "" },
+      { name: "完成", status: "idle", detail: "" },
+    ];
+    renderQuickSteps(initialSteps);
+
+    log("▶ 一键F3下单: slug=" + slug + " outcome=" + outcome + " amount=" + amount, "info", "quickorder");
+
+    try {
+      var r = await FWUI.api.post("/api/polymarket/f3/quick-order", { slug: slug, outcome: outcome, amount: amount });
+
+      if (r.steps) {
+        var stepsWithStatus = r.steps.map(function (s) {
+          return { name: s.name, status: s.status === "ok" ? "ok" : "running", detail: s.detail || "" };
+        });
+        if (r.success) {
+          stepsWithStatus = stepsWithStatus.map(function (s) {
+            return { name: s.name, status: "ok", detail: s.detail };
+          });
+        } else {
+          stepsWithStatus = stepsWithStatus.map(function (s, i) {
+            return i === stepsWithStatus.length - 1 ? { name: s.name, status: "error", detail: s.detail } : { name: s.name, status: "ok", detail: s.detail };
+          });
+        }
+        renderQuickSteps(stepsWithStatus);
+      }
+
+      resultEl.style.display = "";
+      renderQuickResult(r);
+
+      if (r.success) {
+        log("✅ 一键F3下单成功!", "success", "quickorder");
+        if (r.response) log("   订单: " + JSON.stringify(r.response), "success", "quickorder");
+        if (r.market_url) log("   🔗 " + r.market_url, "info", "quickorder");
+        FWUI.toast.success("一键F3下单成功!");
+      } else {
+        log("❌ 一键F3下单失败: " + (r.error || "未知错误"), "error", "quickorder");
+        FWUI.toast.error(r.error || "下单失败");
+      }
+    } catch (e) {
+      log("❌ 一键F3下单异常: " + e.message, "error", "quickorder");
+      var errSteps = initialSteps.map(function (s, i) {
+        return i < initialSteps.length - 1 ? { name: s.name, status: "ok", detail: s.detail } : { name: s.name, status: "error", detail: e.message };
+      });
+      renderQuickSteps(errSteps);
+      resultEl.style.display = "";
+      renderQuickResult({ success: false, error: e.message });
+      FWUI.toast.error(e.message || "下单异常");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🚀 一键F3下单";
+      btn.style.opacity = "";
+    }
+  };
 
   // ========== 页面加载时自动查询状态 ==========
   setTimeout(function () {

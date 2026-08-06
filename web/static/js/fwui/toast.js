@@ -33,6 +33,7 @@
     warning(msg, dur) { show(msg, "warning", dur); },
     info(msg, dur)    { show(msg, "info",    dur); },
   };
+  Toast.warn = Toast.warning;
 
   global.FWUI = global.FWUI || {};
   global.FWUI.toast = Toast;

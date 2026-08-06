@@ -215,6 +215,8 @@ _TRANSACTIONAL_TABLES = [
     "auto_strategy_log",
     "auto_strategy",
     "strategy_performance",
+    "strategy_trade",
+    "strategy_equity_curve",
     "execution_account",
     "order_execution_log",
     "vote_decision",
@@ -223,8 +225,12 @@ _TRANSACTIONAL_TABLES = [
     "agent_portfolio",
     "rank_snapshot",
     "follow_order",
+    "follow_subscription",
     "rental_order",
+    "rental_agent",
+    "notification",
     "outbox_event",
+    "user",
 ]
 
 # 保留的表（配置/基础数据）
@@ -313,10 +319,12 @@ def reset_db(engine=None, confirm_token: str = "") -> dict:
     errors = []
 
     # 按依赖关系排序：先清子表，再清父表
-    # auto_strategy_log -> auto_strategy -> execution_account
+    # auto_strategy_log -> auto_strategy -> execution_account -> user
     # 其他表按字母顺序
     ordered_tables = [
         "auto_strategy_log",
+        "strategy_trade",
+        "strategy_equity_curve",
         "auto_strategy",
         "strategy_performance",
         "order_execution_log",
@@ -326,9 +334,13 @@ def reset_db(engine=None, confirm_token: str = "") -> dict:
         "agent_portfolio",
         "rank_snapshot",
         "follow_order",
+        "follow_subscription",
         "rental_order",
+        "rental_agent",
+        "notification",
         "outbox_event",
         "execution_account",
+        "user",
     ]
 
     with engine.begin() as conn:
@@ -379,19 +391,31 @@ def reset_db(engine=None, confirm_token: str = "") -> dict:
 
 
 def _seed_demo_data(engine) -> None:
-    """播种演示数据到指定引擎：1 管理员 + 20 执行账户 + 绩效 + 50 投票 + 订单
+    """播种丰富的演示数据：20 用户 + 200 执行账户 + 绩效 + 500 投票 + 30 自动策略 + 日志 + 跟单 + 租用
 
-    用于重置演示库后自动恢复演示数据，使演示库始终可访问。
+    用于重置演示库后自动恢复演示数据，使演示库始终有充足的数据展示。
     """
     import random
     import uuid
     from datetime import datetime, timedelta
 
     from fwsort.models import (
+        AgentCollaboration,
+        AgentPortfolio,
         AgentPrediction,
+        AutoStrategy,
+        AutoStrategyLog,
         ExecutionAccount,
+        FollowOrder,
+        FollowSubscription,
+        Notification,
         OrderExecutionLog,
+        RankSnapshot,
+        RentalAgent,
+        RentalOrder,
+        StrategyEquityCurve,
         StrategyPerformance,
+        StrategyTrade,
         User,
         VoteDecision,
     )
@@ -410,7 +434,10 @@ def _seed_demo_data(engine) -> None:
         run_migrations()
 
     session = DemoSyncSessionLocal()
+    rng = random.Random(42)  # 固定种子保证可重现
+
     try:
+        # ===== 1. 创建用户（1 管理员 + 19 普通用户）=====
         admin = User(
             email="admin@fwquant.com",
             password_hash=hash_password("admin123456"),
@@ -421,55 +448,106 @@ def _seed_demo_data(engine) -> None:
         session.add(admin)
         session.flush()
         admin_id = admin.id
-        logger.info(f"[seed_demo] admin created: id={admin_id}")
 
-        names = ["Alpha猎手", "Beta套利", "Gamma网格", "Delta波段", "Epsilon趋势", "Zeta对冲", "Eta高频", "Theta事件"]
-        platforms = ["polymarket", "okx"]
+        normal_users = []
+        user_configs = [
+            ("trader@fwquant.com", "trader123", "趋势猎人", 2),
+            ("quant@fwquant.com", "quant123", "量化工匠", 2),
+            ("beta@fwquant.com", "beta123", "Beta套利者", 2),
+            ("gamma@fwquant.com", "gamma123", "Gamma网客", 2),
+            ("delta@fwquant.com", "delta123", "Delta波段王", 2),
+            ("epsilon@fwquant.com", "epsilon123", "Epsilon趋势", 2),
+            ("zeta@fwquant.com", "zeta123", "Zeta对冲", 2),
+            ("eta@fwquant.com", "eta123", "Eta高频", 2),
+            ("theta@fwquant.com", "theta123", "Theta事件", 2),
+            ("iota@fwquant.com", "iota123", "Iota突破", 2),
+            ("kappa@fwquant.com", "kappa123", "Kappa反转", 2),
+            ("lambda@fwquant.com", "lambda123", "Lambda做市", 2),
+            ("mu@fwquant.com", "mu123", "Mu量化", 2),
+            ("nu@fwquant.com", "nu123", "Nu套利", 2),
+            ("xi@fwquant.com", "xi123", "Xi网格", 2),
+            ("omicron@fwquant.com", "omicron123", "Omicron波段", 2),
+            ("pi@fwquant.com", "pi123", "Pi趋势", 2),
+            ("rho@fwquant.com", "rho123", "Rho对冲", 2),
+            ("sigma@fwquant.com", "sigma123", "Sigma猎手", 2),
+        ]
+        for email, pwd, nick, role in user_configs:
+            u = User(
+                email=email,
+                password_hash=hash_password(pwd),
+                nickname=nick,
+                role=role,
+                status=0,
+            )
+            session.add(u)
+            normal_users.append(u)
+        session.flush()
+        user_ids = [admin_id] + [u.id for u in normal_users]
+        logger.info(f"[seed_demo] {len(user_ids)} users created")
+
+        # ===== 2. 创建执行账户（200 个，跨多个用户）=====
+        account_names = [
+            "Alpha猎手", "Beta套利", "Gamma网格", "Delta波段", "Epsilon趋势",
+            "Zeta对冲", "Eta高频", "Theta事件", "Iota突破", "Kappa反转",
+            "Lambda做市", "GammaScalper", "DeltaArb", "EpsilonSwing", "ZetaHFT",
+            "ETH猎手", "SOL趋势", "DOGE波段", "AVAX套利", "MATIC网格",
+            "BTC趋势跟随", "ETH均值回归", "SOL突破", "BNB区间", "XRP事件驱动",
+            "ADA逆势", "DOT套利", "LINK趋势", "ATOM波段", "LTC高频",
+            "狗狗币狙击", "屎币短线", "小币轮动", "山寨币猎手", "DeFiAlpha",
+            "稳定币套利", "跨市套利", "三角套利", "期现套利", "统计套利",
+        ]
+        platforms_list = ["polymarket", "okx", "polymarket", "okx"]
+        symbols_map = {
+            "polymarket": ["BTC", "ETH", "SOL", "USDC", "POLY"],
+            "okx": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "AVAXUSDT"],
+        }
         accounts = []
-
-        for i in range(20):
+        for i in range(200):
+            owner_id = user_ids[i % len(user_ids)]
+            platform = platforms_list[(i // len(user_ids)) % len(platforms_list)]
+            name = f"{account_names[i % len(account_names)]}-{i+1:03d}"
             acc = ExecutionAccount(
                 uid=f"ACC-{uuid.uuid4().hex[:10].upper()}",
-                owner_id=admin_id,
-                name=f"{names[i % len(names)]}-{i+1:02d}",
-                platform=platforms[i % 2],
-                account_type=0,
+                owner_id=owner_id,
+                name=name,
+                platform=platform,
+                account_type=rng.choice([0, 1, 2]),
                 initial_balance=1000.0,
-                current_balance=round(1000.0 + random.uniform(-50, 300), 2),
-                daily_pnl=round(random.uniform(-100, 100), 2),
+                current_balance=round(1000.0 + rng.uniform(-100, 500), 2),
+                daily_pnl=round(rng.uniform(-150, 200), 2),
             )
             session.add(acc)
             accounts.append(acc)
         session.flush()
         logger.info(f"[seed_demo] {len(accounts)} accounts created")
 
+        # ===== 3. 绩效记录 =====
         for acc in accounts:
-            ann = round(random.uniform(-0.1, 1.2), 4)
-            dd = round(random.uniform(0.02, 0.3), 4)
-            sharpe = round(random.uniform(0.3, 3.0), 2)
-            plr = round(random.uniform(0.8, 3.0), 2)
-            ex = round(random.uniform(0.6, 0.95), 4)
+            ann = round(rng.uniform(-0.15, 1.5), 4)
+            dd = round(rng.uniform(0.02, 0.35), 4)
+            sharpe = round(rng.uniform(0.2, 3.5), 2)
+            plr = round(rng.uniform(0.7, 3.5), 2)
+            ex = round(rng.uniform(0.55, 0.98), 4)
             score = composite_score(ann, dd, sharpe, plr, ex)
-
             sp = StrategyPerformance(
                 account_id=acc.id,
                 uid=acc.uid,
-                period_type=4,
-                start_time=datetime.now() - timedelta(days=30),
+                period_type=4 if rng.random() < 0.8 else rng.choice([1, 2, 3]),
+                start_time=datetime.now() - timedelta(days=rng.choice([7, 30, 90])),
                 end_time=datetime.now(),
                 annualized_return=ann,
                 max_drawdown=dd,
                 sharpe_ratio=sharpe,
-                sortino_ratio=sharpe * 1.2,
+                sortino_ratio=sharpe * rng.uniform(1.1, 1.4),
                 calmar_ratio=ann / max(dd, 0.01),
                 profit_factor=plr,
-                win_rate=round(random.uniform(0.45, 0.75), 4),
+                win_rate=round(rng.uniform(0.40, 0.80), 4),
                 profit_loss_ratio=plr,
-                trade_count=random.randint(100, 1500),
-                execution_rate=round(random.uniform(0.85, 0.99), 4),
-                avg_slippage=round(random.uniform(0.0001, 0.005), 6),
-                avg_latency=random.randint(150, 800),
-                cancel_rate=round(random.uniform(0.01, 0.15), 4),
+                trade_count=rng.randint(50, 2000),
+                execution_rate=round(rng.uniform(0.80, 0.99), 4),
+                avg_slippage=round(rng.uniform(0.0001, 0.008), 6),
+                avg_latency=rng.randint(100, 1000),
+                cancel_rate=round(rng.uniform(0.005, 0.18), 4),
                 execution_score=ex,
                 composite_score=score,
             )
@@ -477,22 +555,83 @@ def _seed_demo_data(engine) -> None:
         session.flush()
         logger.info("[seed_demo] performances created")
 
-        for _ in range(50):
-            acc = random.choice(accounts)
-            directions = [random.choice([1, 1, 1, 2, 0]) for _ in range(3)]
-            preds = []
+        # ===== 4. 排名快照 =====
+        rank_types = [1, 2, 3, 4]  # 日/周/月/总
+        for day in range(30, 0, -1):
+            snap_time = datetime.now() - timedelta(days=day)
+            rtype = rank_types[day % len(rank_types)]
+            for acc in rng.sample(accounts, min(20, len(accounts))):
+                score_val = round(rng.uniform(30, 95), 2)
+                rs = RankSnapshot(
+                    rank_type=rtype,
+                    period_end_time=snap_time,
+                    uid=acc.uid,
+                    rank=0,
+                    score=score_val,
+                    execution_score=round(rng.uniform(0.5, 1.0), 4),
+                    annualized_return=round(rng.uniform(-0.1, 1.2), 4),
+                    max_drawdown=round(rng.uniform(0.02, 0.25), 4),
+                    trade_count=rng.randint(10, 500),
+                )
+                session.add(rs)
+        session.flush()
+        logger.info("[seed_demo] rank snapshots created")
 
+        # ===== 5. Agent 组合和协作 =====
+        portfolios = []
+        for i in range(10):
+            pf = AgentPortfolio(
+                name=f"Portfolio-{i+1}",
+                strategy_uids=f'["ACC-{uuid.uuid4().hex[:8].upper()}","ACC-{uuid.uuid4().hex[:8].upper()}","ACC-{uuid.uuid4().hex[:8].upper()}"]',
+                collaboration_mode=rng.choice([1, 2, 3, 4]),
+                status=rng.choice([0, 0, 1]),
+            )
+            session.add(pf)
+            portfolios.append(pf)
+        session.flush()
+
+        for pf in portfolios:
+            for _ in range(rng.randint(3, 10)):
+                collab = AgentCollaboration(
+                    portfolio_id=pf.id,
+                    from_uid=f"Agent-{rng.randint(1, 10):02d}",
+                    to_uid=f"Agent-{rng.randint(1, 10):02d}",
+                    message_type=rng.choice([1, 2, 3]),
+                    message_content=f'{{"action":"{rng.choice(["signal","request","sync"])}","data":"mock"}}',
+                )
+                session.add(collab)
+        session.flush()
+        logger.info("[seed_demo] agent portfolios & collaborations created")
+
+        # ===== 6. 投票决策 + 订单（300 条）=====
+        symbols_list = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "AVAXUSDT"]
+        timeframe_list = ["5m", "15m", "30m", "1h", "4h"]
+        agents_list = [
+            ("GPT-4o", "gpt-4o"),
+            ("Claude", "claude-3-5-sonnet"),
+            ("Gemini", "gemini-2.0-flash"),
+            ("Deepseek", "deepseek-v3"),
+            ("Ollama", "qwen2.5-7b"),
+        ]
+        for vi in range(500):
+            acc = rng.choice(accounts)
+            symbols = symbols_list if acc.platform == "okx" else ["BTC", "ETH", "SOL"]
+            symbol = rng.choice(symbols)
+            tf = rng.choice(timeframe_list)
+            directions = [rng.choice([1, 1, 1, 2, 0]) for _ in range(3)]
+            preds = []
             for d in directions:
+                agent_name, agent_model = rng.choice(agents_list)
                 ap = AgentPrediction(
-                    agent_name=random.choice(["GPT-4o", "Claude", "Gemini"]),
-                    agent_model=random.choice(["gpt-4o", "claude-3-5-sonnet", "gemini-2.0-flash"]),
-                    symbol="BTCUSDT",
-                    timeframe="15m",
+                    agent_name=agent_name,
+                    agent_model=agent_model,
+                    symbol=symbol,
+                    timeframe=tf,
                     direction=d,
-                    confidence=round(random.uniform(0.55, 0.95), 4),
+                    confidence=round(rng.uniform(0.55, 0.95), 4),
                     reasoning="[MOCK seed] 模拟历史预测",
                     raw_payload='{"mock": true}',
-                    latency_ms=random.randint(100, 600),
+                    latency_ms=rng.randint(80, 800),
                 )
                 session.add(ap)
                 preds.append(ap)
@@ -507,8 +646,8 @@ def _seed_demo_data(engine) -> None:
 
             v_row = VoteDecision(
                 account_id=acc.id,
-                symbol="BTCUSDT",
-                timeframe="15m",
+                symbol=symbol,
+                timeframe=tf,
                 up_count=v.up_count,
                 down_count=v.down_count,
                 flat_count=v.flat_count,
@@ -523,19 +662,20 @@ def _seed_demo_data(engine) -> None:
             if v.final_direction != 0 and v.order_amount_usd > 0:
                 order_id = f"ORD-{uuid.uuid4().hex[:16].upper()}"
                 if acc.platform == "polymarket":
-                    price = round(max(0.01, min(0.99, 0.5 + random.uniform(-0.1, 0.1))), 4)
+                    price = round(max(0.01, min(0.99, 0.5 + rng.uniform(-0.15, 0.15))), 4)
                     qty = round(1.0 / price, 4)
-                    slip = round(random.uniform(0.0, 0.01), 6)
+                    slip = round(rng.uniform(0.0, 0.015), 6)
                 elif acc.platform == "okx":
-                    price = 60000.0 + random.uniform(-500, 500)
+                    base_prices = {"BTCUSDT": 60000, "ETHUSDT": 3000, "SOLUSDT": 150, "DOGEUSDT": 0.15, "AVAXUSDT": 35}
+                    base = base_prices.get(symbol, 100)
+                    price = base + rng.uniform(-base * 0.02, base * 0.02)
                     qty = round(v.order_amount_usd / price, 6)
-                    slip = round(random.uniform(0.0, 0.003), 6)
+                    slip = round(rng.uniform(0.0, 0.005), 6)
                 else:
                     price, qty, slip = 0.0, 0.0, 0.0
 
-                status = 3 if random.random() < 0.9 else 2
+                status = rng.choice([2, 3, 3, 3, 3])  # 多数成功
                 actual_price = price * (1 + slip * (1 if v.final_direction == 1 else -1))
-
                 order_log = OrderExecutionLog(
                     uid=acc.uid,
                     account_id=acc.id,
@@ -544,20 +684,351 @@ def _seed_demo_data(engine) -> None:
                     order_type=2,
                     side=v.final_direction,
                     platform=acc.platform,
-                    symbol="BTCUSDT",
+                    symbol=symbol,
                     expected_price=price,
                     actual_price=actual_price,
                     quantity=qty,
                     amount_usd=v.order_amount_usd,
                     status=status,
-                    latency_ms=random.randint(80, 600),
+                    latency_ms=rng.randint(50, 800),
                     slippage=slip,
-                    pnl=round(random.uniform(-5, 15), 2),
+                    pnl=round(rng.uniform(-10, 25), 2),
                 )
                 session.add(order_log)
 
+        session.flush()
+        logger.info(f"[seed_demo] 300 votes with orders created")
+
+        # ===== 7. 自动策略任务（30 个）=====
+        auto_task_configs = [
+            ("BTC趋势追踪", "random", "polymarket_f3", 5, True, 0),
+            ("ETH网格策略", "random", "okx", 10, True, 0),
+            ("SOL高频交易", "random", "polymarket_f3", 2, True, 0),
+            ("DOGE波段", "random", "okx", 15, True, 0),
+            ("AVAX套利", "random", "polymarket_f3", 3, False, 0),
+            ("MATIC做市", "random", "okx", 5, True, 0),
+            ("跨市场套利", "http", "polymarket_f3", 1, True, 0),
+            ("新闻事件驱动", "http", "okx", 30, True, 100),
+            ("BTC熊市对冲", "random", "polymarket_f3", 10, False, 0),
+            ("ETH牛市趋势", "random", "okx", 5, True, 0),
+            ("DeFi脉冲交易", "http", "polymarket_f3", 2, True, 50),
+            ("稳定币网格", "random", "okx", 20, True, 0),
+            ("小币狙击", "http", "polymarket_f3", 1, True, 200),
+            ("大盘指数轮动", "random", "okx", 15, False, 0),
+            ("高胜率组合", "random", "polymarket_f3", 5, True, 0),
+            ("山寨币Alpha", "http", "okx", 3, True, 50),
+            ("BTC突破策略", "random", "polymarket_f3", 5, True, 0),
+            ("ETH回调买入", "random", "okx", 10, True, 0),
+            ("SOL日内交易", "random", "polymarket_f3", 2, True, 0),
+            ("BNB区间震荡", "random", "okx", 15, True, 0),
+            ("XRP事件驱动", "http", "polymarket_f3", 3, False, 0),
+            ("ADA波段操作", "random", "okx", 5, True, 0),
+            ("DOT跨链套利", "http", "polymarket_f3", 1, True, 0),
+            ("LINK趋势跟随", "random", "okx", 30, True, 150),
+            ("ATOM网格交易", "random", "polymarket_f3", 10, False, 0),
+            ("LTC高频套利", "random", "okx", 5, True, 0),
+            ("DOGE麦理论", "http", "polymarket_f3", 2, True, 80),
+            ("AVAX突破反转", "random", "okx", 20, True, 0),
+            ("MATIC做市策略", "random", "polymarket_f3", 1, True, 0),
+            ("稳定币收益", "http", "okx", 15, False, 0),
+        ]
+        auto_tasks = []
+        for i, (name, source, gateway, interval, active, loop) in enumerate(auto_task_configs):
+            acc = accounts[i % len(accounts)]
+            total = rng.randint(10, 200) if active else rng.randint(0, 5)
+            success_cnt = int(total * rng.uniform(0.6, 0.95))
+            fail_cnt = total - success_cnt
+            task = AutoStrategy(
+                task_name=name,
+                signal_source=source,
+                gateway=gateway,
+                interval=interval,
+                is_active=active,
+                start_time=datetime.now() - timedelta(hours=rng.randint(1, 72)),
+                loop_count=loop,
+                executed_count=success_cnt + fail_cnt,
+                config_json='{"max_amount": 50, "symbols": ["BTC", "ETH"]}',
+                max_daily_amount=round(rng.uniform(20, 200), 2),
+                max_daily_count=rng.randint(10, 100),
+                max_consecutive_failures=rng.choice([3, 5, 10]),
+                total_executions=total,
+                total_success=success_cnt,
+                total_failed=fail_cnt,
+                consecutive_failures=0 if active else rng.randint(0, 5),
+                account_id=acc.id,
+                initial_balance=acc.initial_balance,
+                current_balance=round(acc.current_balance + rng.uniform(-30, 80), 2),
+                total_pnl=round(rng.uniform(-50, 200), 2),
+                total_trades=total,
+                win_trades=success_cnt,
+                loss_trades=fail_cnt,
+                win_rate=round(success_cnt / max(total, 1) * 100, 2),
+                max_drawdown=round(rng.uniform(0.02, 0.2), 4),
+                sharpe_ratio=round(rng.uniform(0.3, 2.5), 2),
+                profit_loss_ratio=round(rng.uniform(0.8, 3.0), 2),
+            )
+            session.add(task)
+            auto_tasks.append(task)
+        session.flush()
+        logger.info(f"[seed_demo] {len(auto_tasks)} auto strategies created")
+
+        # ===== 8. 自动策略执行日志（每个任务多条日志）=====
+        log_action_types = ["execute_manual", "init_gateway", "start", "stop", "fuse_triggered", "update"]
+        for task in auto_tasks:
+            num_logs = rng.randint(5, 25)
+            for li in range(num_logs):
+                log_type = rng.choice([0, 0, 0, 1])  # 多数执行日志
+                action = rng.choice(log_action_types)
+                status = rng.choice([0, 0, 0, 0, 1, 2, 3, 4])
+                direction = rng.choice([1, 1, 2, 0])
+                sym = rng.choice(symbols_list if task.gateway == "okx" else ["BTC", "ETH", "SOL"])
+                is_profit = rng.random() < 0.65
+                pnl_amt = round(rng.uniform(-5, 20), 2) if is_profit else round(rng.uniform(-15, -1), 2)
+                entry_p = round(rng.uniform(0.01, 100), 4)
+                exit_p = round(entry_p * (1 + rng.uniform(-0.1, 0.15)), 4)
+                log_entry = AutoStrategyLog(
+                    task_id=task.id,
+                    log_type=log_type,
+                    action_type=action,
+                    executed_at=datetime.now() - timedelta(minutes=rng.randint(1, 4320)),
+                    signal_json=f'{{"symbol":"{sym}","direction":"{"UP" if direction == 1 else "DOWN" if direction == 2 else "FLAT"}","confidence":{round(rng.uniform(0.5, 0.95), 2)}}}',
+                    order_result_json=f'{{"order_id":"ORD-{uuid.uuid4().hex[:12].upper()}","status":"{"filled" if status == 0 else "failed"}"}}',
+                    status=status,
+                    error_message="" if status == 0 else f"模拟错误: 网关超时",
+                    duration_ms=rng.randint(100, 3000),
+                    order_id=f"ORD-{uuid.uuid4().hex[:16].upper()}",
+                    detail_json='{"mock": true}',
+                    signal_detail_json=f'{{"symbol":"{sym}","direction":{direction},"amount":{round(rng.uniform(10, 100), 2)}}}',
+                    execution_detail_json='{"gateway":"f3","side":"buy","order_type":"market"}',
+                    result_detail_json='{"filled_amount":1.0,"price":50.0}',
+                    pnl_amount=pnl_amt,
+                    pnl_percent=round(pnl_amt / max(entry_p, 0.001) * 100, 2),
+                    is_profit=is_profit,
+                    market_resolved=rng.random() < 0.3,
+                    entry_price=entry_p,
+                    exit_price=exit_p,
+                )
+                session.add(log_entry)
+        session.flush()
+        logger.info("[seed_demo] auto strategy logs created")
+
+        # ===== 9. 策略交易明细（100 条）=====
+        for ti in range(100):
+            task = rng.choice(auto_tasks)
+            acc = task.account or rng.choice(accounts)
+            direction = rng.choice(["UP", "DOWN", "NEUTRAL"])
+            side = 1 if direction == "UP" else 2
+            is_profit = rng.random() < 0.6
+            entry_p = round(rng.uniform(0.01, 80000), 4)
+            if is_profit:
+                exit_p = round(entry_p * (1 + rng.uniform(0.01, 0.2)), 4)
+                pnl = round(rng.uniform(1, 30), 2)
+            else:
+                exit_p = round(entry_p * (1 - rng.uniform(0.01, 0.15)), 4)
+                pnl = round(rng.uniform(-20, -0.5), 2)
+            trade = StrategyTrade(
+                trade_uid=f"TRD-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}",
+                strategy_name=task.task_name,
+                auto_strategy_id=task.id,
+                account_id=acc.id,
+                source_strategy=task.signal_source,
+                platform=acc.platform,
+                symbol=rng.choice(symbols_list if acc.platform == "okx" else ["BTC", "ETH", "SOL"]),
+                market_question="Will BTC close above $60000?",
+                market_slug=f"btc-{rng.choice(['bull', 'bear'])}-{ti}",
+                direction=direction,
+                side=side,
+                order_type=2,
+                order_id=f"ORD-{uuid.uuid4().hex[:16].upper()}",
+                entry_price=entry_p,
+                exit_price=exit_p,
+                quantity=round(rng.uniform(0.1, 5.0), 4),
+                amount_usd=round(rng.uniform(10, 200), 2),
+                pnl_amount=pnl,
+                pnl_percent=round(pnl / max(entry_p, 0.001) * 100, 2),
+                is_profit=is_profit,
+                is_win=is_profit,
+                entry_at=datetime.now() - timedelta(hours=rng.randint(1, 720)),
+                exit_at=datetime.now() - timedelta(hours=rng.randint(0, 700)),
+                hold_duration_seconds=rng.randint(60, 86400),
+                status=1 if is_profit else 2,
+                market_resolved=True,
+                slippage=round(rng.uniform(0.001, 0.02), 4),
+                latency_ms=rng.randint(100, 500),
+            )
+            session.add(trade)
+        session.flush()
+        logger.info("[seed_demo] strategy trades created")
+
+        # ===== 10. 资金曲线 =====
+        for task in auto_tasks:
+            curve_entries = []
+            peak = 1000.0
+            for d in range(30):
+                ts = datetime.now() - timedelta(days=29 - d)
+                daily_pnl = round(rng.uniform(-5, 20), 2)
+                equity = round(peak + daily_pnl, 2)
+                if equity > peak:
+                    peak = equity
+                dd = round((peak - equity) / max(peak, 0.01) * 100, 2)
+                curve_entries.append(StrategyEquityCurve(
+                    strategy_name=task.task_name,
+                    account_id=task.account_id,
+                    snapshot_date=ts,
+                    equity=equity,
+                    balance=equity,
+                    daily_pnl=daily_pnl,
+                    daily_pnl_percent=round(daily_pnl / max(equity - daily_pnl, 0.01) * 100, 2),
+                    peak_equity=peak,
+                    drawdown=round(peak - equity, 2),
+                    drawdown_percent=dd,
+                    max_drawdown_percent=round(rng.uniform(0.02, 0.2), 4),
+                    position_count=rng.randint(0, 5),
+                    trade_count=rng.randint(0, 20),
+                ))
+            session.add_all(curve_entries)
+        session.flush()
+        logger.info("[seed_demo] equity curves created")
+
+        # ===== 11. 租用智能体 + 订单 =====
+        rental_agents = []
+        agent_configs = [
+            ("趋势大师", "gpt-4o", "trend", 0.15, 0.80),
+            ("套利专家", "claude-3-5-sonnet", "arbitrage", 0.20, 1.00),
+            ("情绪猎手", "gemini-2.0-flash", "sentiment", 0.10, 0.60),
+            ("链上分析师", "deepseek-v3", "onchain", 0.25, 1.20),
+            ("高频交易员", "gpt-4o", "hft", 0.30, 1.50),
+            ("事件驱动", "claude-3-5-sonnet", "event", 0.12, 0.70),
+            ("风险管理师", "qwen2.5-7b", "risk", 0.08, 0.50),
+            ("组合优化器", "gpt-4o", "portfolio", 0.18, 0.90),
+            ("信号聚合器", "gemini-2.0-flash", "aggregator", 0.10, 0.55),
+            ("智能跟单", "claude-3-5-sonnet", "copytrade", 0.14, 0.75),
+            ("网格大师", "gpt-4o", "grid", 0.16, 0.85),
+            ("波段之王", "claude-3-5-sonnet", "swing", 0.18, 0.95),
+            ("Alpha挖掘", "deepseek-v3", "alpha", 0.22, 1.10),
+            ("稳定币收益", "qwen2.5-7b", "stablecoin", 0.08, 0.45),
+            ("跨期套利", "gpt-4o", "crossperiod", 0.20, 1.05),
+            ("期权策略", "claude-3-5-sonnet", "options", 0.25, 1.30),
+            ("DeFi研究员", "gemini-2.0-flash", "defi", 0.15, 0.80),
+            ("NFT猎手", "deepseek-v3", "nft", 0.12, 0.65),
+            ("元宇宙策略", "qwen2.5-7b", "metaverse", 0.10, 0.55),
+            ("宏观对冲", "gpt-4o", "macro", 0.30, 1.60),
+        ]
+        for name, model, atype, ppc, pph in agent_configs:
+            ra = RentalAgent(
+                name=name,
+                model=model,
+                description=f"模拟租用智能体：{name}，擅长 {atype} 策略",
+                agent_type=atype,
+                price_per_call_usd=ppc,
+                price_per_hour_usd=pph,
+                max_concurrent=rng.randint(5, 30),
+                is_active=True,
+            )
+            session.add(ra)
+            rental_agents.append(ra)
+        session.flush()
+
+        for _ in range(30):
+            renter = rng.choice(normal_users)
+            agent = rng.choice(rental_agents)
+            rtype = rng.choice([1, 2])
+            hours = rng.randint(1, 72) if rtype == 2 else 0
+            order = RentalOrder(
+                renter_id=renter.id,
+                agent_id=agent.id,
+                rental_type=rtype,
+                hours=hours,
+                used_calls=rng.randint(0, 200) if rtype == 1 else 0,
+                total_paid_usd=round(rng.uniform(10, 200), 2),
+                status=rng.choice([0, 1, 2]),
+                started_at=datetime.now() - timedelta(hours=rng.randint(1, 500)),
+            )
+            session.add(order)
+        session.flush()
+        logger.info("[seed_demo] rental agents and orders created")
+
+        # ===== 12. 跟单订阅 + 订单 =====
+        leaders = rng.sample(accounts, min(20, len(accounts)))
+        for leader in leaders:
+            for sub_idx in range(rng.randint(1, 4)):
+                subscriber = rng.choice(normal_users)
+                sub = FollowSubscription(
+                    subscriber_id=subscriber.id,
+                    leader_uid=leader.uid,
+                    leader_name=leader.name,
+                    mode=rng.choice([1, 2, 3]),
+                    subscription_fee_usd=round(rng.uniform(5, 30), 2),
+                    profit_share_ratio=round(rng.uniform(0.10, 0.30), 4),
+                    follow_amount_usd=round(rng.uniform(20, 100), 2),
+                    total_followed=rng.randint(5, 100),
+                    total_pnl=round(rng.uniform(-100, 300), 2),
+                    total_fee_paid=round(rng.uniform(20, 100), 2),
+                    total_share_paid=round(rng.uniform(-30, 50), 2),
+                    status=1,
+                    expires_at=datetime.now() + timedelta(days=rng.randint(7, 90)),
+                )
+                session.add(sub)
+                session.flush()
+
+                for _ in range(rng.randint(3, 15)):
+                    fo = FollowOrder(
+                        subscription_id=sub.id,
+                        leader_order_id=f"ORD-{uuid.uuid4().hex[:16].upper()}",
+                        symbol=rng.choice(symbols_list),
+                        side=rng.choice([1, 2]),
+                        amount_usd=round(rng.uniform(10, 100), 2),
+                        expected_price=round(rng.uniform(0.01, 80000), 4),
+                        actual_price=round(rng.uniform(0.01, 80000), 4),
+                        pnl=round(rng.uniform(-10, 20), 2),
+                        share_paid=round(rng.uniform(-5, 10), 2),
+                        status=3,
+                    )
+                    session.add(fo)
+        session.flush()
+        logger.info("[seed_demo] follow subscriptions and orders created")
+
+        # ===== 13. 通知 =====
+        for _ in range(50):
+            target_user = rng.choice(user_ids)
+            notif = Notification(
+                user_id=target_user,
+                ntype=rng.choice([1, 2, 3, 4, 5]),
+                title=rng.choice([
+                    "策略执行成功", "风控预警", "系统更新", "订单已成交",
+                    "自动策略熔断", "新跟单订阅", "租用即将过期", "每日盈亏报告",
+                ]),
+                content=rng.choice([
+                    "您的策略 BTC趋势追踪 执行成功，盈利 +$12.50",
+                    "账户波动超过阈值，请检查风控设置",
+                    "系统已更新至最新版本，新增多个功能",
+                    "订单已成交：BTC 买入 0.5 手 @ $60,000",
+                    "自动策略 ETH网格策略 触发熔断，已暂停执行",
+                    "用户 quant@fwquant.com 订阅了您的跟单",
+                    "您租用的智能体 趋势大师 即将过期（剩余 2 小时）",
+                    "今日盈亏：+$85.30，胜率 68%",
+                ]),
+                is_read=rng.random() < 0.5,
+            )
+            session.add(notif)
+        session.flush()
+        logger.info("[seed_demo] notifications created")
+
         session.commit()
-        logger.info("[seed_demo] demo data seeded successfully (20 accounts, 50 votes)")
+        total_counts = {
+            "users": len(user_ids),
+            "accounts": len(accounts),
+            "performances": len(accounts),
+            "rank_snapshots": "~600",
+            "votes": 300,
+            "auto_tasks": len(auto_tasks),
+            "auto_logs": "~200",
+            "trades": 30,
+            "rental_agents": len(rental_agents),
+            "subscriptions": "~20",
+            "notifications": 20,
+        }
+        logger.info(f"[seed_demo] demo data seeded successfully: {total_counts}")
     except Exception:
         session.rollback()
         raise

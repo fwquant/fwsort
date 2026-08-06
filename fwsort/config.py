@@ -114,6 +114,7 @@ class Settings(BaseSettings):
     POLYMARKET_RELAYER_API_KEY: str = os.getenv("POLYMARKET_RELAYER_API_KEY", "")
     POLYMARKET_RELAYER_PRIVATE_KEY: str = os.getenv("POLYMARKET_RELAYER_PRIVATE_KEY", "")
 
+
     POLYMARKET_HOST: str = "MAINNET"
     POLYMARKET_CHAIN: str = "polygon"
     POLYMARKET_HTTP_TIMEOUT: float = 10.0
@@ -205,16 +206,13 @@ class Settings(BaseSettings):
     @property
     def polymarket_missing_keys(self) -> list[str]:
         missing: list[str] = []
-        if not self.POLYMARKET_PRIVATE_KEY:
-            missing.append("POLYMARKET_WALLET_PRIVATE_KEY")
-        if not self.POLYMARKET_WALLET_ADDRESS:
-            missing.append("POLYMARKET_WALLET_ADDRESS")
-        if not self.POLYMARKET_APIKEY:
-            missing.append("POLYMARKET_API_KEY")
-        if not self.POLYMARKET_SECRET:
-            missing.append("POLYMARKET_SECRET")
-        if not self.POLYMARKET_PASSPHRASE:
-            missing.append("POLYMARKET_PASSPHRASE")
+        if not self.POLYMARKET_RELAYER_API_KEY_ADDRESS:
+            missing.append("POLYMARKET_RELAYER_API_KEY_ADDRESS")
+        if not self.POLYMARKET_RELAYER_API_KEY:
+            missing.append("POLYMARKET_RELAYER_API_KEY")
+        if not self.POLYMARKET_RELAYER_API_KEY:
+            missing.append("POLYMARKET_RELAYER_API_KEY")
+
         return missing
 
     @property

@@ -1246,22 +1246,104 @@
       .fw-task-list-table-wrap { display: block; }
       .fw-task-list-cards { display: none; }
     }
+
+    /* 视图模式/风格切换 */
+    .fw-tl-view-toggle{display:flex;align-items:center;gap:6px;margin-left:8px;}
+    .fw-tl-view-toggle__group{display:flex;background:var(--fwui-bg);border:1px solid var(--fwui-border);border-radius:8px;overflow:hidden;}
+    .fw-tl-view-toggle__btn{padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--fwui-text-muted);transition:all .15s;white-space:nowrap;}
+    .fw-tl-view-toggle__btn:hover{color:var(--fwui-text);background:var(--fwui-bg-hover);}
+    .fw-tl-view-toggle__btn--active{background:var(--fwui-primary);color:#fff;}
+    .fw-tl-view-toggle__btn--active:hover{background:var(--fwui-primary);color:#fff;}
+    .fw-tl-view-toggle__label{font-size:12px;color:var(--fwui-text-muted);white-space:nowrap;}
+
+    /* 原文模式 */
+    .fw-tl-raw-row{border-bottom:1px solid var(--fwui-border);}
+    .fw-tl-raw-row:hover{background:var(--fwui-bg-hover);}
+    .fw-tl-raw-row td{padding:8px 10px;font-size:12px;vertical-align:top;}
+    .fw-tl-raw-row td:first-child{font-weight:600;color:var(--fwui-text-muted);white-space:nowrap;background:var(--fwui-bg-elevated);width:140px;}
+    .fw-tl-raw-row td:last-child{word-break:break-all;font-family:"Cascadia Code","Fira Code","JetBrains Mono",monospace;font-size:11px;line-height:1.5;color:var(--fwui-text);}
+    .fw-tl-raw-mono{font-family:"Cascadia Code","Fira Code","JetBrains Mono",monospace;font-size:11px;background:var(--fwui-bg-elevated);padding:2px 6px;border-radius:4px;}
+    .fw-tl-raw-json-toggle{cursor:pointer;color:var(--fwui-primary);font-size:11px;margin-left:4px;}
+    .fw-tl-raw-json-content{display:none;margin-top:6px;background:var(--fwui-bg-elevated);border-radius:6px;padding:8px;font-size:11px;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:"Cascadia Code","Fira Code","JetBrains Mono",monospace;}
+
+    /* 格式化美观模式 - 增强列 */
+    .fw-tl-signal-up{color:#10b981;font-weight:600;}
+    .fw-tl-signal-down{color:#ef4444;font-weight:600;}
+    .fw-tl-direction-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;}
+    .fw-tl-direction-tag--up{background:rgba(16,185,129,.15);color:#10b981;}
+    .fw-tl-direction-tag--down{background:rgba(239,68,68,.15);color:#ef4444;}
+    .fw-tl-direction-tag--none{background:var(--fwui-bg);color:var(--fwui-text-muted);border:1px solid var(--fwui-border);}
+    .fw-tl-result-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;}
+    .fw-tl-result-tag--success{background:rgba(16,185,129,.15);color:#10b981;}
+    .fw-tl-result-tag--fail{background:rgba(239,68,68,.15);color:#ef4444;}
+    .fw-tl-result-tag--risk{background:rgba(245,158,11,.15);color:#f59e0b;}
+    .fw-tl-win{color:#10b981;font-weight:700;}
+    .fw-tl-lose{color:#ef4444;font-weight:700;}
+    .fw-tl-settle-up{color:#10b981;}
+    .fw-tl-settle-down{color:#ef4444;}
+
+    /* 卡片视图增强 */
+    .fw-log-card__badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;margin-right:4px;}
+    .fw-log-card__badge--task{background:rgba(99,102,241,.12);color:#6366f1;}
+    .fw-log-card__badge--signal{background:rgba(59,130,246,.12);color:#3b82f6;}
+    .fw-log-card__signal-row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;}
+    .fw-log-card__signal-item{display:flex;align-items:center;gap:4px;padding:3px 8px;background:var(--fwui-bg-elevated);border-radius:6px;font-size:12px;}
+    .fw-log-card__win-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;}
+    .fw-log-card__win-badge--win{background:rgba(16,185,129,.15);color:#10b981;}
+    .fw-log-card__win-badge--lose{background:rgba(239,68,68,.15);color:#ef4444;}
+
+    /* 覆盖响应式：允许用户控制视图（通过 JS 内联样式控制，不再用 !important 覆盖） */
+    .fw-tl-style-table .fw-task-list-cards{display:none;}
+    .fw-tl-style-cards .fw-task-list-table-wrap{display:none;}
   </style>
 </head>
 <body>
   <nav class="fwui-nav">
-    <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    <a href="/" class="fwui-nav__logo-link">
+      <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    </a>
     <div class="fwui-nav__links">
-      <a class="fwui-nav__link" href="/">📊 榜单</a>
-      <a class="fwui-nav__link" href="/accounts">💼 我的策略</a>
+      <!-- 榜单 -->
+      <div class="fwui-nav__dropdown" data-nav-group="ranking">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/">📊 榜单</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/">🌍 总榜单</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts">👤 我的执行账户</a>
+        </div>
+      </div>
+      <!-- 跟单 -->
       <a class="fwui-nav__link" href="/follow">👥 跟单</a>
-      <a class="fwui-nav__link" href="/risk" title="风控中心">🛡️ 风控</a>
-      <a class="fwui-nav__link fwui-nav__link--active" href="/admin" title="控制台">⚙️</a>
+      <!-- 策略 -->
+      <div class="fwui-nav__dropdown" data-nav-group="strategy">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/strategy/tasks">📡 策略</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/auto-tasks">🤖 自动策略</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/logs">📜 策略日志</a>
+        </div>
+      </div>
+      <!-- 齿轮 -->
+      <div class="fwui-nav__dropdown" data-nav-group="console">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link fwui-nav__link--active" href="/admin" title="控制台">⚙️</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/admin">⚙️ 控制台</a>
+          <a class="fwui-nav__dropdown-item" href="/risk">🛡️ 风控中心</a>
+          <a class="fwui-nav__dropdown-item" href="/rental">🤖 租用智能体</a>
+          <a class="fwui-nav__dropdown-item" href="/polymarket">🔮 Polymarket</a>
+        </div>
+      </div>
     </div>
     <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
     <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
   </nav>
 
+  
+  <!-- 面包屑 -->
+  <div class="fwui-breadcrumb">
+    <a href="/" class="fwui-breadcrumb__home">🏠 首页</a>
+    <span class="fwui-breadcrumb__sep">/</span>
+    <span class="fwui-breadcrumb__current">控制台</span>
+  </div>
   <main class="fwui-main">
     <h1 class="fwui-page-title">⚙️ 系统控制台</h1>
     <p class="fwui-page-subtitle">数据库初始化 / 管理员 / MOCK 播种 / 任务触发 / 系统配置</p>
@@ -1279,15 +1361,16 @@
     <div class="fw-admin-tabs">
       <!-- Tab 按钮栏 -->
       <div class="fw-admin-tab-bar">
-        <button class="fw-admin-tab-btn fw-admin-tab-btn--active" data-tab="init">🛠 初始化</button>
+        <button class="fw-admin-tab-btn fw-admin-tab-btn--active" data-tab="init" data-not-strategy>🛠 初始化</button>
         <button class="fw-admin-tab-btn" data-tab="auto-tasks">📡 策略管理</button>
         <button class="fw-admin-tab-btn" data-tab="tasks">🤖 自动策略</button>
         <button class="fw-admin-tab-btn" data-tab="task-log">📜 策略日志</button>
-        <button class="fw-admin-tab-btn" data-tab="config">⚙️ 系统配置</button>
-        <button class="fw-admin-tab-btn" data-tab="log">🔧 系统日志</button>
+        <button class="fw-admin-tab-btn" data-tab="config" data-not-strategy>⚙️ 系统配置</button>
+        <button class="fw-admin-tab-btn" data-tab="log" data-not-strategy>🔧 系统日志</button>
         <span style="flex:1"></span>
-        <a class="fw-admin-tab-btn" href="/rental" title="智能体租用">🤖 租用智能体</a>
-        <a class="fw-admin-tab-btn" href="/polymarket" title="Polymarket">🔮 Polymarket</a>
+        <a class="fw-admin-tab-btn" href="/risk" title="风控中心" data-not-strategy>🛡️ 风控中心</a>
+        <a class="fw-admin-tab-btn" href="/rental" title="智能体租用" data-not-strategy>🤖 租用智能体</a>
+        <a class="fw-admin-tab-btn" href="/polymarket" title="Polymarket" data-not-strategy>🔮 Polymarket</a>
       </div>
 
       <!-- Tab 内容 -->
@@ -1553,6 +1636,22 @@
             </label>
           </div>
           <div class="fw-task-list-toolbar__col-settings">
+            <!-- 视图风格切换 -->
+            <div class="fw-tl-view-toggle" id="task-log-style-toggle">
+              <span class="fw-tl-view-toggle__label">风格</span>
+              <div class="fw-tl-view-toggle__group">
+                <button class="fw-tl-view-toggle__btn fw-tl-view-toggle__btn--active" data-style="table" title="表格视图">📊</button>
+                <button class="fw-tl-view-toggle__btn" data-style="cards" title="卡片视图">🗂️</button>
+              </div>
+            </div>
+            <!-- 视图模式切换 -->
+            <div class="fw-tl-view-toggle" id="task-log-mode-toggle">
+              <span class="fw-tl-view-toggle__label">模式</span>
+              <div class="fw-tl-view-toggle__group">
+                <button class="fw-tl-view-toggle__btn fw-tl-view-toggle__btn--active" data-mode="formatted" title="格式化美观">✨ 美观</button>
+                <button class="fw-tl-view-toggle__btn" data-mode="raw" title="原始数据">📄 原文</button>
+              </div>
+            </div>
             <button class="fwui-btn fwui-btn--sm" id="task-log-col-toggle" title="列设置">⚙️ 列</button>
             <div class="fw-col-settings-panel" id="task-log-col-panel">
               <div class="fw-col-settings-panel__title">显示列</div>
@@ -1575,7 +1674,12 @@
           </table>
         </div>
 
-        <!-- 移动端卡片视图 -->
+        <!-- 原文模式视图 -->
+        <div class="fw-task-list-table-wrap" id="task-log-raw-wrap" style="display:none;">
+          <div id="task-log-raw-container"></div>
+        </div>
+
+        <!-- 卡片视图 -->
         <div class="fw-task-list-cards" id="task-log-cards"></div>
 
         <!-- 分页 -->
@@ -1693,22 +1797,37 @@
       // ===== 任务日志变量（必须在 Tab 切换前初始化，否则 switchTab 中加载会失败） =====
       var TL_LOG_COLUMNS = [
         { key: 'id',          label: 'ID',        width: 60,  sortable: 'id',           default: true,  always: true },
-        { key: 'task_id',     label: '任务ID',    width: 70,  sortable: 'task_id',      default: true,  always: true },
+        { key: 'task_id',     label: '任务ID',    width: 80,  sortable: 'task_id',      default: true,  always: true },
         { key: 'task_name',   label: '任务名',    width: 140, sortable: null,           default: true },
-        { key: 'log_type',    label: '日志类型',  width: 80,  sortable: null,           default: true },
-        { key: 'action_type', label: '操作类型',  width: 120, sortable: null,           default: true },
-        { key: 'status',      label: '状态',      width: 90,  sortable: 'status',       default: true,  align: 'center' },
-        { key: 'duration_ms', label: '耗时(ms)',  width: 90,  sortable: 'duration_ms', default: true,  align: 'right' },
-        { key: 'pnl_amount',  label: '盈亏(USD)', width: 100, sortable: 'pnl_amount',  default: true,  align: 'right' },
-        { key: 'order_id',    label: '订单ID',    width: 160, sortable: null,           default: true },
-        { key: 'signal_info', label: '信号',      width: 200, sortable: null,           default: true },
-        { key: 'execution_info', label: '执行',    width: 160, sortable: null,           default: true },
-        { key: 'result_info', label: '下单结果',  width: 200, sortable: null,           default: true },
-        { key: 'error_msg',   label: '错误信息',  width: null, sortable: null,          default: false },
+        // 核心字段（格式化美观模式默认显示）
+        { key: 'enhanced_signal',   label: '信号',     width: 100, sortable: null, default: true, enhanced: true },
+        { key: 'enhanced_direction', label: '下单方向', width: 100, sortable: null, default: true, enhanced: true },
+        { key: 'enhanced_feedback', label: '下单反馈', width: 200, sortable: null, default: true, enhanced: true },
+        { key: 'enhanced_settle',   label: '结算方向', width: 100, sortable: null, default: true, enhanced: true },
+        { key: 'enhanced_win',      label: '胜负',     width: 80,  sortable: null, default: true, enhanced: true, align: 'center' },
         { key: 'executed_at', label: '执行时间',  width: 160, sortable: 'executed_at',  default: true },
+        // 原始字段（用户可在列设置中开启）
+        { key: 'log_type',    label: '日志类型',  width: 80,  sortable: null,           default: false },
+        { key: 'action_type', label: '操作类型',  width: 120, sortable: null,           default: false },
+        { key: 'status',      label: '状态',      width: 90,  sortable: 'status',       default: false, align: 'center' },
+        { key: 'duration_ms', label: '耗时(ms)',  width: 90,  sortable: 'duration_ms', default: false, align: 'right' },
+        { key: 'pnl_amount',  label: '盈亏(USD)', width: 100, sortable: 'pnl_amount',  default: false, align: 'right' },
+        { key: 'order_id',    label: '订单ID',    width: 160, sortable: null,           default: false },
+        { key: 'signal_info', label: '信号(原始)', width: 200, sortable: null,          default: false },
+        { key: 'execution_info', label: '执行(原始)', width: 160, sortable: null,        default: false },
+        { key: 'result_info', label: '下单结果(原始)', width: 200, sortable: null,       default: false },
+        { key: 'error_msg',   label: '错误信息',  width: null, sortable: null,          default: false },
         { key: 'created_at',  label: '创建时间',  width: 160, sortable: null,           default: false },
       ];
       var TL_LOG_COL_STORAGE_KEY = 'fwsort_tasklog_columns';
+      var TL_LOG_COL_VERSION_KEY = 'fwsort_tasklog_columns_ver';
+      var TL_LOG_COL_VERSION = 2;  // 版本升级：精简默认列为核心字段
+
+      // 版本升级时清除旧配置
+      if (localStorage.getItem(TL_LOG_COL_VERSION_KEY) !== String(TL_LOG_COL_VERSION)) {
+        localStorage.removeItem(TL_LOG_COL_STORAGE_KEY);
+        localStorage.setItem(TL_LOG_COL_VERSION_KEY, String(TL_LOG_COL_VERSION));
+      }
       var TL_LOG_STATUS_MAP = {
         0: { text: '✅ 成功', cls: 'fw-tl-status--active' },
         1: { text: '❌ 失败', cls: 'fw-tl-status--fuse' },
@@ -1737,6 +1856,12 @@
           } else {
             var valid = TL_LOG_COLUMNS.map(function (c) { return c.key; });
             keys = saved.filter(function (k) { return valid.indexOf(k) >= 0; });
+            // 自动添加新的默认列（增强列等）
+            TL_LOG_COLUMNS.forEach(function (col) {
+              if (col.default && keys.indexOf(col.key) === -1) {
+                keys.push(col.key);
+              }
+            });
           }
           return TL_LOG_COLUMNS.filter(function (c) { return keys.indexOf(c.key) >= 0; });
         } catch (e) {
@@ -1744,13 +1869,150 @@
         }
       })();
 
+      // ===== 视图模式 & 风格 =====
+      var TL_VIEW_MODES = { FORMATTED: 'formatted', RAW: 'raw' };
+      var TL_VIEW_STYLES = { TABLE: 'table', CARDS: 'cards' };
+      var _tlViewMode = localStorage.getItem('fwsort_tasklog_view_mode') || TL_VIEW_MODES.FORMATTED;
+      var _tlViewStyle = localStorage.getItem('fwsort_tasklog_view_style') || TL_VIEW_STYLES.TABLE;
+
+      function _applyTaskLogViewStyle() {
+        var panel = document.querySelector('[data-tab-panel="task-log"]');
+        if (!panel) return;
+        panel.classList.remove('fw-tl-style-table', 'fw-tl-style-cards');
+        panel.classList.add(_tlViewStyle === TL_VIEW_STYLES.CARDS ? 'fw-tl-style-cards' : 'fw-tl-style-table');
+      }
+
+      function _applyTaskLogViewMode() {
+        var tableWrap = document.getElementById('task-log-table-wrap');
+        var rawWrap = document.getElementById('task-log-raw-wrap');
+        var cardsEl = document.getElementById('task-log-cards');
+        var isRaw = _tlViewMode === TL_VIEW_MODES.RAW;
+        var isCards = _tlViewStyle === TL_VIEW_STYLES.CARDS;
+
+        // 先全部隐藏
+        tableWrap.style.display = 'none';
+        if (rawWrap) rawWrap.style.display = 'none';
+        if (cardsEl) cardsEl.style.display = 'none';
+
+        if (isRaw && !isCards) {
+          // 原文 + 列表：使用表格容器
+          tableWrap.style.display = 'block';
+        } else if (isRaw && isCards) {
+          // 原文 + 卡片：使用原文容器
+          if (rawWrap) rawWrap.style.display = 'block';
+        } else if (!isRaw && isCards) {
+          // 美观 + 卡片
+          if (cardsEl) cardsEl.style.display = 'flex';
+        } else {
+          // 美观 + 列表
+          tableWrap.style.display = 'block';
+        }
+      }
+
+      function _switchTaskLogViewMode(mode) {
+        _tlViewMode = mode;
+        localStorage.setItem('fwsort_tasklog_view_mode', mode);
+        document.querySelectorAll('#task-log-mode-toggle .fw-tl-view-toggle__btn').forEach(function (btn) {
+          btn.classList.toggle('fw-tl-view-toggle__btn--active', btn.dataset.mode === mode);
+        });
+        _applyTaskLogViewMode();
+        if (taskLogData && taskLogData.length > 0) {
+          _renderTaskLogByView();
+        }
+      }
+
+      function _switchTaskLogViewStyle(style) {
+        _tlViewStyle = style;
+        localStorage.setItem('fwsort_tasklog_view_style', style);
+        document.querySelectorAll('#task-log-style-toggle .fw-tl-view-toggle__btn').forEach(function (btn) {
+          btn.classList.toggle('fw-tl-view-toggle__btn--active', btn.dataset.style === style);
+        });
+        _applyTaskLogViewStyle();
+        _applyTaskLogViewMode();
+        if (taskLogData && taskLogData.length > 0) {
+          _renderTaskLogByView();
+        }
+      }
+
+      function _renderTaskLogByView() {
+        var isRaw = _tlViewMode === TL_VIEW_MODES.RAW;
+        var isCards = _tlViewStyle === TL_VIEW_STYLES.CARDS;
+
+        if (isRaw) {
+          if (isCards) {
+            renderTaskLogRawCards();
+          } else {
+            renderTaskLogRawTable();
+          }
+        } else {
+          if (isCards) {
+            renderTaskLogCards();
+          } else {
+            renderTaskLogTable();
+          }
+        }
+      }
+
+      // 绑定视图模式/风格切换
+      document.querySelectorAll('#task-log-mode-toggle .fw-tl-view-toggle__btn').forEach(function (btn) {
+        btn.addEventListener('click', function () { _switchTaskLogViewMode(btn.dataset.mode); });
+      });
+      document.querySelectorAll('#task-log-style-toggle .fw-tl-view-toggle__btn').forEach(function (btn) {
+        btn.addEventListener('click', function () { _switchTaskLogViewStyle(btn.dataset.style); });
+      });
+      // 初始化视图
+      _applyTaskLogViewStyle();
+      _applyTaskLogViewMode();
+
+      // ===== 策略模式检测 =====
+      var IS_STRATEGY_MODE = window.__FW_STRATEGY_MODE__ === true;
+      var CONSOLE_TAB_KEYS = ["init", "config", "log"];
+      var STRATEGY_TAB_KEYS = ["auto-tasks", "tasks", "task-log"];
+      var TAB_KEYS = IS_STRATEGY_MODE ? STRATEGY_TAB_KEYS : CONSOLE_TAB_KEYS;
+
       // ===== Tab 切换（带 URL hash） =====
       var tabBtns = document.querySelectorAll(".fw-admin-tab-btn");
       var tabPanels = document.querySelectorAll(".fw-admin-tab-panel");
-      var TAB_KEYS = ["init", "auto-tasks", "tasks", "task-log", "config", "log"];
       var currentConfigs = [];
       var editingTaskId = null;
       var editingSignalProviderName = null;
+
+      // ===== 根据模式调整界面 =====
+      function setupModeUI() {
+        // 调整 Tab 按钮可见性
+        tabBtns.forEach(function (btn) {
+          var tabName = btn.dataset.tab;
+          var isConsoleTab = CONSOLE_TAB_KEYS.indexOf(tabName) !== -1;
+          var isStrategyTab = STRATEGY_TAB_KEYS.indexOf(tabName) !== -1;
+          
+          if (IS_STRATEGY_MODE) {
+            // 策略模式：只显示策略Tab
+            btn.style.display = isStrategyTab ? "" : "none";
+          } else {
+            // 控制台模式：只显示控制台Tab和data-not-strategy元素
+            btn.style.display = isConsoleTab || btn.hasAttribute("data-not-strategy") ? "" : "none";
+          }
+        });
+
+        // 调整面板可见性
+        tabPanels.forEach(function (panel) {
+          var panelTab = panel.dataset.tabPanel;
+          var shouldShow = TAB_KEYS.indexOf(panelTab) !== -1;
+          panel.style.display = shouldShow ? "" : "none";
+          panel.classList.remove("fw-admin-tab-panel--active");
+        });
+
+        // 更新页面标题
+        var titleEl = document.querySelector(".fwui-page-title");
+        var subtitleEl = document.querySelector(".fwui-page-subtitle");
+        if (IS_STRATEGY_MODE) {
+          if (titleEl) titleEl.textContent = "📡 策略管理中心";
+          if (subtitleEl) subtitleEl.textContent = "策略管理 / 自动策略 / 策略日志";
+        } else {
+          if (titleEl) titleEl.textContent = "⚙️ 系统控制台";
+          if (subtitleEl) subtitleEl.textContent = "数据库初始化 / 管理员 / MOCK 播种 / 任务触发 / 系统配置";
+        }
+      }
 
       // #auto-tasks -> 策略管理, #tasks -> 自动策略, #task-log -> 策略日志
       var HASH_ALIAS = {
@@ -1766,10 +2028,14 @@
 
       function switchTab(tab, updateHash) {
         tab = resolveTab(tab);
-        if (TAB_KEYS.indexOf(tab) === -1) tab = "init";
+        if (TAB_KEYS.indexOf(tab) === -1) tab = TAB_KEYS[0];
         tabBtns.forEach(function (b) { b.classList.toggle("fw-admin-tab-btn--active", b.dataset.tab === tab); });
         tabPanels.forEach(function (p) {
-          p.classList.toggle("fw-admin-tab-panel--active", p.dataset.tabPanel === tab);
+          var isActive = p.dataset.tabPanel === tab;
+          p.classList.toggle("fw-admin-tab-panel--active", isActive);
+          if (isActive) {
+            p.style.display = "";
+          }
         });
         if (updateHash !== false) {
           if (window.location.hash !== "#" + tab) {
@@ -1800,15 +2066,22 @@
       }
 
       tabBtns.forEach(function (btn) {
-        btn.addEventListener("click", function () {
+        btn.addEventListener("click", function (e) {
+          if (!btn.dataset.tab) return;  // skip non-tab elements (e.g. links)
+          e.preventDefault();
           switchTab(btn.dataset.tab);
         });
       });
+
+      // 先设置模式 UI
+      setupModeUI();
 
       // 从 URL hash 恢复 Tab，或使用服务端注入的 __FW_INITIAL_TAB__
       var initialTab = window.__FW_INITIAL_TAB__ || resolveTab((window.location.hash || "").replace("#", ""));
       if (TAB_KEYS.indexOf(initialTab) !== -1) {
         switchTab(initialTab, false);
+      } else {
+        switchTab(TAB_KEYS[0], false);
       }
 
       // 监听 hash 变化（前进/后退）
@@ -4274,6 +4547,12 @@
           } else {
             var valid = TL_LOG_COLUMNS.map(function (c) { return c.key; });
             keys = saved.filter(function (k) { return valid.indexOf(k) >= 0; });
+            // 自动添加新的默认列
+            TL_LOG_COLUMNS.forEach(function (col) {
+              if (col.default && keys.indexOf(col.key) === -1) {
+                keys.push(col.key);
+              }
+            });
           }
           return TL_LOG_COLUMNS.filter(function (c) { return keys.indexOf(c.key) >= 0; });
         } catch (e) {
@@ -4468,12 +4747,23 @@
       async function loadTaskLogs(silent) {
         var tbody = document.getElementById("task-log-tbody");
         var cardsEl = document.getElementById("task-log-cards");
+        var rawContainer = document.getElementById("task-log-raw-container");
         if (!tbody) return;
-        var colspan = taskLogVisibleCols.length;
+        var colspan = TL_RAW_FIELD_DEFS.length;
+        var isRaw = _tlViewMode === TL_VIEW_MODES.RAW;
+        var isCards = _tlViewStyle === TL_VIEW_STYLES.CARDS;
+        var useTable = !isCards;  // 美观+列表 或 原文+列表
         if (!silent) {
-          tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">加载中...</td></tr>';
+          if (isRaw && isCards) {
+            // 原文+卡片：使用原文容器
+            if (rawContainer) rawContainer.innerHTML = '<div style="text-align:center;color:var(--fwui-text-muted);padding:30px;">加载中...</div>';
+          } else {
+            // 使用表格（美观+列表 或 原文+列表）或卡片（美观+卡片）
+            tbody.innerHTML = '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">加载中...</td></tr>';
+          }
         }
         if (cardsEl) cardsEl.innerHTML = '';
+        if (rawContainer && !silent) rawContainer.innerHTML = '';
 
         var params = {
           search: taskLogSearch,
@@ -4499,8 +4789,7 @@
         var data = r.data || {};
         taskLogData = data.logs || [];
         taskLogTotal = data.total || 0;
-        renderTaskLogTable();
-        renderTaskLogCards();
+        _renderTaskLogByView();
         updateTaskLogPagination();
       }
 
@@ -4584,6 +4873,12 @@
           case 'signal_info': return _renderSignalInfo(log);
           case 'execution_info': return _renderExecutionInfo(log);
           case 'result_info': return _renderResultInfo(log);
+          // 增强列
+          case 'enhanced_signal': return _renderEnhancedSignal(log);
+          case 'enhanced_direction': return _renderEnhancedDirection(log);
+          case 'enhanced_feedback': return _renderEnhancedFeedback(log);
+          case 'enhanced_settle': return _renderEnhancedSettle(log);
+          case 'enhanced_win': return _renderEnhancedWin(log);
           default: return '—';
         }
       }
@@ -4665,6 +4960,361 @@
         return '<span style="color:var(--fwui-text-muted);font-size:11px;">—</span>';
       }
 
+      // ===== 增强列渲染 =====
+      function _getSignalDirection(log) {
+        try {
+          var sd = JSON.parse(log.signal_detail_json || '{}');
+          if (sd && sd.direction) return sd.direction;
+        } catch (e) {}
+        try {
+          var sig = JSON.parse(log.signal_json || '{}');
+          if (sig && sig.direction) return sig.direction;
+        } catch (e) {}
+        return '';
+      }
+
+      function _getExecutionSide(log) {
+        try {
+          var ed = JSON.parse(log.execution_detail_json || '{}');
+          if (ed && ed.side) return ed.side;
+        } catch (e) {}
+        try {
+          var sig2 = JSON.parse(log.signal_json || '{}');
+          if (sig2 && sig2.direction) return sig2.direction;
+        } catch (e) {}
+        return '';
+      }
+
+      function _getSettlementDirection(log) {
+        try {
+          var rd = JSON.parse(log.result_detail_json || '{}');
+          if (rd && rd.market_result) return rd.market_result;
+        } catch (e) {}
+        try {
+          var sig3 = JSON.parse(log.signal_json || '{}');
+          if (sig3 && sig3.market_result) return sig3.market_result;
+        } catch (e) {}
+        return '';
+      }
+
+      function _renderEnhancedSignal(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);">—</span>';
+        var dir = _getSignalDirection(log);
+        if (!dir) return '<span style="color:var(--fwui-text-muted);">—</span>';
+        var isUp = dir === 'UP' || dir === 'BUY';
+        var icon = isUp ? '📈' : '📉';
+        var cls = isUp ? 'fw-tl-signal-up' : 'fw-tl-signal-down';
+        return '<span class="' + cls + '">' + icon + ' ' + escapeHtml(dir) + '</span>';
+      }
+
+      function _renderEnhancedDirection(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);">—</span>';
+        var side = _getExecutionSide(log);
+        if (!side || side === 'NONE') {
+          return '<span class="fw-tl-direction-tag fw-tl-direction-tag--none">无操作</span>';
+        }
+        var isUp = side === 'UP' || side === 'BUY' || side === '1';
+        var cls = isUp ? 'fw-tl-direction-tag--up' : 'fw-tl-direction-tag--down';
+        return '<span class="fw-tl-direction-tag ' + cls + '">' + escapeHtml(side) + '</span>';
+      }
+
+      function _renderEnhancedFeedback(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);">—</span>';
+
+        // 解析风控详情
+        var riskInfo = _extractRiskInfo(log);
+
+        if (log.status === 0 || log.status === 2) {
+          return '<span class="fw-tl-result-tag fw-tl-result-tag--success">✅ 下单成功</span>';
+        } else if (log.status === 1) {
+          // 失败 - 可能是风控拦截或下单失败
+          var isRiskBlocked = riskInfo.isFrozen || riskInfo.isBlocked;
+          var tagCls = isRiskBlocked ? 'fw-tl-result-tag--risk' : 'fw-tl-result-tag--fail';
+          var tagText = isRiskBlocked ? '⚠️ 风控拦截' : '❌ 下单失败';
+          var detail = riskInfo.summary;
+          if (!detail) {
+            if (log.error_message) detail = escapeHtml(log.error_message);
+            else {
+              try {
+                var rd = JSON.parse(log.result_detail_json || '{}');
+                if (rd && rd.error) detail = escapeHtml(rd.error);
+              } catch (e) {}
+            }
+          }
+          if (!detail) detail = '未知错误';
+          var html = '<div><span class="fw-tl-result-tag ' + tagCls + '">' + tagText + '</span>';
+          html += '<div style="color:' + (isRiskBlocked ? '#f59e0b' : '#ef4444') + ';font-size:11px;margin-top:3px;line-height:1.4;">' + detail + '</div>';
+          if (riskInfo.ruleDetails && riskInfo.ruleDetails.length > 0) {
+            html += '<div style="margin-top:4px;">';
+            riskInfo.ruleDetails.forEach(function(rd) {
+              html += '<span style="display:inline-block;padding:1px 6px;margin:2px 4px 0 0;background:var(--fwui-bg-elevated);border-radius:4px;font-size:10px;color:var(--fwui-text-muted);">' + escapeHtml(rd) + '</span>';
+            });
+            html += '</div>';
+          }
+          html += '</div>';
+          return html;
+        } else if (log.status === 3) {
+          var fuseReason = riskInfo.summary || escapeHtml(log.error_message) || '风控熔断触发';
+          return '<div><span class="fw-tl-result-tag fw-tl-result-tag--risk">🔒 熔断</span><div style="color:#f59e0b;font-size:11px;margin-top:3px;">' + fuseReason + '</div></div>';
+        } else if (log.status === 4) {
+          // 无信号 - 显示风控原因
+          var riskReason = riskInfo.summary;
+          if (!riskReason) {
+            try {
+              var ed = JSON.parse(log.execution_detail_json || '{}');
+              if (ed && ed.risk_reason) riskReason = escapeHtml(ed.risk_reason);
+            } catch (e) {}
+          }
+          if (!riskReason && log.error_message) riskReason = escapeHtml(log.error_message);
+          if (!riskReason) riskReason = '信号不明确';
+          return '<div><span class="fw-tl-result-tag fw-tl-result-tag--risk">⚠️ 无操作</span><div style="color:#f59e0b;font-size:11px;margin-top:3px;">' + riskReason + '</div></div>';
+        }
+        return '<span style="color:var(--fwui-text-muted);">—</span>';
+      }
+
+      function _extractRiskInfo(log) {
+        var info = { isFrozen: false, isBlocked: false, summary: '', ruleDetails: [] };
+        var msg = log.error_message || '';
+
+        // 检测冻结
+        if (msg.indexOf('冻结') >= 0 || msg.indexOf('frozen') >= 0) {
+          info.isFrozen = true;
+          // 尝试提取原因
+          var reasonMatch = msg.match(/原因[：:]\s*(.+?)(?:[，,]|$)/);
+          if (reasonMatch) {
+            info.summary = '账户已冻结 | ' + reasonMatch[1].trim();
+          } else {
+            info.summary = msg;
+          }
+        }
+        // 检测风控拦截
+        if (msg.indexOf('风控') >= 0 || msg.indexOf('risk') >= 0) {
+          info.isBlocked = true;
+          if (!info.summary) info.summary = msg;
+        }
+        if (!info.summary && msg) {
+          info.summary = msg;
+        }
+
+        // 从 execution_detail_json 提取规则详情
+        try {
+          var ed = JSON.parse(log.execution_detail_json || '{}');
+          if (ed && ed.stage) {
+            info.ruleDetails.push('阶段: ' + ed.stage);
+          }
+          if (ed && ed.risk_reason) {
+            info.summary = info.summary || escapeHtml(ed.risk_reason);
+          }
+          if (ed && ed.rule_name) {
+            info.ruleDetails.push('规则: ' + ed.rule_name);
+          }
+        } catch (e) {}
+
+        // 从 result_detail_json 提取详情
+        try {
+          var rd = JSON.parse(log.result_detail_json || '{}');
+          if (rd && rd.rule_results && Array.isArray(rd.rule_results)) {
+            rd.rule_results.forEach(function(r) {
+              if (!r.passed && r.message) {
+                info.ruleDetails.push(r.rule_name + ': ' + r.message);
+              }
+            });
+          }
+          if (rd && !info.summary && rd.error) {
+            info.summary = escapeHtml(rd.error);
+          }
+        } catch (e) {}
+
+        return info;
+      }
+
+      function _renderEnhancedSettle(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);">—</span>';
+        var settle = _getSettlementDirection(log);
+        if (!settle) return '<span style="color:var(--fwui-text-muted);">—</span>';
+        var isUp = settle === 'UP' || settle === 'YES';
+        var cls = isUp ? 'fw-tl-settle-up' : 'fw-tl-settle-down';
+        return '<span class="' + cls + '">' + escapeHtml(settle) + '</span>';
+      }
+
+      function _renderEnhancedWin(log) {
+        if (log.log_type === 1) return '<span style="color:var(--fwui-text-muted);">—</span>';
+        var orderSide = _getExecutionSide(log);
+        var settleDir = _getSettlementDirection(log);
+        if (!orderSide || orderSide === 'NONE' || !settleDir) {
+          return '<span style="color:var(--fwui-text-muted);">—</span>';
+        }
+        var orderIsUp = orderSide === 'UP' || orderSide === 'BUY' || orderSide === '1';
+        var settleIsUp = settleDir === 'UP' || settleDir === 'YES';
+        var isWin = orderIsUp === settleIsUp;
+        if (isWin) {
+          return '<span class="fw-tl-win">🏆 胜</span>';
+        } else {
+          return '<span class="fw-tl-lose">💀 负</span>';
+        }
+      }
+
+      // ===== 原文模式：全字段定义 =====
+      var TL_RAW_FIELD_DEFS = [
+        { key: 'id', label: 'ID' },
+        { key: 'task_id', label: '任务ID' },
+        { key: 'task_name', label: '任务名' },
+        { key: 'log_type', label: '类型', formatter: function(v) { return TL_LOG_TYPE_MAP[v] || String(v); } },
+        { key: 'action_type', label: '操作类型' },
+        { key: 'status', label: '状态', formatter: function(v) { var s = TL_LOG_STATUS_MAP[v]; return s ? s.text : String(v); } },
+        { key: 'duration_ms', label: '耗时(ms)' },
+        { key: 'pnl_amount', label: '盈亏(USD)', formatter: function(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; } },
+        { key: 'pnl_percent', label: '盈亏(%)', formatter: function(v) { return v != null ? Number(v).toFixed(2) + '%' : '—'; } },
+        { key: 'is_profit', label: '盈利', formatter: function(v) { return v ? '✅' : '❌'; } },
+        { key: 'market_resolved', label: '已结算', formatter: function(v) { return v ? '✅' : '❌'; } },
+        { key: 'entry_price', label: '开仓价', formatter: function(v) { return v != null ? '$' + Number(v).toFixed(4) : '—'; } },
+        { key: 'exit_price', label: '平仓价', formatter: function(v) { return v != null ? '$' + Number(v).toFixed(4) : '—'; } },
+        { key: 'order_id', label: '订单ID' },
+        { key: 'error_message', label: '错误信息' },
+        { key: 'signal_json', label: '信号', json: true },
+        { key: 'signal_detail_json', label: '信号详情', json: true },
+        { key: 'execution_detail_json', label: '执行详情', json: true },
+        { key: 'result_detail_json', label: '结果详情', json: true },
+        { key: 'order_result_json', label: '下单结果', json: true },
+        { key: 'detail_json', label: '操作详情', json: true },
+        { key: 'executed_at', label: '执行时间' },
+        { key: 'created_at', label: '创建时间' },
+      ];
+
+      // ===== 原文 + 列表风格：全字段表格 =====
+      function renderTaskLogRawTable() {
+        var thead = document.getElementById("task-log-thead");
+        var tbody = document.getElementById("task-log-tbody");
+        var tableWrap = document.getElementById("task-log-table-wrap");
+        var rawWrap = document.getElementById("task-log-raw-wrap");
+        var cardsEl = document.getElementById("task-log-cards");
+        if (!thead || !tbody) return;
+
+        // 使用表格容器，隐藏原文/卡片容器
+        tableWrap.style.display = 'block';
+        if (rawWrap) rawWrap.style.display = 'none';
+        if (cardsEl) cardsEl.style.display = 'none';
+
+        // 渲染表头
+        var headHtml = '<tr>';
+        TL_RAW_FIELD_DEFS.forEach(function (field) {
+          var w = field.json ? ' style="width:180px;max-width:280px;"' : ' style="width:auto;min-width:80px;"';
+          headHtml += '<th' + w + '>' + escapeHtml(field.label) + '</th>';
+        });
+        headHtml += '</tr>';
+        thead.innerHTML = headHtml;
+
+        // 渲染行
+        if (!taskLogData || taskLogData.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="' + TL_RAW_FIELD_DEFS.length + '" style="text-align:center;color:var(--fwui-text-muted);padding:30px;">暂无数据</td></tr>';
+          document.getElementById('task-log-total').textContent = taskLogTotal;
+          return;
+        }
+
+        var html = '';
+        taskLogData.forEach(function (log) {
+          html += '<tr>';
+          TL_RAW_FIELD_DEFS.forEach(function (field) {
+            var val = log[field.key];
+            if (field.json) {
+              // JSON 字段：格式化后显示，支持点击展开
+              var jsonStr = val || '{}';
+              var pretty = '';
+              try {
+                pretty = JSON.stringify(JSON.parse(jsonStr), null, 2);
+              } catch (e) {
+                pretty = jsonStr;
+              }
+              // 摘要：取前100字符
+              var summary = pretty.replace(/\s+/g, ' ').substring(0, 100);
+              if (pretty.length > 100) summary += '...';
+              html += '<td title="' + escapeHtml(pretty) + '">';
+              html += '<span class="fw-tl-raw-mono">' + escapeHtml(summary || '{}') + '</span>';
+              html += '</td>';
+            } else {
+              var displayVal;
+              if (field.formatter) {
+                displayVal = field.formatter(val);
+              } else {
+                displayVal = val != null && val !== '' ? String(val) : '—';
+              }
+              html += '<td>' + escapeHtml(String(displayVal)) + '</td>';
+            }
+          });
+          html += '</tr>';
+        });
+        tbody.innerHTML = html;
+        document.getElementById('task-log-total').textContent = taskLogTotal;
+      }
+
+      // ===== 原文 + 卡片风格：简洁 JSON =====
+      function renderTaskLogRawCards() {
+        var container = document.getElementById("task-log-raw-container");
+        var tableWrap = document.getElementById("task-log-table-wrap");
+        var cardsEl = document.getElementById("task-log-cards");
+        if (!container) return;
+
+        // 使用原文容器 + 卡片风格
+        tableWrap.style.display = 'none';
+        if (cardsEl) cardsEl.style.display = 'none';
+        container.style.display = 'block';
+
+        if (!taskLogData || taskLogData.length === 0) {
+          container.innerHTML = '<div style="text-align:center;color:var(--fwui-text-muted);padding:30px;">暂无数据</div>';
+          return;
+        }
+
+        var html = '<div class="fw-task-list-cards" style="display:flex;">';
+        taskLogData.forEach(function (log) {
+          // 构造完整 JSON
+          var logObj = {};
+          TL_RAW_FIELD_DEFS.forEach(function (field) {
+            var val = log[field.key];
+            if (val != null) {
+              if (field.json) {
+                try {
+                  logObj[field.key] = JSON.parse(val || 'null');
+                } catch (e) {
+                  logObj[field.key] = val;
+                }
+              } else {
+                // 数值类型保持原样
+                if (field.key === 'duration_ms' || field.key === 'pnl_amount' || field.key === 'pnl_percent' || field.key === 'id' || field.key === 'task_id') {
+                  logObj[field.key] = val;
+                } else if (val === true) {
+                  logObj[field.key] = true;
+                } else if (val === false) {
+                  logObj[field.key] = false;
+                } else {
+                  logObj[field.key] = String(val);
+                }
+              }
+            }
+          });
+
+          var si = TL_LOG_STATUS_MAP[log.status] || { text: '未知', cls: '' };
+          var jsonPretty = JSON.stringify(logObj, null, 2);
+
+          html += '<div style="margin-bottom:16px;border:1px solid var(--fwui-border);border-radius:10px;overflow:hidden;background:var(--fwui-bg);">';
+          // 标题行
+          html += '<div style="padding:8px 12px;background:var(--fwui-bg-elevated);display:flex;gap:12px;align-items:center;font-size:13px;font-weight:600;border-bottom:1px solid var(--fwui-border);">';
+          html += '<span style="color:var(--fwui-primary);font-family:monospace;">#' + log.id + '</span>';
+          html += '<span>' + escapeHtml(log.task_name || ('任务 #' + log.task_id)) + '</span>';
+          html += '<span style="color:var(--fwui-text-muted);font-weight:normal;font-size:11px;">' + escapeHtml(TL_LOG_TYPE_MAP[log.log_type] || '') + '</span>';
+          html += '<span class="fw-tl-status ' + si.cls + '">' + si.text + '</span>';
+          html += '<span style="margin-left:auto;color:var(--fwui-text-muted);font-weight:normal;font-size:12px;font-family:monospace;">' + _tlFormatTime(log.executed_at) + '</span>';
+          html += '</div>';
+          // JSON 区域
+          html += '<div style="padding:10px 12px;max-height:400px;overflow:auto;">';
+          html += '<pre style="margin:0;font-family:\"Cascadia Code\",\"Fira Code\",\"JetBrains Mono\",monospace;font-size:11px;line-height:1.5;color:var(--fwui-text);white-space:pre-wrap;word-break:break-all;">' + escapeHtml(jsonPretty) + '</pre>';
+          html += '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        container.innerHTML = html;
+        document.getElementById('task-log-total').textContent = taskLogTotal;
+      }
+
       function renderTaskLogTable() {
         var thead = document.getElementById("task-log-thead");
         var tbody = document.getElementById("task-log-tbody");
@@ -4728,81 +5378,129 @@
         }
         cardsEl.innerHTML = taskLogData.map(function (log) {
           var si = TL_LOG_STATUS_MAP[log.status] || { text: '未知', cls: '' };
-          var pnlHtml = '';
-          if (log.pnl_amount > 0) {
-            pnlHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">盈亏</span><span class="fw-log-card__pnl fw-log-card__pnl--profit">+$' + log.pnl_amount.toFixed(2) + '</span></div>';
-          } else if (log.pnl_amount < 0) {
-            pnlHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">盈亏</span><span class="fw-log-card__pnl fw-log-card__pnl--loss">-$' + Math.abs(log.pnl_amount).toFixed(2) + '</span></div>';
-          }
-          var errorHtml = log.error_message ? '<div class="fw-log-card__error">' + escapeHtml(log.error_message) + '</div>' : '';
+          var isEnhanced = _tlViewMode === TL_VIEW_MODES.FORMATTED;
 
-          // 信号详情
-          var signalHtml = '';
-          if (log.log_type === 0) {
-            try {
-              var sd = JSON.parse(log.signal_detail_json || '{}');
-              if (sd && (sd.symbol || sd.direction || sd.amount)) {
-                signalHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">信号</span><span class="fw-log-card__val">' + _renderSignalInfo(log) + '</span></div>';
-              }
-            } catch (e) {}
-            if (!signalHtml) {
+          if (isEnhanced && log.log_type === 0) {
+            // 增强卡片：核心字段展示
+            var sigDir = _getSignalDirection(log);
+            var execSide = _getExecutionSide(log);
+            var settleDir = _getSettlementDirection(log);
+            var winHtml = _renderEnhancedWin(log);
+            var feedbackHtml = _renderEnhancedFeedback(log);
+            var sigHtml = _renderEnhancedSignal(log);
+            var dirHtml = _renderEnhancedDirection(log);
+            var settleHtml = _renderEnhancedSettle(log);
+
+            var pnlHtml = '';
+            if (log.pnl_amount > 0) {
+              pnlHtml = '<div class="fw-log-card__pnl fw-log-card__pnl--profit">+$' + log.pnl_amount.toFixed(2) + '</div>';
+            } else if (log.pnl_amount < 0) {
+              pnlHtml = '<div class="fw-log-card__pnl fw-log-card__pnl--loss">-$' + Math.abs(log.pnl_amount).toFixed(2) + '</div>';
+            }
+
+            var errorHtml = log.error_message ? '<div class="fw-log-card__error">' + escapeHtml(log.error_message) + '</div>' : '';
+
+            return '<div class="fw-log-card">' +
+              '<div class="fw-log-card__header">' +
+                '<div class="fw-log-card__title">#' + log.id + ' ' + escapeHtml(log.task_name || ('任务 #' + log.task_id)) + '</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                  '<span class="fw-log-card__badge fw-log-card__badge--task">ID:' + log.task_id + '</span>' +
+                  '<span class="fw-tl-status ' + si.cls + '">' + si.text + '</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="fw-log-card__meta">' +
+                '<span>⏱ ' + (log.duration_ms || 0) + 'ms</span>' +
+                '<span>' + _tlFormatTime(log.executed_at) + '</span>' +
+                pnlHtml +
+              '</div>' +
+              '<div class="fw-log-card__signal-row">' +
+                '<div class="fw-log-card__signal-item">' + sigHtml + '</div>' +
+                '<div class="fw-log-card__signal-item">' + dirHtml + '</div>' +
+                '<div class="fw-log-card__signal-item">' + settleHtml + '</div>' +
+              '</div>' +
+              '<div class="fw-log-card__row"><span class="fw-log-card__label">下单反馈</span><span class="fw-log-card__val">' + feedbackHtml + '</span></div>' +
+              '<div class="fw-log-card__row" style="display:flex;justify-content:space-between;align-items:center;">' +
+                '<span class="fw-log-card__label">胜负</span>' +
+                winHtml +
+              '</div>' +
+              '<div class="fw-log-card__row"><span class="fw-log-card__label">订单ID</span><span class="fw-log-card__val">' + escapeHtml(log.order_id || '—') + '</span></div>' +
+              errorHtml +
+            '</div>';
+          } else {
+            // 原始卡片（操作日志或非增强模式）
+            var pnlHtml2 = '';
+            if (log.pnl_amount > 0) {
+              pnlHtml2 = '<div class="fw-log-card__row"><span class="fw-log-card__label">盈亏</span><span class="fw-log-card__pnl fw-log-card__pnl--profit">+$' + log.pnl_amount.toFixed(2) + '</span></div>';
+            } else if (log.pnl_amount < 0) {
+              pnlHtml2 = '<div class="fw-log-card__row"><span class="fw-log-card__label">盈亏</span><span class="fw-log-card__pnl fw-log-card__pnl--loss">-$' + Math.abs(log.pnl_amount).toFixed(2) + '</span></div>';
+            }
+            var errorHtml2 = log.error_message ? '<div class="fw-log-card__error">' + escapeHtml(log.error_message) + '</div>' : '';
+
+            var signalHtml = '';
+            if (log.log_type === 0) {
               try {
-                var sig = JSON.parse(log.signal_json || '{}');
-                if (sig && sig.symbol) {
+                var sd = JSON.parse(log.signal_detail_json || '{}');
+                if (sd && (sd.symbol || sd.direction || sd.amount)) {
                   signalHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">信号</span><span class="fw-log-card__val">' + _renderSignalInfo(log) + '</span></div>';
                 }
               } catch (e) {}
+              if (!signalHtml) {
+                try {
+                  var sig = JSON.parse(log.signal_json || '{}');
+                  if (sig && sig.symbol) {
+                    signalHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">信号</span><span class="fw-log-card__val">' + _renderSignalInfo(log) + '</span></div>';
+                  }
+                } catch (e) {}
+              }
             }
-          }
 
-          // 执行详情
-          var execHtml = '';
-          if (log.log_type === 0) {
-            try {
-              var ed = JSON.parse(log.execution_detail_json || '{}');
-              if (ed && (ed.gateway || ed.side || ed.order_type)) {
-                execHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">执行</span><span class="fw-log-card__val">' + _renderExecutionInfo(log) + '</span></div>';
-              }
-            } catch (e) {}
-          }
-
-          // 结果详情
-          var resultHtml = '';
-          if (log.log_type === 0) {
-            try {
-              var rd = JSON.parse(log.result_detail_json || '{}');
-              if (rd && (rd.order_id || rd.status || rd.error)) {
-                resultHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">下单结果</span><span class="fw-log-card__val">' + _renderResultInfo(log) + '</span></div>';
-              }
-            } catch (e) {}
-            if (!resultHtml) {
+            var execHtml = '';
+            if (log.log_type === 0) {
               try {
-                var or = JSON.parse(log.order_result_json || '{}');
-                if (or && or.status) {
-                  resultHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">下单结果</span><span class="fw-log-card__val">' + _renderResultInfo(log) + '</span></div>';
+                var ed = JSON.parse(log.execution_detail_json || '{}');
+                if (ed && (ed.gateway || ed.side || ed.order_type)) {
+                  execHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">执行</span><span class="fw-log-card__val">' + _renderExecutionInfo(log) + '</span></div>';
                 }
               } catch (e) {}
             }
-          }
 
-          return '<div class="fw-log-card">' +
-            '<div class="fw-log-card__header">' +
-              '<div class="fw-log-card__title">#' + log.id + ' ' + escapeHtml(log.task_name || ('任务 #' + log.task_id)) + '</div>' +
-              '<span class="fw-tl-status ' + si.cls + '">' + si.text + '</span>' +
-            '</div>' +
-            '<div class="fw-log-card__meta">' +
-              '<span>📋 ' + escapeHtml(TL_LOG_TYPE_MAP[log.log_type] || '') + '</span>' +
-              '<span>⚙️ ' + escapeHtml(log.action_type || '') + '</span>' +
-              '<span>⏱ ' + (log.duration_ms || 0) + 'ms</span>' +
-            '</div>' +
-            '<div class="fw-log-card__row"><span class="fw-log-card__label">执行时间</span><span class="fw-log-card__val">' + _tlFormatTime(log.executed_at) + '</span></div>' +
-            signalHtml +
-            execHtml +
-            resultHtml +
-            '<div class="fw-log-card__row"><span class="fw-log-card__label">订单ID</span><span class="fw-log-card__val">' + escapeHtml(log.order_id || '—') + '</span></div>' +
-            pnlHtml +
-            errorHtml +
-          '</div>';
+            var resultHtml = '';
+            if (log.log_type === 0) {
+              try {
+                var rd = JSON.parse(log.result_detail_json || '{}');
+                if (rd && (rd.order_id || rd.status || rd.error)) {
+                  resultHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">下单结果</span><span class="fw-log-card__val">' + _renderResultInfo(log) + '</span></div>';
+                }
+              } catch (e) {}
+              if (!resultHtml) {
+                try {
+                  var or = JSON.parse(log.order_result_json || '{}');
+                  if (or && or.status) {
+                    resultHtml = '<div class="fw-log-card__row"><span class="fw-log-card__label">下单结果</span><span class="fw-log-card__val">' + _renderResultInfo(log) + '</span></div>';
+                  }
+                } catch (e) {}
+              }
+            }
+
+            return '<div class="fw-log-card">' +
+              '<div class="fw-log-card__header">' +
+                '<div class="fw-log-card__title">#' + log.id + ' ' + escapeHtml(log.task_name || ('任务 #' + log.task_id)) + '</div>' +
+                '<span class="fw-tl-status ' + si.cls + '">' + si.text + '</span>' +
+              '</div>' +
+              '<div class="fw-log-card__meta">' +
+                '<span>📋 ' + escapeHtml(TL_LOG_TYPE_MAP[log.log_type] || '') + '</span>' +
+                '<span>⚙️ ' + escapeHtml(log.action_type || '') + '</span>' +
+                '<span>⏱ ' + (log.duration_ms || 0) + 'ms</span>' +
+              '</div>' +
+              '<div class="fw-log-card__row"><span class="fw-log-card__label">执行时间</span><span class="fw-log-card__val">' + _tlFormatTime(log.executed_at) + '</span></div>' +
+              signalHtml +
+              execHtml +
+              resultHtml +
+              '<div class="fw-log-card__row"><span class="fw-log-card__label">订单ID</span><span class="fw-log-card__val">' + escapeHtml(log.order_id || '—') + '</span></div>' +
+              pnlHtml2 +
+              errorHtml2 +
+            '</div>';
+          }
         }).join('');
       }
 

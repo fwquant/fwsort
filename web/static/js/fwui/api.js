@@ -66,6 +66,9 @@
   const api = {
     getToken, setToken, clearToken,
 
+    // 通用请求方法（供其他模块使用）
+    request,
+
     // 便捷方法
     async get(path, params = {}, opts) {
       const qs = new URLSearchParams(params).toString();

@@ -252,7 +252,13 @@ def _replace_class_attr(content: str, class_name: str, attr_name: str, old_value
     def _match_and_replace(match: re.Match) -> str:
         indent = match.group(1)
         attr = match.group(2)
-        type_annotation = match.group(4)
+        # group(3) 捕获 ": type" 片段（可能为 None），从中解析类型注解
+        type_with_colon = match.group(3)
+        if type_with_colon is not None:
+            # 去除前导 ": " 或 ":"
+            type_annotation = re.sub(r'^:\s*', '', type_with_colon) or None
+        else:
+            type_annotation = None
         # 保留原有的类型注解，如果没有则根据新值推断
         if not type_annotation:
             type_annotation = _get_type_annotation(new_value)
@@ -262,10 +268,10 @@ def _replace_class_attr(content: str, class_name: str, attr_name: str, old_value
         else:
             return f"{indent}{attr} = {new_val_str}"
 
-    # 匹配模式：缩进 + 属性名 + 可选类型注解 + = + 值
-    # 捕获组: (缩进)(属性名)(空格)(类型注解)
+    # 匹配模式：缩进 + 属性名 + 可选 ": 类型注解" + = + 值
+    # 捕获组: (缩进)(属性名)(: type 片段或 None)
     pattern = re.compile(
-        r'^(\s+)(' + re.escape(attr_name) + r')\s*(?::\s*(\w+(?:\[.*?\])?))?\s*=\s*.+$',
+        r'^(\s+)(' + re.escape(attr_name) + r')((?::\s*\w+(?:\[.*?\])?)?)\s*=\s*.+$',
         re.MULTILINE
     )
 

@@ -25,14 +25,27 @@ load_dotenv()
 
 
 def _ensure_paramiko():
-    """懒加载 paramiko，确保可用"""
+    """懒加载 paramiko，未安装时自动安装"""
     try:
         import paramiko
         return paramiko
     except ImportError:
-        raise ImportError(
-            "paramiko 未安装，请运行: pip install paramiko"
-        )
+        print("⚠️ paramiko 未安装，正在自动安装...")
+        import subprocess
+        import sys
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "paramiko"],
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+            import paramiko
+            print("✅ paramiko 安装成功！")
+            return paramiko
+        except Exception as e:
+            raise ImportError(
+                f"paramiko 自动安装失败: {e}\n请手动运行: pip install paramiko"
+            )
 
 
 HISTORY_REMOTE_FILE = "/home/khadas/btc_signal_history.jsonl"

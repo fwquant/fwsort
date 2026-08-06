@@ -37,10 +37,12 @@ from fwsort.gateway.base import BaseGateway
 
 # 尝试导入官方统一 SDK polymarket-client（V2 + Relayer + Builder 三合一）
 # 包名：polymarket（新，安装后模块名为 polymarket）/ py-clob-client-v2（旧，已废弃）
-
-from polymarket import (AsyncSecureClient, ApiKeyCreds, OrderType, OrderSide, )
-
-_HAS_SDK = True
+try:
+    from polymarket import (AsyncSecureClient, ApiKeyCreds, OrderType, OrderSide, )
+    _HAS_SDK = True
+except ImportError:
+    AsyncSecureClient = ApiKeyCreds = OrderType = OrderSide = None
+    _HAS_SDK = False
 
 
 # ========== 统一错误码（唯一数字，便于排查）==========

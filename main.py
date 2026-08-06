@@ -3,14 +3,14 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-
 from fwsort.config import settings
+from fwsort.database import get_async_db
 from fwsort.es_client import ensure_order_log_index, close_es_client
 from fwsort.exceptions import FwsortError
 from fwsort.fwlogs import logger
@@ -796,6 +796,181 @@ _total_mirrored += _mirror_router_to_demo(equity_curve_router.router, "/api/equi
 logger.info(f"WP-06: mirrored {_total_mirrored} /api/* routes to /api/demo/*")
 
 
+# ========== 兼容路由：前端 risk 页面使用的别名接口 ==========
+@app.get("/api/accounts")
+async def accounts_alias(
+    request: Request,
+    mine: int = 0,
+    db=Depends(get_async_db),
+):
+    """兼容前端 /api/accounts?mine=1 → 等价于 /api/agent/accounts"""
+    from fwsort.models import ExecutionAccount, StrategyPerformance, User
+    from fwsort.security import decode_token
+    from jose import JWTError
+    from sqlalchemy import select
+
+    token = _extract_token(request)
+    user = await _resolve_user(db, token)
+
+    rows = (
+        await db.execute(
+            select(ExecutionAccount)
+            .where(ExecutionAccount.owner_id == user.id)
+            .where(ExecutionAccount.deleted_at.is_(None))
+        )
+    ).scalars().all()
+
+    account_ids = [a.id for a in rows]
+    perf_map = {}
+    if account_ids:
+        perfs = (
+            await db.execute(
+                select(StrategyPerformance)
+                .where(StrategyPerformance.account_id.in_(account_ids))
+                .where(StrategyPerformance.period_type == 4)
+            )
+        ).scalars().all()
+        perf_map = {p.account_id: p for p in perfs}
+
+    accounts = []
+    for a in rows:
+        perf = perf_map.get(a.id)
+        accounts.append({
+            "id": a.id,
+            "uid": a.uid,
+            "name": a.name,
+            "platform": a.platform,
+            "account_type": a.account_type,
+            "current_balance": float(a.current_balance),
+            "daily_pnl": float(a.daily_pnl),
+            "risk_frozen": a.risk_frozen,
+            "status": a.status,
+            "target_url": a.target_url,
+            "target_symbol": a.target_symbol,
+            "order_amount_usd": float(a.order_amount_usd),
+            "signal": a.signal,
+            "signal_source": a.signal_source,
+            "public_enabled": a.public_enabled,
+            "win_rate": float(perf.win_rate) if perf else 0.0,
+            "trade_count": perf.trade_count if perf else 0,
+            "total_pnl": float(a.current_balance) - float(a.initial_balance),
+            "composite_score": float(perf.composite_score) if perf else 0.0,
+            "sharpe_ratio": float(perf.sharpe_ratio) if perf else 0.0,
+            "max_drawdown": float(perf.max_drawdown) if perf else 0.0,
+            "profit_loss_ratio": float(perf.profit_loss_ratio) if perf else 0.0,
+        })
+    return {"code": 0, "message": "ok", "data": {"items": accounts, "count": len(accounts)}}
+
+
+@app.get("/api/ranking")
+async def ranking_alias(
+    request: Request,
+    type: str = "my",
+    db=Depends(get_async_db),
+):
+    """兼容前端 /api/ranking?type=my → 等价于 /api/ranking/my"""
+    from fwsort.models import ExecutionAccount, StrategyPerformance, User
+    from fwsort.security import decode_token
+    from jose import JWTError
+    from sqlalchemy import select
+
+    token = _extract_token(request)
+    user = await _resolve_user(db, token)
+
+    acc_rows = (
+        await db.execute(
+            select(ExecutionAccount)
+            .where(ExecutionAccount.owner_id == user.id)
+            .where(ExecutionAccount.deleted_at.is_(None))
+        )
+    ).scalars().all()
+
+    account_ids = [a.id for a in acc_rows]
+    perf_map = {}
+    if account_ids:
+        perfs = (
+            await db.execute(
+                select(StrategyPerformance)
+                .where(StrategyPerformance.account_id.in_(account_ids))
+                .where(StrategyPerformance.period_type == 4)
+            )
+        ).scalars().all()
+        perf_map = {p.account_id: p for p in perfs}
+
+    items = []
+    for acc in acc_rows:
+        perf = perf_map.get(acc.id)
+        if perf:
+            items.append({
+                "uid": acc.uid,
+                "name": acc.name,
+                "platform": acc.platform,
+                "composite_score": float(perf.composite_score),
+                "annualized_return": float(perf.annualized_return),
+                "max_drawdown": float(perf.max_drawdown),
+                "sharpe_ratio": float(perf.sharpe_ratio),
+                "win_rate": float(perf.win_rate),
+                "trade_count": perf.trade_count,
+                "execution_score": float(perf.execution_score),
+                "total_return": float(perf.total_return),
+                "volatility": float(perf.volatility),
+            })
+        else:
+            items.append({
+                "uid": acc.uid,
+                "name": acc.name,
+                "platform": acc.platform,
+                "composite_score": 0.0,
+                "annualized_return": 0.0,
+                "max_drawdown": 0.0,
+                "sharpe_ratio": 0.0,
+                "win_rate": 0.0,
+                "trade_count": 0,
+                "execution_score": 0.0,
+                "total_return": 0.0,
+                "volatility": 0.0,
+            })
+
+    items.sort(key=lambda x: x["composite_score"], reverse=True)
+    for idx, item in enumerate(items, start=1):
+        item["rank"] = idx
+
+    return {"code": 0, "message": "ok", "data": {"items": items, "total": len(items)}}
+
+
+def _extract_token(request: Request) -> str | None:
+    """从请求头提取 Bearer Token"""
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:]
+    return None
+
+
+async def _resolve_user(db, token: str | None):
+    """根据 token 解析用户（兼容演示模式无 token 的情况）"""
+    from fwsort.models import User
+    from fwsort.security import decode_token
+    from jose import JWTError
+    from sqlalchemy import select
+
+    if not token:
+        demo_email = "demo@fwquant.com"
+        user = (await db.execute(select(User).where(User.email == demo_email))).scalar_one_or_none()
+        if user:
+            return user
+        raise HTTPException(status_code=401, detail="未登录")
+
+    try:
+        payload = decode_token(token)
+        user_id = int(payload.get("sub", 0))
+        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if not user or user.status != 0:
+            raise HTTPException(status_code=401, detail="用户无效")
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token 无效")
+
+
 # ========== 静态资源与前端页面 ==========
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
@@ -829,17 +1004,134 @@ _DEMO_INJECT_BODY = """
   body.fw-demo-body{padding-bottom:42px;}
 </style>
 <div class="fw-demo-badge">演示模式</div>
-<div class="fw-demo-bar">当前为演示模式 · 数据均为模拟 · 不涉及真实资金 <a href="/">返回生产模式 →</a></div>
+<div class="fw-demo-bar">当前为演示模式 · 数据均为模拟 · 不涉及真实资金 · 路由以 /demo/ 开头 <a href="/" data-demo-exit="1">退出演示模式 →</a></div>
 <script>
-  // 演示模式下：导航链接自动重写为 /demo/ 前缀
   document.body.classList.add("fw-demo-body");
-  var _demoNavMap={"/":"demo","/detail":"demo/detail","/accounts":"demo/accounts","/accounts/tasks":"demo/accounts/tasks","/accounts/execution":"demo/accounts/execution","/follow":"demo/follow","/follow/my":"demo/follow/my","/rental":"demo/rental","/admin":"demo/admin","/admin/tasks":"demo/admin/tasks","/admin/task-list":"demo/admin/task-list","/profile":"demo/profile","/polymarket":"demo/polymarket"};
-  document.querySelectorAll(".fwui-nav__link").forEach(function(a){
-    var h=a.getAttribute("href");
-    if(h&&_demoNavMap[h]) a.setAttribute("href","/"+_demoNavMap[h]);
+
+  // 完整的演示模式路由映射表（生产路径 → 演示路径）
+  var _demoNavMap = {
+    "/": "demo",
+    "/global": "demo/global",
+    "/my": "demo/my",
+    "/detail": "demo/detail",
+    "/myrank": "demo/myrank",
+    "/myrank/tasks": "demo/myrank/tasks",
+    "/myrank/execution": "demo/myrank/execution",
+    "/follow": "demo/follow",
+    "/follow/my": "demo/follow/my",
+    "/rental": "demo/rental",
+    "/admin": "demo/admin",
+    "/admin/tasks": "demo/admin/tasks",
+    "/admin/task-list": "demo/admin/task-list",
+    "/profile": "demo/profile",
+    "/polymarket": "demo/polymarket",
+    "/risk": "demo/risk",
+    "/guide": "demo/guide"
+  };
+
+  // 重写所有指向生产路径的 <a> 链接为演示路径
+  function _rewriteDemoLinks(root) {
+    var scope = root || document;
+    scope.querySelectorAll("a[href]").forEach(function(a) {
+      var h = a.getAttribute("href");
+      if (!h) return;
+      // 跳过标记了 data-demo-exit 的链接（如"退出演示模式"按钮）
+      if (a.getAttribute("data-demo-exit")) return;
+      // 仅处理以 / 开头的内部链接（排除 /api、/demo、#、http 等）
+      if (h.charAt(0) !== "/" || h.indexOf("/api") === 0 || h.indexOf("/demo") === 0 || h.indexOf("//") === 0 || h.indexOf("#") === 0) return;
+      // 去掉 query 和 hash 部分再匹配
+      var cleanPath = h.split("?")[0].split("#")[0];
+      if (_demoNavMap[cleanPath]) {
+        var newHref = "/" + _demoNavMap[cleanPath];
+        // 保留原 query 和 hash
+        var rest = h.substring(cleanPath.length);
+        a.setAttribute("href", newHref + rest);
+      }
+    });
+  }
+  _rewriteDemoLinks();
+
+  // 监听 hash 变化：若 hash 对应生产路径，自动重定向到演示路径
+  window.addEventListener("hashchange", function() {
+    var h = (window.location.hash || "").replace("#", "");
+    if (_demoNavMap[h]) {
+      window.location.hash = _demoNavMap[h];
+    }
   });
-  // 演示模式下：JS 跳转也自动加 /demo 前缀
-  window.__FW_DEMO_PREFIX__="/api/demo";
+
+  // 暴露给页面 JS 的导航重写 API
+  window.__FW_DEMO_PREFIX__ = "/api/demo";
+  window.__FW_DEMO_REWRITE__ = function(path) {
+    if (!path) return path;
+    if (path.indexOf("/api/") === 0) return path.replace("/api/", "/api/demo/");
+    var cleanPath = path.split("?")[0].split("#")[0];
+    var rest = path.substring(cleanPath.length);
+    if (_demoNavMap[cleanPath]) return "/" + _demoNavMap[cleanPath] + rest;
+    return path;
+  };
+  window.__FW_DEMO_NAV__ = _demoNavMap;
+
+  // DOMContentLoaded 后再次重写（确保 JS 模板注入的链接也被处理）
+  document.addEventListener("DOMContentLoaded", function() {
+    _rewriteDemoLinks();
+  });
+
+  // MutationObserver：动态添加的链接也自动重写
+  var _demoObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1) {
+          var el = node;
+          if (el.tagName === "A") {
+            var h = el.getAttribute("href");
+            if (h) {
+              var cp = h.split("?")[0].split("#")[0];
+              if (_demoNavMap[cp]) el.setAttribute("href", "/" + _demoNavMap[cp]);
+            }
+          } else {
+            _rewriteDemoLinks(el);
+          }
+        }
+      });
+    });
+  });
+  _demoObserver.observe(document.body, { childList: true, subtree: true });
+
+  // 拦截 history.pushState / replaceState：在演示模式下将生产路径重写为演示路径
+  var _origPushState = history.pushState;
+  var _origReplaceState = history.replaceState;
+  history.pushState = function(state, title, url) {
+    if (typeof url === "string") {
+      var demoUrl = window.__FW_DEMO_REWRITE__(url);
+      return _origPushState.apply(this, [state, title, demoUrl]);
+    }
+    return _origPushState.apply(this, arguments);
+  };
+  history.replaceState = function(state, title, url) {
+    if (typeof url === "string") {
+      var demoUrl = window.__FW_DEMO_REWRITE__(url);
+      return _origReplaceState.apply(this, [state, title, demoUrl]);
+    }
+    return _origReplaceState.apply(this, arguments);
+  };
+
+  // 拦截 window.location 跳转：将生产路径重写为演示路径
+  var _origAssign = location.assign;
+  var _origReplace2 = location.replace;
+  location.assign = function(url) {
+    if (typeof url === "string") {
+      var demoUrl = window.__FW_DEMO_REWRITE__(url);
+      return _origAssign.apply(this, [demoUrl]);
+    }
+    return _origAssign.apply(this, arguments);
+  };
+  location.replace = function(url) {
+    if (typeof url === "string") {
+      var demoUrl = window.__FW_DEMO_REWRITE__(url);
+      return _origReplace2.apply(this, [demoUrl]);
+    }
+    return _origReplace2.apply(this, arguments);
+  };
 </script>
 """
 
@@ -900,10 +1192,34 @@ def _inject_initial_tab(html: str, initial_tab: str) -> str:
     return html.replace("</head>", f"{script}</head>", 1)
 
 
+def _inject_strategy_mode(html: str) -> str:
+    """注入策略模式标记，admin.html 据此只显示策略相关 Tab 和主导航"""
+    script = "<script>window.__FW_STRATEGY_MODE__=true</script>"
+    return html.replace("</head>", f"{script}</head>", 1)
+
+
 async def _render_page(name: str, demo: bool = False, initial_tab: str = "global") -> HTMLResponse:
     """异步渲染页面：把同步文件 I/O 放到线程池中执行，避免阻塞事件循环"""
     import asyncio
     return await asyncio.to_thread(_render_page_sync, name, demo, initial_tab)
+
+
+async def _render_strategy_page(demo: bool = False, initial_tab: str = "auto-tasks") -> HTMLResponse:
+    """渲染策略独立页面：复用 admin 模板 + 注入策略模式标记"""
+    import asyncio
+
+    def _do():
+        with open(_PAGE_TEMPLATES["admin"], encoding="utf-8") as f:
+            html = f.read()
+        if demo:
+            html = _inject_demo(html)
+        else:
+            html = _inject_prod_footer(html)
+        html = _inject_initial_tab(html, initial_tab)
+        html = _inject_strategy_mode(html)
+        return HTMLResponse(html)
+
+    return await asyncio.to_thread(_do)
 
 
 # --- 生产模式路由 ---
@@ -925,18 +1241,30 @@ async def my_ranking_page() -> HTMLResponse:
 async def detail_page() -> HTMLResponse:
     return await _render_page("detail")
 
+@app.get("/myrank", response_class=HTMLResponse)
+async def myrank_page() -> HTMLResponse:
+    return await _render_page("accounts")
+
 @app.get("/accounts", response_class=HTMLResponse)
 async def accounts_page() -> HTMLResponse:
     return await _render_page("accounts")
 
+@app.get("/myrank/tasks", response_class=HTMLResponse)
+async def myrank_tasks_page() -> HTMLResponse:
+    """策略状态可视化页（独立路由）"""
+    return await _render_page("accounts_tasks")
+
 @app.get("/accounts/tasks", response_class=HTMLResponse)
 async def accounts_tasks_page() -> HTMLResponse:
-    """任务状态可视化页（独立路由）"""
     return await _render_page("accounts_tasks")
+
+@app.get("/myrank/execution", response_class=HTMLResponse)
+async def myrank_execution_page() -> HTMLResponse:
+    """执行账号任务执行页（独立路由）"""
+    return await _render_page("accounts_execution")
 
 @app.get("/accounts/execution", response_class=HTMLResponse)
 async def accounts_execution_page() -> HTMLResponse:
-    """执行账号任务执行页（独立路由）"""
     return await _render_page("accounts_execution")
 
 @app.get("/follow", response_class=HTMLResponse)
@@ -981,6 +1309,33 @@ async def polymarket_debug_page() -> HTMLResponse:
     return await _render_page("polymarket_debug")
 
 
+# --- 策略独立页面路由 ---
+@app.get("/strategy", response_class=HTMLResponse)
+async def strategy_page() -> HTMLResponse:
+    """策略管理中心（默认：策略管理）"""
+    return await _render_strategy_page(initial_tab="auto-tasks")
+
+@app.get("/strategy/tasks", response_class=HTMLResponse)
+async def strategy_tasks_page() -> HTMLResponse:
+    """策略管理"""
+    return await _render_strategy_page(initial_tab="auto-tasks")
+
+@app.get("/strategy/auto-tasks", response_class=HTMLResponse)
+async def strategy_auto_tasks_page() -> HTMLResponse:
+    """自动策略"""
+    return await _render_strategy_page(initial_tab="tasks")
+
+@app.get("/strategy/logs", response_class=HTMLResponse)
+async def strategy_logs_page() -> HTMLResponse:
+    """策略日志"""
+    return await _render_strategy_page(initial_tab="task-log")
+
+@app.get("/strategy/leaderboard", response_class=HTMLResponse)
+async def strategy_leaderboard_page() -> HTMLResponse:
+    """策略排行"""
+    return await _render_strategy_page(initial_tab="leaderboard")
+
+
 # --- 演示模式路由（/demo/ 前缀，独立路由地址）---
 @app.get("/demo", response_class=HTMLResponse)
 async def demo_index() -> HTMLResponse:
@@ -1000,18 +1355,30 @@ async def demo_my_ranking_page() -> HTMLResponse:
 async def demo_detail_page() -> HTMLResponse:
     return await _render_page("detail", demo=True)
 
+@app.get("/demo/myrank", response_class=HTMLResponse)
+async def demo_myrank_page() -> HTMLResponse:
+    return await _render_page("accounts", demo=True)
+
 @app.get("/demo/accounts", response_class=HTMLResponse)
 async def demo_accounts_page() -> HTMLResponse:
     return await _render_page("accounts", demo=True)
 
-@app.get("/demo/accounts/tasks", response_class=HTMLResponse)
-async def demo_accounts_tasks_page() -> HTMLResponse:
+@app.get("/demo/myrank/tasks", response_class=HTMLResponse)
+async def demo_myrank_tasks_page() -> HTMLResponse:
     """演示模式任务状态页（独立路由）"""
     return await _render_page("accounts_tasks", demo=True)
 
+@app.get("/demo/accounts/tasks", response_class=HTMLResponse)
+async def demo_accounts_tasks_page() -> HTMLResponse:
+    return await _render_page("accounts_tasks", demo=True)
+
+@app.get("/demo/myrank/execution", response_class=HTMLResponse)
+async def demo_myrank_execution_page() -> HTMLResponse:
+    """演示模式执行账号任务执行页（独立路由）"""
+    return await _render_page("accounts_execution", demo=True)
+
 @app.get("/demo/accounts/execution", response_class=HTMLResponse)
 async def demo_accounts_execution_page() -> HTMLResponse:
-    """演示模式执行账号任务执行页（独立路由）"""
     return await _render_page("accounts_execution", demo=True)
 
 @app.get("/demo/follow", response_class=HTMLResponse)
@@ -1058,6 +1425,33 @@ async def demo_guide_page() -> HTMLResponse:
 async def demo_polymarket_debug_page() -> HTMLResponse:
     """演示模式 Polymarket F3 调试页面"""
     return await _render_page("polymarket_debug", demo=True)
+
+
+# --- 演示模式策略独立页面路由 ---
+@app.get("/demo/strategy", response_class=HTMLResponse)
+async def demo_strategy_page() -> HTMLResponse:
+    """演示模式 - 策略管理中心"""
+    return await _render_strategy_page(demo=True, initial_tab="auto-tasks")
+
+@app.get("/demo/strategy/tasks", response_class=HTMLResponse)
+async def demo_strategy_tasks_page() -> HTMLResponse:
+    """演示模式 - 策略管理"""
+    return await _render_strategy_page(demo=True, initial_tab="auto-tasks")
+
+@app.get("/demo/strategy/auto-tasks", response_class=HTMLResponse)
+async def demo_strategy_auto_tasks_page() -> HTMLResponse:
+    """演示模式 - 自动策略"""
+    return await _render_strategy_page(demo=True, initial_tab="tasks")
+
+@app.get("/demo/strategy/logs", response_class=HTMLResponse)
+async def demo_strategy_logs_page() -> HTMLResponse:
+    """演示模式 - 策略日志"""
+    return await _render_strategy_page(demo=True, initial_tab="task-log")
+
+@app.get("/demo/strategy/leaderboard", response_class=HTMLResponse)
+async def demo_strategy_leaderboard_page() -> HTMLResponse:
+    """演示模式 - 策略排行"""
+    return await _render_strategy_page(demo=True, initial_tab="leaderboard")
 
 
 @app.get("/api/info", response_model=dict)

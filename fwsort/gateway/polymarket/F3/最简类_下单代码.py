@@ -1,9 +1,11 @@
 import asyncio
+import json
 import time
 import traceback
 from decimal import Decimal
 from typing import Literal, TypeAlias
 
+import httpx
 from dotenv import load_dotenv
 from polymarket import AsyncSecureClient, OrderSide
 from polymarket.auth import RelayerApiKey
@@ -34,6 +36,7 @@ async def _retry_call(func, *args, **kwargs):
 def 获得当前时间值(周期: int = 4 * 60 * 60):
     result = str(((int(time.time()) // 周期)) * (周期))
     return result
+
 
 #
 class pm类():
@@ -116,12 +119,12 @@ class pm类():
 
     def _get周期(self, 标的代码: str) -> int:
         if '-5m-' in 标的代码.lower():
-            return 5 * 60
+            return 5 * 60  # 5分钟 300 秒
         elif '-15m-' in 标的代码.lower():
-            return 15 * 60
+            return 15 * 60  # 15分钟 900 秒
         elif '-4h-' in 标的代码.lower():
-            return 4 * 60 * 60
-        return 4 * 60 * 60
+            return 4 * 60 * 60  # 4小时 14400 秒
+        return 4 * 60 * 60  # 默认4小时 14400 秒
 
     async def 获得_updown价格(self, 标的代码: str = "btc-updown-4h-{epoch}") -> dict:
         """获得当前市场 UP 和 DOWN 的最新价格(以 USDC 计价, 范围 0-1)"""
@@ -156,7 +159,8 @@ class pm类():
             _fetch_price(no_token_id, "DOWN"),
         )
 
-        print(f"【UP/DOWN 价格】 UP(mid={up_info.get('midpoint')}, bid={up_info.get('best_bid')}, ask={up_info.get('best_ask')}) | DOWN(mid={down_info.get('midpoint')}, bid={down_info.get('best_bid')}, ask={down_info.get('best_ask')})")
+        print(
+            f"【UP/DOWN 价格】 UP(mid={up_info.get('midpoint')}, bid={up_info.get('best_bid')}, ask={up_info.get('best_ask')}) | DOWN(mid={down_info.get('midpoint')}, bid={down_info.get('best_bid')}, ask={down_info.get('best_ask')})")
         return {"UP": up_info, "DOWN": down_info}
 
     async def 查询流动性(self, token_id: str) -> dict:
@@ -253,7 +257,8 @@ class pm类():
             return None
         print(f"【平仓】共找到 {len(positions)} 个持仓:")
         for i, pos in enumerate(positions, 1):
-            print(f"  [{i}] {pos.title or pos.slug or '未知市场'} | outcome={pos.outcome} | size={pos.size} | cur_price={pos.cur_price} | value={pos.current_value}")
+            print(
+                f"  [{i}] {pos.title or pos.slug or '未知市场'} | outcome={pos.outcome} | size={pos.size} | cur_price={pos.cur_price} | value={pos.current_value}")
 
         results = []
         dust_positions = []
@@ -264,7 +269,8 @@ class pm类():
 
             token_id = pos.token_id
             liq = await self.查询流动性(token_id)
-            print(f".1、【流动性】 token={token_id[:12]}... | best_bid={liq.get('best_bid_price')}({liq.get('best_bid_size')}) | best_ask={liq.get('best_ask_price')}({liq.get('best_ask_size')}) | spread={liq.get('spread')} | mid={liq.get('midpoint')}")
+            print(
+                f".1、【流动性】 token={token_id[:12]}... | best_bid={liq.get('best_bid_price')}({liq.get('best_bid_size')}) | best_ask={liq.get('best_ask_price')}({liq.get('best_ask_size')}) | spread={liq.get('spread')} | mid={liq.get('midpoint')}")
 
             if not liq.get("has_bid_liquidity"):
                 msg = f"⚠️ 无买盘流动性！best_bid={liq.get('best_bid_price')}, 尝试限价单..."
@@ -322,19 +328,22 @@ class pm类():
                                     token_id=token_id, price=limit_price, size=pos.size, side="SELL",
                                 )
                                 print(f".4、【平仓】限价单结果 = {response}")
-                                results.append({"type": "LIMIT_ORDER", "response": str(response), "price": str(limit_price)})
+                                results.append(
+                                    {"type": "LIMIT_ORDER", "response": str(response), "price": str(limit_price)})
                             else:
                                 print(f".3、【平仓】best_bid=0, 无法挂限价单")
                                 results.append({"type": "FAILED", "reason": err_str, "size": str(pos.size)})
                         except Exception as e2:
                             print(f".4、【平仓】限价单也失败: {e2}")
-                            results.append({"type": "FAILED", "reason": f"市价失败:{err_str} | 限价也失败:{e2}", "size": str(pos.size)})
+                            results.append({"type": "FAILED", "reason": f"市价失败:{err_str} | 限价也失败:{e2}",
+                                            "size": str(pos.size)})
                     else:
                         print(f".3、【平仓】市价单失败: {e}")
                         results.append({"type": "FAILED", "reason": err_str, "size": str(pos.size)})
         if dust_positions:
             total_dust_value = sum(d[2] for d in dust_positions)
-            print(f"\n【平仓】⚠️ 共 {len(dust_positions)} 个灰尘持仓，总估值≈{total_dust_value} USDC (低于最低下单金额，可忽略)")
+            print(
+                f"\n【平仓】⚠️ 共 {len(dust_positions)} 个灰尘持仓，总估值≈{total_dust_value} USDC (低于最低下单金额，可忽略)")
         return results
 
     async def 查看连接信息(self, 标的代码: str = "btc-updown-4h-{epoch}") -> dict:
@@ -384,6 +393,7 @@ class pm类():
             }
 
             print(f"\n【盘口数据】")
+
             async def _显示盘口(token_id, label):
                 if not token_id:
                     return
@@ -392,7 +402,7 @@ class pm类():
                     midpoint = await _retry_call(self.client.get_midpoint, token_id=token_id)
                     bids = order_book.bids[:5] if order_book.bids else []
                     asks = order_book.asks[:5] if order_book.asks else []
-                    
+
                     print(f"  ── {label} ({token_id[:16]}...) ──")
                     print(f"    midpoint: {midpoint}")
                     print(f"    last_trade: {order_book.last_trade_price}")
@@ -452,11 +462,249 @@ class pm类():
         print(f"【查询持仓】共 {len(positions)} 个持仓:")
         for i, pos in enumerate(positions, 1):
             title = pos.title or pos.slug or '未知市场'
-            print(f"  [{i}] {title} | outcome={pos.outcome} | size={pos.size} | cur_price={pos.cur_price} | value={pos.current_value}")
+            print(
+                f"  [{i}] {title} | outcome={pos.outcome} | size={pos.size} | cur_price={pos.cur_price} | value={pos.current_value}")
         return positions
 
-    def 关闭对象(self):
-        self.client.close()
+    async def 关闭对象(self):
+        if self.client:
+            await self.client.close()
+
+    @staticmethod
+    def _解析市场结算数据(m: dict) -> dict:
+        """从 Gamma API 返回的 market dict 中解析结算结果。
+
+        Gamma API 字段说明：
+        - outcomes: JSON字符串, 如 '["UP","DOWN"]' 或 '["Yes","No"]'
+        - outcomePrices: JSON字符串, 如 '["1.0","0.0"]' (已结算), '["0.65","0.35"]' (未结算)
+        - result: 结算获胜方向, 如 "UP" / "Yes" (已结算才有)
+        - closed: 是否已结算
+        - umaResolutionStatus: "resolved" 表示已通过 UMA 预言机结算
+        """
+        outcomes_str = m.get("outcomes") or '["Yes","No"]'
+        prices_str = m.get("outcomePrices") or '["0.5","0.5"]'
+        result = m.get("result")
+
+        try:
+            outcomes = json.loads(outcomes_str)
+        except (json.JSONDecodeError, TypeError):
+            outcomes = ["Yes", "No"]
+
+        try:
+            prices = json.loads(prices_str)
+        except (json.JSONDecodeError, TypeError):
+            prices = [0.5, 0.5]
+
+        if len(prices) < 2:
+            prices = prices + ["0.5"] * (2 - len(prices))
+
+        closed = m.get("closed", False)
+        uma_status = m.get("umaResolutionStatus", "")
+
+        parsed = {
+            "closed": closed,
+            "uma_resolved": uma_status == "resolved",
+            "outcomes": outcomes,
+            "prices": [float(prices[0]), float(prices[1])],
+            "result_raw": result,
+        }
+
+        if closed or uma_status == "resolved":
+            parsed["结算状态"] = "已结算"
+            if result:
+                parsed["获胜方向"] = result
+            else:
+                parsed["获胜方向"] = outcomes[0] if parsed["prices"][0] >= parsed["prices"][1] else outcomes[1]
+
+            winning_idx = 0 if parsed["获胜方向"] == outcomes[0] else 1
+            losing_idx = 1 - winning_idx
+            parsed["获胜价格"] = str(prices[winning_idx])
+            parsed["失败价格"] = str(prices[losing_idx])
+            parsed["摘要"] = (
+                f"已结算，{parsed['获胜方向']} 获胜 (价格≈{parsed['获胜价格']})，"
+                f"{outcomes[losing_idx]} 失败 (价格≈{parsed['失败价格']})"
+            )
+        else:
+            parsed["结算状态"] = "未结算"
+            parsed["获胜方向"] = None
+            parsed["获胜价格"] = None
+            parsed["失败价格"] = None
+            parsed["摘要"] = f"未结算，当前 {outcomes[0]}≈{prices[0]}, {outcomes[1]}≈{prices[1]}"
+
+        return parsed
+
+    @staticmethod
+    def _从标的代码提取事件slug(标的代码: str) -> str:
+        """从标的代码模板提取事件 slug，如 'btc-updown-15m-{epoch}' → 'btc-updown-15m'"""
+        return 标的代码.replace("-{epoch}", "")
+
+    async def 查询结算方向历史(self, 标的代码: str = "btc-updown-15m-{epoch}", 数量: int = 20) -> list:
+        """查询历史结算记录（公开数据 Gamma API，一次请求拿全部）。
+        通过事件 slug 一次性获取该事件下的所有市场，从当前周期往前取最近N个。
+        """
+        周期 = self._get周期(标的代码)
+        事件slug = self._从标的代码提取事件slug(标的代码)
+        当前epoch = int(time.time()) // 周期 * 周期
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            item = {"事件slug": 事件slug}
+
+            try:
+                resp = await client.get(
+                    "https://gamma-api.polymarket.com/events",
+                    params={"slug": 事件slug},
+                )
+                data = resp.json()
+                events_list = data.get("events", data.get("data", [])) if isinstance(data, dict) else data
+
+                if not events_list:
+                    item["结算状态"] = "事件不存在"
+                    item["摘要"] = f"事件slug={事件slug} 未找到"
+                    return [item]
+
+                event = events_list[0]
+                all_markets = event.get("markets", [])
+
+                if not all_markets:
+                    item["结算状态"] = "事件无市场"
+                    item["摘要"] = f"事件slug={事件slug} 下无市场数据"
+                    return [item]
+
+                target_epochs = set()
+                for i in range(数量):
+                    target_epochs.add(当前epoch - i * 周期)
+
+                results = []
+                for m in all_markets:
+                    slug = m.get("slug", "")
+                    try:
+                        epoch_val = int(slug.rsplit("-", 1)[-1])
+                    except (ValueError, IndexError):
+                        continue
+                    if epoch_val not in target_epochs:
+                        continue
+
+                    parsed = self._解析市场结算数据(m)
+                    row = {
+                        "slug": slug,
+                        "epoch": epoch_val,
+                        "title": m.get("question") or m.get("title"),
+                        "outcomes": parsed["outcomes"],
+                        "prices": parsed["prices"],
+                        "结算状态": parsed["结算状态"],
+                    }
+                    if parsed["获胜方向"]:
+                        row["获胜方向"] = parsed["获胜方向"]
+                        row["获胜价格"] = parsed["获胜价格"]
+                        row["失败价格"] = parsed["失败价格"]
+                    row["摘要"] = f"epoch={epoch_val} {parsed['摘要']}"
+                    results.append(row)
+
+                results.sort(key=lambda x: x["epoch"], reverse=True)
+                results = results[:数量]
+
+                if not results:
+                    item["结算状态"] = "无匹配市场"
+                    item["摘要"] = f"事件slug={事件slug} 下无匹配当前周期的市场"
+                    results = [item]
+
+                已结算 = sum(1 for r in results if r.get("结算状态") == "已结算")
+                未结算 = sum(1 for r in results if r.get("结算状态") == "未结算")
+                print(f"【结算历史】共 {len(results)} 条 | 已结算={已结算} | 未结算={未结算}")
+                return results
+
+            except Exception as e:
+                item["错误"] = str(e)
+                item["结算状态"] = "查询异常"
+                item["摘要"] = f"查询异常: {e}"
+                print(f"【结算历史】查询异常: {e}")
+                return [item]
+
+    async def 本人持仓结算方向(self, 数量: int = 10) -> list:
+        """查询本人持仓对应市场的结算方向（最近N个）。
+        按事件分组批量请求，一次事件请求拿该事件下所有市场。
+        """
+        await self._ensure_initialized()
+
+        paginator = self.client.list_positions()
+        positions = []
+        async for pos in paginator.iter_items():
+            positions.append(pos)
+
+        if not positions:
+            print("【本人持仓结算方向】无持仓")
+            return []
+
+        market_map = {}
+        for pos in positions:
+            slug = getattr(pos, 'slug', None)
+            if slug and slug not in market_map:
+                market_map[slug] = pos
+
+        recent_items = list(market_map.items())[-数量:]
+
+        event_slugs_needed = set()
+        for slug, _ in recent_items:
+            try:
+                prefix = slug.rsplit("-", 1)[0]
+                event_slugs_needed.add(prefix)
+            except (ValueError, IndexError):
+                pass
+
+        market_data_map = {}
+        async with httpx.AsyncClient(timeout=15) as client:
+            for event_slug in event_slugs_needed:
+                try:
+                    resp = await client.get(
+                        "https://gamma-api.polymarket.com/events",
+                        params={"slug": event_slug},
+                    )
+                    data = resp.json()
+                    events_list = data.get("events", data.get("data", [])) if isinstance(data, dict) else data
+                    if not events_list:
+                        continue
+                    for m in events_list[0].get("markets", []):
+                        mslug = m.get("slug", "")
+                        if mslug:
+                            market_data_map[mslug] = self._解析市场结算数据(m)
+                except Exception:
+                    pass
+
+        results = []
+        for slug, pos in recent_items:
+            item = {
+                "slug": slug,
+                "outcome": pos.outcome,
+                "size": str(pos.size),
+                "cur_price": str(pos.cur_price) if pos.cur_price else None,
+                "title": pos.title,
+            }
+
+            parsed = market_data_map.get(slug)
+            if not parsed:
+                item["结算状态"] = "市场不存在"
+                item["我方胜负"] = "未知"
+                item["摘要"] = f"{slug} 未在事件数据中找到"
+                results.append(item)
+                continue
+
+            item["结算状态"] = parsed["结算状态"]
+            if parsed["获胜方向"]:
+                item["获胜方向"] = parsed["获胜方向"]
+                item["获胜价格"] = parsed["获胜价格"]
+                item["我方胜负"] = "胜利" if pos.outcome.upper() == parsed["获胜方向"].upper() else "失败"
+                item["摘要"] = (
+                    f"{slug} | 我方={pos.outcome} | 获胜方={parsed['获胜方向']}"
+                    f"({parsed['获胜价格']}) | {item['我方胜负']}"
+                )
+            else:
+                item["我方胜负"] = "待定"
+                item["摘要"] = f"{slug} | 我方={pos.outcome} | {parsed['摘要']}"
+
+            results.append(item)
+
+        print(f"【本人持仓结算方向】共 {len(results)} 条记录")
+        return results
 
 
 async def 显示菜单():
@@ -489,6 +737,8 @@ async def 显示菜单():
         print("3.2. 查询持仓 (全部)")
         print("3.3. 查询 UP/DOWN 最新价格")
         print("3.4. 查看连接信息 & 盘口")
+        print("3.5. 查询结算方向历史 (公开数据)")
+        print("3.6. 本人持仓结算方向")
         print("--------------------------------------")
 
         # 退出
@@ -562,6 +812,12 @@ async def 显示菜单():
         elif choice == "3.4":
             result = await pm.查看连接信息(标的代码="btc-updown-4h-{epoch}")
             print(f"连接信息 result = {result}")
+        elif choice == "3.5":
+            result = await pm.查询结算方向历史(标的代码="btc-updown-15m-{epoch}", 数量=5, )
+            print(f"结算历史 result = {result}")
+        elif choice == "3.6":
+            result = await pm.本人持仓结算方向(数量=3)
+            print(f"本人持仓结算方向 result = {result} 条")
 
         # 退出
         elif choice == "0":

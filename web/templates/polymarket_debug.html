@@ -87,19 +87,51 @@
 </head>
 <body>
   <nav class="fwui-nav">
-    <a href="/"><div class="fwui-nav__logo">🟣 福纹排行榜</div></a>
+    <a href="/" class="fwui-nav__logo-link">
+      <div class="fwui-nav__logo">🟣 福纹排行榜</div>
+    </a>
     <div class="fwui-nav__links">
-      <a class="fwui-nav__link" href="/">📊 榜单</a>
-      <a class="fwui-nav__link" href="/accounts">💼 我的策略</a>
+      <!-- 榜单 -->
+      <div class="fwui-nav__dropdown" data-nav-group="ranking">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/">📊 榜单</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/">🌍 总榜单</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts">👤 我的执行账户</a>
+        </div>
+      </div>
+      <!-- 跟单 -->
       <a class="fwui-nav__link" href="/follow">👥 跟单</a>
-      <a class="fwui-nav__link fwui-nav__link--active" href="/polymarket">🔮 Polymarket</a>
-      <a class="fwui-nav__link" href="/risk" title="风控中心">🛡️ 风控</a>
-      <a class="fwui-nav__link" href="/admin" title="控制台">⚙️</a>
+      <!-- 策略 -->
+      <div class="fwui-nav__dropdown" data-nav-group="strategy">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/strategy/tasks">📡 策略</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/auto-tasks">🤖 自动策略</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/logs">📜 策略日志</a>
+        </div>
+      </div>
+      <!-- 齿轮 -->
+      <div class="fwui-nav__dropdown" data-nav-group="console">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link fwui-nav__link--active" href="/admin" title="控制台">⚙️</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/admin">⚙️ 控制台</a>
+          <a class="fwui-nav__dropdown-item" href="/risk">🛡️ 风控中心</a>
+          <a class="fwui-nav__dropdown-item" href="/rental">🤖 租用智能体</a>
+          <a class="fwui-nav__dropdown-item" href="/polymarket">🔮 Polymarket</a>
+        </div>
+      </div>
     </div>
     <div class="fwui-nav__actions fwui-nav-actions-slot"></div>
     <button class="fwui-btn fwui-btn--sm" data-theme-toggle>明亮</button>
   </nav>
 
+  
+  <!-- 面包屑 -->
+  <div class="fwui-breadcrumb">
+    <a href="/" class="fwui-breadcrumb__home">🏠 首页</a>
+    <span class="fwui-breadcrumb__sep">/</span>
+    <span class="fwui-breadcrumb__current">Polymarket</span>
+  </div>
   <main class="fwui-main">
     <h1 class="fwui-page-title">🔮 Polymarket F3 调试</h1>
     <p class="fwui-page-subtitle">Relayer Gasless 免Gas下单 · 持仓查询 · 调用示例</p>
@@ -110,7 +142,8 @@
 
     <!-- Tab 选择器 -->
     <div class="pm-tabs-bar">
-      <div class="pm-tab pm-tab--active" data-tab="status">
+      <div class="pm-tab pm-tab--active" data-tab="quickorder">🚀 一键F3下单</div>
+      <div class="pm-tab" data-tab="status">
         🔗 连接状态
         <span class="pm-tab-badge pm-tab-badge--idle" id="tab-badge-status">未登录</span>
       </div>
@@ -123,7 +156,7 @@
     </div>
 
     <!-- 1. 连接状态 -->
-    <div class="pm-panel pm-panel--active" id="panel-status">
+    <div class="pm-panel" id="panel-status">
       <div class="pm-tip">初始化 F3 Relayer Gasless 客户端，连接 Polymarket 并获取默认市场。<br>首次使用请先点击「初始化连接」。密钥自动脱敏，未配置项显示 <code>[变量名]</code>。</div>
 
       <!-- 引导指南（未配置时显示） -->
@@ -256,6 +289,53 @@
         <div class="pm-btn-group">
           <button class="fwui-btn fwui-btn--primary" id="btn-f3-order">⚡ 下单</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 3.5. 一键F3下单 -->
+    <div class="pm-panel pm-panel--active" id="panel-quickorder">
+      <div class="pm-tip">🚀 一键完成 F3 下单全流程：初始化 → 查市场 → 下市价单 → 验证持仓 → 关闭连接。<br>支持 BTC 5分钟 / 15分钟 / 4小时 周期，免 Gas 费 Gasless 下单。</div>
+      <div class="pm-form">
+        <div class="pm-form-row">
+          <label>标的周期</label>
+          <select class="fwui-select" id="quickorder-slug-select">
+            <option value="btc-updown-5m-{epoch}">BTC 5分钟 (5m)</option>
+            <option value="btc-updown-15m-{epoch}">BTC 15分钟 (15m)</option>
+            <option value="btc-updown-4h-{epoch}" selected>BTC 4小时 (4h)</option>
+          </select>
+        </div>
+        <div class="pm-form-row">
+          <label>方向</label>
+          <div class="pm-direction">
+            <label class="pm-dir-radio pm-dir-up">
+              <input type="radio" name="quickorder-direction" value="UP" checked>
+              <span>🟢 UP 涨</span>
+            </label>
+            <label class="pm-dir-radio pm-dir-down">
+              <input type="radio" name="quickorder-direction" value="DOWN">
+              <span>🔴 DOWN 跌</span>
+            </label>
+          </div>
+        </div>
+        <div class="pm-form-row">
+          <label>金额(USDC)</label>
+          <input type="number" class="fwui-input" id="quickorder-amount" value="1" min="0.1" step="0.1">
+        </div>
+        <div class="pm-btn-group">
+          <button class="fwui-btn fwui-btn--primary" id="btn-f3-quickorder" style="font-size:16px;padding:10px 24px;">🚀 一键F3下单</button>
+        </div>
+      </div>
+
+      <!-- 进展步骤 -->
+      <div id="quickorder-progress" style="display:none;margin-top:16px;">
+        <h3 style="font-size:14px;margin-bottom:8px;">📋 执行进展</h3>
+        <div id="quickorder-steps" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+
+      <!-- 下单结果 -->
+      <div id="quickorder-result" style="display:none;margin-top:16px;">
+        <h3 style="font-size:14px;margin-bottom:8px;">📦 下单结果</h3>
+        <div id="quickorder-result-content"></div>
       </div>
     </div>
 
@@ -402,6 +482,7 @@ asyncio.<span class="fn">run</span>(<span class="fn">main</span>())</div>
           <div class="pm-sub-tab" data-log-filter="status">🔗 连接状态</div>
           <div class="pm-sub-tab" data-log-filter="market">📊 市场查询</div>
           <div class="pm-sub-tab" data-log-filter="order">⚡ F3 下单</div>
+          <div class="pm-sub-tab" data-log-filter="quickorder">🚀 一键F3</div>
           <div class="pm-sub-tab" data-log-filter="close">🔒 平仓</div>
           <div class="pm-sub-tab" data-log-filter="positions">📋 持仓</div>
         </div>

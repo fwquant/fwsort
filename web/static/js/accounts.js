@@ -35,7 +35,7 @@
     // 演示模式：把"任务状态"按钮链接加 /demo 前缀
     const tasksBtn = document.getElementById("btn-go-tasks");
     if (tasksBtn && window.__FW_DEMO_PREFIX__) {
-      tasksBtn.setAttribute("href", window.__FW_DEMO_PREFIX__ + "/accounts/tasks");
+      tasksBtn.setAttribute("href", window.__FW_DEMO_PREFIX__ + "/myrank/tasks");
     }
 
     const switchEl = document.getElementById("view-switch");
@@ -647,7 +647,7 @@
   function goDetail(e) {
     const uid = e.currentTarget.dataset.uid;
     const id = e.currentTarget.dataset.id;
-    const prefix = window.__FW_DEMO_PREFIX__ || "";
+    const prefix = window.__FW_DEMO_MODE__ ? "/demo" : "";
     location.href = `${prefix}/detail?uid=${encodeURIComponent(uid)}&account_id=${id}`;
   }
 

@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import time
 import traceback
 import uuid
@@ -27,6 +29,27 @@ DISPATCHER_KEY = "fwsort:auto_strategy:last_run"
 
 # 内存中存储已初始化的网关客户端
 _gateway_instances: dict[int, object] = {}
+
+
+def _extract_missing_module(error_msg: str) -> str | None:
+    """从 ImportError 消息中提取缺失的模块名。
+    支持多种 Python 错误格式，如:
+    - No module named 'paramiko'
+    - No module named 'paramiko.ssh_exception'
+    - cannot import name 'xxx' from 'yyy'
+    """
+    import re
+    m = re.search(r"No module named ['\"]([\w\.]+)['\"]", error_msg)
+    if m:
+        full = m.group(1)
+        top = full.split(".")[0]
+        return top
+    m = re.search(r"cannot import name ['\"][^'\"]+['\"] from ['\"]([\w\.]+)['\"]", error_msg)
+    if m:
+        full = m.group(1)
+        top = full.split(".")[0]
+        return top
+    return None
 
 
 def _json_default(obj):
@@ -363,11 +386,28 @@ async def _start_task_internal(task_id: int) -> dict:
 
 
 def stop_task(task_id: int) -> dict:
-    """停止任务：释放网关 + 标记为不活跃 + 清理 Redis 记录"""
+    """停止任务：释放网关 + 标记为不活跃 + 清理 Redis 记录 + 结算回查"""
     with get_sync_db() as db:
         task = db.query(AutoStrategy).filter(AutoStrategy.id == task_id).first()
         if not task:
             raise ValueError(f"任务不存在: {task_id}")
+
+        # ===== 结算回查：任务停止时先回查所有未结算交易 =====
+        settlement_result = {}
+        try:
+            updated = _check_and_update_previous_pnl(db, task)
+            settlement_result = {
+                "updated_count": len(updated),
+                "updated_results": updated,
+                "message": f"结算回查更新 {len(updated)} 条",
+            }
+            if updated:
+                logger.info(
+                    f"[AutoStrategy] 任务停止结算回查: {len(updated)} 条交易已更新结算"
+                )
+        except Exception as e:
+            logger.warning(f"[AutoStrategy] 任务停止结算回查异常(不影响停止): {e}")
+            settlement_result = {"message": f"结算回查异常: {e}"}
 
         # 释放网关
         gateway_cleanup_ok = True
@@ -397,6 +437,7 @@ def stop_task(task_id: int) -> dict:
         _add_operation_log(db, task.id, "stop", 0 if gateway_cleanup_ok else 1, detail={
             "gateway_cleanup_ok": gateway_cleanup_ok,
             "gateway_error": gateway_error,
+            "settlement": settlement_result,
         })
 
         logger.info(f"[AutoStrategy] stopped task: {task.id}")
@@ -404,6 +445,7 @@ def stop_task(task_id: int) -> dict:
             "task_id": task.id,
             "task_name": task.task_name,
             "is_active": task.is_active,
+            "settlement_result": settlement_result,
             "message": "任务已停止",
         }
 
@@ -432,7 +474,8 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
     pnl_percent = 0.0
     is_profit = False
     market_resolved = False
-    pnl_check_result = None  # 上一笔交易盈亏回查结果
+    pnl_check_result = None  # 上一笔交易盈亏回查结果（取第一条）
+    pnl_check_results = []   # 所有未结算交易回查结果列表
 
     with get_sync_db() as db:
         task = db.query(AutoStrategy).filter(AutoStrategy.id == task_id).first()
@@ -446,18 +489,22 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
         if not task.is_active and not manual:
             return {"status": "skipped", "message": "任务已停止"}
 
-        # ===== 回查上一笔未结算交易的盈亏 =====
+        # ===== 回查所有未结算交易的盈亏 =====
         try:
-            pnl_check_result = _check_and_update_previous_pnl(db, task)
-            if pnl_check_result:
-                logger.info(
-                    f"[AutoStrategy] 💰 任务 {task_id} 回查上一笔交易: "
-                    f"{'盈利' if pnl_check_result.get('is_profit') else '亏损'} "
-                    f"${pnl_check_result.get('pnl_amount', 0):.4f} "
-                    f"({pnl_check_result.get('pnl_percent', 0):.2f}%)"
-                )
+            pnl_check_results = _check_and_update_previous_pnl(db, task)
+            if pnl_check_results:
+                for r in pnl_check_results:
+                    logger.info(
+                        f"[AutoStrategy] 💰 任务 {task_id} 结算回查: "
+                        f"log_id={r.get('log_id')} "
+                        f"{'盈利' if r.get('is_profit') else '亏损'} "
+                        f"${r.get('pnl_amount', 0):.4f} "
+                        f"({r.get('pnl_percent', 0):.2f}%)"
+                    )
+                pnl_check_result = pnl_check_results[0] if pnl_check_results else None
         except Exception as e:
             logger.warning(f"[AutoStrategy] 任务 {task_id} 盈亏回查异常(不影响主流程): {e}")
+            pnl_check_results = []
             pnl_check_result = None
 
         # ===== 自动赎回已结算持仓 =====
@@ -508,11 +555,45 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
 
         # ===== 获取信号 =====
         signal = None
+        signal_dict = {}
+        signal_detail = {}
         if status == 0:
-            try:
-                signal = get_signal(task.signal_source)
+            _install_attempted = False
+            while True:
+                try:
+                    signal = get_signal(task.signal_source)
+                    break
+                except ImportError as e:
+                    if _install_attempted:
+                        raise
+                    _install_attempted = True
+                    missing_module = _extract_missing_module(str(e))
+                    if missing_module:
+                        logger.warning(
+                            f"[AutoStrategy] 检测到缺失依赖 '{missing_module}'，正在自动安装..."
+                        )
+                        try:
+                            subprocess.check_call(
+                                [sys.executable, "-m", "pip", "install", missing_module],
+                                stdout=sys.stdout,
+                                stderr=sys.stderr,
+                            )
+                            logger.info(f"[AutoStrategy] '{missing_module}' 安装成功，重试信号获取...")
+                            continue
+                        except Exception as install_err:
+                            raise ImportError(
+                                f"自动安装 '{missing_module}' 失败: {install_err}"
+                            ) from e
+                    else:
+                        raise
+                except Exception as e:
+                    status = 1
+                    error_message = f"信号获取失败: {e}"
+                    logger.error(f"[AutoStrategy] ❌ 任务 {task_id} 信号获取失败: {e}")
+                    break
+
+            if status == 0 and signal:
                 signal_dict = signal.to_dict() if signal else {}
-                # symbol 即 Polymarket 的 market_slug
                 symbol = signal_dict.get("symbol", "")
                 signal_detail = {
                     "symbol": symbol,
@@ -520,7 +601,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                     "amount": signal_dict.get("amount", 0),
                     "source": signal_dict.get("source", task.signal_source),
                     "market_id": signal_dict.get("market_id", ""),
-                    "market_slug": signal_dict.get("market_slug") or symbol,  # symbol 即 market_slug
+                    "market_slug": signal_dict.get("market_slug") or symbol,
                     "market_question": signal_dict.get("market_question", ""),
                     "timestamp": datetime.utcnow().isoformat(),
                 }
@@ -529,10 +610,6 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                     f"symbol={signal_detail['symbol']} direction={signal_detail['direction']} "
                     f"amount={signal_detail['amount']} source={signal_detail['source']}"
                 )
-            except Exception as e:
-                status = 1
-                error_message = f"信号获取失败: {e}"
-                logger.error(f"[AutoStrategy] ❌ 任务 {task_id} 信号获取失败: {e}")
 
         # ===== 无有效信号跳过下单 =====
         if status == 0 and signal and not signal.is_valid:
@@ -1199,6 +1276,8 @@ def _log_to_dict(log: AutoStrategyLog, db=None) -> dict:
         "pnl_percent": float(log.pnl_percent) if (hasattr(log, 'pnl_percent') and log.pnl_percent is not None) else 0.0,
         "is_profit": log.is_profit if hasattr(log, 'is_profit') else False,
         "market_resolved": log.market_resolved if hasattr(log, 'market_resolved') else False,
+        "entry_price": float(log.entry_price) if (hasattr(log, 'entry_price') and log.entry_price is not None) else None,
+        "exit_price": float(log.exit_price) if (hasattr(log, 'exit_price') and log.exit_price is not None) else None,
         "created_at": log.created_at.isoformat() if log.created_at else None,
     }
 
@@ -1499,28 +1578,27 @@ def _auto_redeem_resolved_positions(task: AutoStrategy) -> dict | None:
         }
 
 
-# 回查上一笔未结算交易的市场结果并更新盈亏
-def _check_and_update_previous_pnl(db, task: AutoStrategy) -> dict | None:
-    """回查上一笔未结算交易的市场结果并更新盈亏
+# 回查所有未结算交易的市场结果并更新盈亏
+def _check_and_update_previous_pnl(db, task: AutoStrategy) -> list[dict]:
+    """回查所有未结算交易的市场结果并更新盈亏
 
     逻辑：
-    1. 查找该任务最近一条 status=0/2 且 market_resolved=False 的执行日志
-    2. 从日志的 signal_detail_json 中获取 market_slug（市场标识）和 direction
+    1. 查找该任务所有 status=0/2 且 market_resolved=False 的执行日志
+    2. 对每条日志，从 signal_detail_json 获取 market_slug 和 direction
     3. 通过 Polymarket API 查询该市场是否已结算
-    4. 若已结算，判断结果并计算盈亏
-    5. 更新该条日志的 pnl_amount / pnl_percent / is_profit / market_resolved
+    4. 若已结算，判断结果并计算盈亏，更新日志
 
     Args:
         db: 数据库会话
         task: AutoStrategy 模型实例
 
     Returns:
-        dict | None: 盈亏结果 {"pnl_amount": x, "pnl_percent": y, "is_profit": z} 或 None
+        list[dict]: 所有已更新的结算结果列表
     """
     from sqlalchemy import and_
 
-    # 查找最近一条成功但未结算的执行日志
-    prev_log = (
+    # 查找所有未结算的执行日志（不限数量，遍历全部）
+    unresolved_logs = (
         db.query(AutoStrategyLog)
         .filter(
             AutoStrategyLog.task_id == task.id,
@@ -1528,11 +1606,99 @@ def _check_and_update_previous_pnl(db, task: AutoStrategy) -> dict | None:
             AutoStrategyLog.status.in_([0, 2]),
             AutoStrategyLog.market_resolved == False,
         )
-        .order_by(AutoStrategyLog.created_at.desc())
-        .first()
+        .order_by(AutoStrategyLog.created_at.asc())
+        .all()
     )
 
-    if not prev_log:
+    if not unresolved_logs:
+        return []
+
+    # 只有 Polymarket 网关的任务才能回查
+    if task.gateway != "polymarket_f3":
+        return []
+
+    logger.info(
+        f"[AutoStrategy] 任务 {task.id} 发现 {len(unresolved_logs)} 条未结算日志，开始回查结算..."
+    )
+
+    # 查询市场状态（创建一次 client，遍历所有日志）
+    updated_results = []
+    pm_client = None
+    event_loop = None
+
+    try:
+        import asyncio
+        from fwsort.config import reload_env
+        reload_env()
+
+        from fwsort.gateway.polymarket.F3.最简类_下单代码 import pm类
+
+        # 创建 client（复用已有的网关实例）
+        pm = _gateway_instances.get(task.id)
+        if pm is None:
+            pm = pm类()
+            _gateway_instances[task.id] = pm
+
+        # 使用同一个事件循环来初始化 client 和查询市场
+        event_loop = asyncio.new_event_loop()
+        try:
+            if pm.client is None:
+                event_loop.run_until_complete(pm.初始化())
+
+            pm_client = pm.client
+            if pm_client is None:
+                logger.warning(f"[AutoStrategy] 任务 {task.id} client 未初始化，跳过结算回查")
+                return []
+
+            for prev_log in unresolved_logs:
+                try:
+                    result = _try_resolve_single_log(event_loop, pm_client, prev_log, task, db)
+                    if result is not None:
+                        updated_results.append(result)
+                except Exception as e:
+                    logger.warning(
+                        f"[AutoStrategy] 任务 {task.id} 结算回查日志 {prev_log.id} 异常: {e}"
+                    )
+                    continue
+
+        finally:
+            event_loop.close()
+
+    except Exception as e:
+        logger.warning(f"[AutoStrategy] 任务 {task.id} 盈亏回查异常: {e}")
+        return updated_results
+
+    # 提交所有更新
+    if updated_results:
+        db.commit()
+        logger.info(
+            f"[AutoStrategy] 💰 任务 {task.id} 结算回查完成: "
+            f"成功更新 {len(updated_results)}/{len(unresolved_logs)} 条日志"
+        )
+    else:
+        # 如果没有任何更新（市场均未结算），也提交可能的状态变化
+        db.commit()
+
+    return updated_results
+
+
+def _try_resolve_single_log(event_loop, pm_client, prev_log, task, db) -> dict | None:
+    """尝试对单条日志进行结算回查
+
+    Args:
+        event_loop: 已创建的事件循环
+        pm_client: 已初始化的 Polymarket client
+        prev_log: AutoStrategyLog 实例
+        task: AutoStrategy 实例
+        db: 数据库会话
+
+    Returns:
+        dict | None: 结算结果或 None
+    """
+    import asyncio
+
+    # 跳过已结算的日志（防御性检查）
+    if prev_log.market_resolved:
         return None
 
     # 解析信号详情获取市场信息
@@ -1543,7 +1709,6 @@ def _check_and_update_previous_pnl(db, task: AutoStrategy) -> dict | None:
 
     market_slug = signal_detail.get("market_slug", "")
     direction = signal_detail.get("direction", "")
-    signal_amount = float(signal_detail.get("amount", 0))
 
     # 解析执行详情获取下单信息
     try:
@@ -1555,157 +1720,283 @@ def _check_and_update_previous_pnl(db, task: AutoStrategy) -> dict | None:
     taking_amount = float(exec_detail.get("taking_amount", 0) or 0)
 
     if not market_slug:
+        logger.debug(f"[AutoStrategy] 日志 {prev_log.id} 无 market_slug，跳过")
         return None
 
-    # 只有 Polymarket 网关的任务才能回查
-    if task.gateway != "polymarket_f3":
-        return None
-
-    # 查询市场状态
+    # 查询市场
     try:
-        import asyncio
-        from fwsort.config import reload_env
-        reload_env()
+        market = event_loop.run_until_complete(pm_client.get_market(slug=market_slug))
+    except Exception as e:
+        logger.warning(f"[AutoStrategy] 日志 {prev_log.id} 市场查询异常: slug={market_slug} err={e}")
+        return None
 
-        from fwsort.gateway.polymarket.F3.最简类_下单代码 import pm类
+    if market is None:
+        logger.warning(f"[AutoStrategy] 日志 {prev_log.id} 市场查询失败: slug={market_slug}")
+        return None
 
-        # 使用已有的网关实例或创建新的
-        pm = _gateway_instances.get(task.id)
-        if pm is None:
-            pm = pm类()
-            _gateway_instances[task.id] = pm
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(pm.初始化())
-            finally:
-                loop.close()
+    # 检查市场状态
+    state = getattr(market, 'state', None)
+    is_closed = getattr(state, 'closed', False) if state else False
+    is_resolved = getattr(state, 'resolved', False) if state else False
 
-        loop = asyncio.new_event_loop()
-        try:
-            market = loop.run_until_complete(pm.client.get_market(slug=market_slug))
-        finally:
-            loop.close()
+    # 必须已结算（closed=True 且 resolved=True）才能计算盈亏
+    if not is_closed or not is_resolved:
+        return None
 
-        if market is None:
-            logger.warning(f"[AutoStrategy] 任务 {task.id} 市场查询失败: slug={market_slug}")
-            return None
+    # 市场已结算，判断结果
+    outcomes = getattr(market, 'outcomes', None)
+    if outcomes is None:
+        return None
 
-        # 检查市场状态
-        state = getattr(market, 'state', None)
-        is_closed = getattr(state, 'closed', False) if state else False
-        is_resolved = getattr(state, 'resolved', False) if state else False
-        accepting_orders = getattr(state, 'accepting_orders', True) if state else True
+    yes_price = float(getattr(outcomes.yes, 'price', 0)) if outcomes.yes else 0
+    no_price = float(getattr(outcomes.no, 'price', 0)) if outcomes.no else 0
+    yes_won = yes_price >= 0.5
 
-        if not is_closed and not is_resolved:
-            # 市场尚未结算，无法计算盈亏
-            logger.debug(
-                f"[AutoStrategy] 任务 {task.id} 市场 {market_slug} 尚未结算 "
-                f"(closed={is_closed}, resolved={is_resolved})"
-            )
-            return None
+    is_buy_yes = direction.upper() in ("UP", "YES", "Y", "U", "BUY")
+    we_won = (is_buy_yes and yes_won) or (not is_buy_yes and not yes_won)
 
-        # 市场已结算，判断结果
-        outcomes = getattr(market, 'outcomes', None)
-        if outcomes is None:
-            return None
-
-        # 获取 YES/NO 的结算价格
-        yes_price = float(getattr(outcomes.yes, 'price', 0)) if outcomes.yes else 0
-        no_price = float(getattr(outcomes.no, 'price', 0)) if outcomes.no else 0
-
-        # 结算规则：winning outcome 的价格接近 1.0
-        # 如果 YES 价格 >= 0.5，视为 YES 赢；否则 NO 赢
-        yes_won = yes_price >= 0.5
-
-        # 判断我们的方向是否正确
-        # direction UP/YES 对应买 YES (token_id = outcomes.yes.token_id)
-        # direction DOWN/NO 对应买 NO (token_id = outcomes.no.token_id)
-        is_buy_yes = direction.upper() in ("UP", "YES", "Y", "U", "BUY")
-        we_won = (is_buy_yes and yes_won) or (not is_buy_yes and not yes_won)
-
-        # 计算盈亏
-        # 赢：收回 1.0 * shares (付出约 0.5 * shares)
-        # 输：收回 0
-        if making_amount > 0:
-            if we_won:
-                # 盈利 = (1.0 - cost_price) * shares
-                # 近似：盈利 = making_amount * (1/cost_ratio - 1)
-                # 简化：盈利 = making_amount * (winning_price - 1) / losing_price... 
-                # 更简单：盈利 = taking_amount (赢方收回全部) - making_amount (付出)
-                pnl_amount = taking_amount - making_amount
-            else:
-                pnl_amount = -making_amount
+    # 计算盈亏
+    if making_amount > 0:
+        if we_won:
+            pnl_amount = taking_amount - making_amount
         else:
-            pnl_amount = 0.0
+            pnl_amount = -making_amount
+    else:
+        pnl_amount = 0.0
 
-        pnl_percent = (pnl_amount / making_amount * 100) if making_amount > 0 else 0.0
-        is_profit = pnl_amount > 0
+    pnl_percent = (pnl_amount / making_amount * 100) if making_amount > 0 else 0.0
+    is_profit = pnl_amount > 0
 
-        # 更新日志记录
-        prev_log.market_resolved = True
-        prev_log.pnl_amount = round(pnl_amount, 6)
-        prev_log.pnl_percent = round(pnl_percent, 4)
-        prev_log.is_profit = is_profit
+    # 更新日志
+    prev_log.market_resolved = True
+    prev_log.pnl_amount = round(pnl_amount, 6)
+    prev_log.pnl_percent = round(pnl_percent, 4)
+    prev_log.is_profit = is_profit
 
-        # 在 result_detail_json 中记录结算信息
-        try:
-            result_detail = json.loads(prev_log.result_detail_json or "{}")
-        except Exception:
-            result_detail = {}
-        result_detail["market_resolution"] = {
-            "market_slug": market_slug,
-            "yes_price": yes_price,
-            "no_price": no_price,
-            "yes_won": yes_won,
-            "we_bet_direction": direction,
-            "we_won": we_won,
-            "resolved_at": datetime.utcnow().isoformat(),
-        }
-        prev_log.result_detail_json = _safe_dumps(result_detail)
+    try:
+        result_detail = json.loads(prev_log.result_detail_json or "{}")
+    except Exception:
+        result_detail = {}
+    result_detail["market_resolution"] = {
+        "market_slug": market_slug,
+        "yes_price": yes_price,
+        "no_price": no_price,
+        "yes_won": yes_won,
+        "we_bet_direction": direction,
+        "we_won": we_won,
+        "resolved_at": datetime.utcnow().isoformat(),
+    }
+    prev_log.result_detail_json = _safe_dumps(result_detail)
 
-        # 回写关联的 ExecutionAccount：余额、日PnL、最近下单时间
-        try:
-            account = None
-            if task.account_id:
-                account = db.query(ExecutionAccount).filter(ExecutionAccount.id == task.account_id).first()
-            if account:
-                pnl_decimal = Decimal(str(pnl_amount))
-                account.current_balance = (account.current_balance or 0) + pnl_decimal
-                # 日PnL：仅累计当日结算的盈亏
-                today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-                if prev_log.executed_at and prev_log.executed_at >= today:
-                    account.daily_pnl = (account.daily_pnl or 0) + pnl_decimal
-                if prev_log.executed_at and not account.last_order_at:
-                    account.last_order_at = prev_log.executed_at
-                logger.info(
-                    f"[AutoStrategy] 💰 任务 {task.id} 盈亏回写账户 {account.uid}: "
-                    f"pnl={pnl_amount:+.4f} balance={float(account.current_balance):.4f} "
-                    f"daily_pnl={float(account.daily_pnl):.4f}"
-                )
-        except Exception as e:
-            logger.warning(f"[AutoStrategy] 任务 {task.id} 盈亏回写账户失败: {e}")
+    # 回写账户
+    _update_account_on_resolution(db, task, prev_log, pnl_amount)
 
-        db.commit()
+    resolution_result = {
+        "log_id": prev_log.id,
+        "pnl_amount": pnl_amount,
+        "pnl_percent": pnl_percent,
+        "is_profit": is_profit,
+        "market_slug": market_slug,
+        "yes_won": yes_won,
+        "we_bet_direction": direction,
+        "we_won": we_won,
+    }
 
-        resolution_result = {
-            "pnl_amount": pnl_amount,
-            "pnl_percent": pnl_percent,
-            "is_profit": is_profit,
-            "market_slug": market_slug,
-            "yes_won": yes_won,
-            "we_bet_direction": direction,
-            "prev_log_id": prev_log.id,
-        }
+    logger.info(
+        f"[AutoStrategy] 💰 日志 {prev_log.id} 结算: "
+        f"market={market_slug} yes={yes_price:.3f} no={no_price:.3f} "
+        f"dir={direction} won={we_won} pnl=${pnl_amount:.4f} ({pnl_percent:.2f}%)"
+    )
 
+    return resolution_result
+
+
+def _update_account_on_resolution(db, task: AutoStrategy, prev_log, pnl_amount: float):
+    """结算回写：更新 ExecutionAccount 余额和盈亏"""
+    try:
+        if not task.account_id:
+            return
+        account = db.query(ExecutionAccount).filter(ExecutionAccount.id == task.account_id).first()
+        if not account:
+            return
+        pnl_decimal = Decimal(str(pnl_amount))
+        account.current_balance = (account.current_balance or 0) + pnl_decimal
+        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        if prev_log.executed_at and prev_log.executed_at >= today:
+            account.daily_pnl = (account.daily_pnl or 0) + pnl_decimal
+        if prev_log.executed_at and not account.last_order_at:
+            account.last_order_at = prev_log.executed_at
         logger.info(
-            f"[AutoStrategy] 💰 任务 {task.id} 盈亏回查: "
-            f"market={market_slug} yes_price={yes_price:.3f} no_price={no_price:.3f} "
-            f"direction={direction} we_won={we_won} "
-            f"pnl=${pnl_amount:.4f} ({pnl_percent:.2f}%)"
+            f"[AutoStrategy] 💰 账户 {account.uid} 结算回写: "
+            f"pnl={pnl_amount:+.4f} balance={float(account.current_balance):.4f}"
+        )
+    except Exception as e:
+        logger.warning(f"[AutoStrategy] 账户结算回写失败: {e}")
+
+
+def update_settlement_for_task(task_id: int) -> dict:
+    """手动触发任务的结算回查（供 API 和 stop_task 调用）
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        dict: 更新结果摘要
+    """
+    with get_sync_db() as db:
+        task = db.query(AutoStrategy).filter(AutoStrategy.id == task_id).first()
+        if not task:
+            return {"success": False, "message": f"任务不存在: {task_id}", "updated_count": 0}
+
+        updated = _check_and_update_previous_pnl(db, task)
+
+        total_unresolved = (
+            db.query(AutoStrategyLog)
+            .filter(
+                AutoStrategyLog.task_id == task_id,
+                AutoStrategyLog.log_type == 0,
+                AutoStrategyLog.status.in_([0, 2]),
+                AutoStrategyLog.market_resolved == False,
+            )
+            .count()
         )
 
-        return resolution_result
+        return {
+            "success": True,
+            "task_id": task_id,
+            "task_name": task.task_name,
+            "updated_count": len(updated),
+            "remaining_unresolved": total_unresolved,
+            "updated_results": updated,
+            "message": f"结算回查完成: 更新 {len(updated)} 条，剩余 {total_unresolved} 条未结算",
+        }
 
-    except Exception as e:
-        logger.warning(f"[AutoStrategy] 任务 {task.id} 盈亏回查异常: {e}")
-        return None
+
+def get_strategy_leaderboard(sort_by: str = "win_rate", sort_dir: str = "desc") -> list[dict]:
+    """策略排行榜：按策略 ID 统计开仓次数、胜负、胜率等
+
+    Args:
+        sort_by: 排序字段 (win_rate/win_count/loss_count/total_trades/total_pnl/profit_loss_ratio)
+        sort_dir: asc / desc
+
+    Returns:
+        list[dict]: 排行榜列表
+    """
+    from sqlalchemy import func, case
+
+    with get_sync_db() as db:
+        # 只统计执行日志 (log_type=0)，且状态为成功/重试成功 (status in [0,2]) 的记录代表实际开仓
+        # 胜负判定：is_profit=True 为胜，is_profit=False 且 market_resolved=True 为负
+        stats = (
+            db.query(
+                AutoStrategyLog.task_id,
+                AutoStrategy.task_name,
+                AutoStrategy.is_active,
+                AutoStrategy.signal_source,
+                AutoStrategy.gateway,
+                func.count(AutoStrategyLog.id).label("total_trades"),
+                func.sum(
+                    case(
+                        (AutoStrategyLog.is_profit == True, 1),
+                        else_=0,
+                    )
+                ).label("win_count"),
+                func.sum(
+                    case(
+                        (AutoStrategyLog.is_profit == False, 1),
+                        else_=0,
+                    )
+                ).label("loss_count"),
+                func.sum(AutoStrategyLog.pnl_amount).label("total_pnl"),
+                func.avg(AutoStrategyLog.pnl_amount).label("avg_pnl"),
+                func.max(AutoStrategyLog.executed_at).label("last_trade_at"),
+                func.min(AutoStrategyLog.executed_at).label("first_trade_at"),
+            )
+            .join(AutoStrategy, AutoStrategyLog.task_id == AutoStrategy.id)
+            .filter(
+                AutoStrategyLog.log_type == 0,
+                AutoStrategyLog.status.in_([0, 2]),
+                AutoStrategy.deleted_at.is_(None),
+            )
+            .group_by(
+                AutoStrategyLog.task_id,
+                AutoStrategy.task_name,
+                AutoStrategy.is_active,
+                AutoStrategy.signal_source,
+                AutoStrategy.gateway,
+            )
+            .all()
+        )
+
+        result = []
+        for row in stats:
+            total = row.total_trades or 0
+            wins = row.win_count or 0
+            losses = row.loss_count or 0
+            # 胜率 = 胜利次数 / (胜利+失败) * 100
+            resolved = wins + losses
+            win_rate = round(wins / resolved * 100, 2) if resolved > 0 else 0.0
+            total_pnl = float(row.total_pnl) if row.total_pnl is not None else 0.0
+            avg_pnl = float(row.avg_pnl) if row.avg_pnl is not None else 0.0
+            # 盈亏比 = 总盈利金额 / 总亏损金额
+            # 需要分别计算盈利和亏损金额
+            pnl_stats = (
+                db.query(
+                    func.sum(
+                        case(
+                            (AutoStrategyLog.pnl_amount > 0, AutoStrategyLog.pnl_amount),
+                            else_=0,
+                        )
+                    ).label("gross_profit"),
+                    func.sum(
+                        case(
+                            (AutoStrategyLog.pnl_amount < 0, func.abs(AutoStrategyLog.pnl_amount)),
+                            else_=0,
+                        )
+                    ).label("gross_loss"),
+                )
+                .filter(
+                    AutoStrategyLog.task_id == row.task_id,
+                    AutoStrategyLog.log_type == 0,
+                    AutoStrategyLog.status.in_([0, 2]),
+                )
+                .first()
+            )
+            gross_profit = float(pnl_stats.gross_profit) if pnl_stats and pnl_stats.gross_profit else 0.0
+            gross_loss = float(pnl_stats.gross_loss) if pnl_stats and pnl_stats.gross_loss else 0.0
+            profit_loss_ratio = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (float('inf') if gross_profit > 0 else 0.0)
+
+            result.append({
+                "task_id": row.task_id,
+                "task_name": row.task_name,
+                "is_active": row.is_active,
+                "signal_source": row.signal_source,
+                "gateway": row.gateway,
+                "total_trades": total,
+                "win_count": wins,
+                "loss_count": losses,
+                "win_rate": win_rate,
+                "total_pnl": round(total_pnl, 2),
+                "avg_pnl": round(avg_pnl, 2),
+                "gross_profit": round(gross_profit, 2),
+                "gross_loss": round(gross_loss, 2),
+                "profit_loss_ratio": profit_loss_ratio if profit_loss_ratio != float('inf') else 999.99,
+                "first_trade_at": row.first_trade_at.isoformat() if row.first_trade_at else None,
+                "last_trade_at": row.last_trade_at.isoformat() if row.last_trade_at else None,
+            })
+
+        # 排序
+        sort_map = {
+            "win_rate": "win_rate",
+            "win_count": "win_count",
+            "loss_count": "loss_count",
+            "total_trades": "total_trades",
+            "total_pnl": "total_pnl",
+            "avg_pnl": "avg_pnl",
+            "profit_loss_ratio": "profit_loss_ratio",
+            "task_id": "task_id",
+        }
+        sort_field = sort_map.get(sort_by, "win_rate")
+        result.sort(key=lambda x: x.get(sort_field, 0), reverse=(sort_dir != "asc"))
+
+        return result

@@ -6,6 +6,7 @@
 #    - 若已存在 admin → 至少登录（不需要 admin role）
 
 import time
+import traceback
 
 from fastapi import APIRouter, Depends, Request
 from loguru import logger
@@ -460,6 +461,8 @@ import asyncio
 from decimal import Decimal
 from pydantic import BaseModel
 
+from polymarket.models import OrderSide
+
 _pm_instance = None
 _pm_lock = asyncio.Lock()
 
@@ -838,3 +841,99 @@ async def f3_positions(
     except Exception as e:  # noqa: BLE001
         logger.error(f"[POLY] F3 positions failed: {e}")
         return fail(f"F3 查询持仓失败: {e}", code=502)
+
+
+class F3QuickOrderRequest(BaseModel):
+    slug: str = "btc-updown-4h-{epoch}"
+    outcome: str = "UP"
+    amount: float = 1.0
+
+
+@router.post("/f3/quick-order", response_model=dict)
+async def f3_quick_order(req: F3QuickOrderRequest, request: Request, _: User = Depends(require_admin)) -> dict:
+    if _is_demo_request(request):
+        return _demo_order_response(req.slug, req.outcome, req.amount, "BUY")
+    if settings.is_simulator:
+        return fail("当前为模拟盘模式，禁止实盘下单", code=400)
+
+    from fwsort.gateway.polymarket.F3.最简代码_demo import F3_市单
+
+    steps = []
+
+    def _step(name: str, status: str, detail: str = ""):
+        steps.append({"name": name, "status": status, "detail": detail})
+
+    try:
+        _step("检查配置", "running", "读取 .env 配置...")
+        reload_env()
+
+        _step("构建 RelayerApiKey", "running", "创建 Relayer 认证对象...")
+
+        _step("创建客户端", "running", "初始化 AsyncSecureClient (Relayer Gasless)...")
+
+        _step("获取市场", "running", f"查询市场 slug={req.slug}...")
+
+        _step("下市价单", "running", f"amount={req.amount} outcome={req.outcome}...")
+
+        _step("查询持仓验证", "running", "验证下单结果...")
+
+        _step("关闭连接", "running", "清理客户端资源...")
+
+        _step("完成", "ok", "下单流程结束")
+
+        result = await F3_市单(
+            标的代码=req.slug,
+            amount=Decimal(str(req.amount)),
+            outcome=req.outcome,
+            side="BUY",
+        )
+
+        if result.get("success"):
+            market = result.get("market")
+            response = result.get("response")
+            page = result.get("page")
+
+            market_info = {}
+            if market:
+                market_info = {
+                    "slug": getattr(market, "slug", ""),
+                    "question": getattr(market, "question", ""),
+                    "condition_id": getattr(market, "condition_id", ""),
+                    "accepting_orders": getattr(market.state, "accepting_orders", None) if hasattr(market, "state") else None,
+                    "closed": getattr(market.state, "closed", None) if hasattr(market, "state") else None,
+                    "yes_token_id": getattr(market.outcomes.yes, "token_id", "") if hasattr(market, "outcomes") else "",
+                    "no_token_id": getattr(market.outcomes.no, "token_id", "") if hasattr(market, "outcomes") else "",
+                    "url": "https://polymarket.com/zh/event/" + getattr(market, "slug", ""),
+                }
+
+            resp_data = {}
+            if response:
+                for attr in ("order_id", "status", "making_amount", "taking_amount", "ok", "code", "message"):
+                    if hasattr(response, attr):
+                        resp_data[attr] = getattr(response, attr)
+
+            page_info = {}
+            if page:
+                page_info = {
+                    "page_count": len(page) if hasattr(page, "__len__") else None,
+                    "raw": str(page)[:500],
+                }
+
+            return success({
+                "success": True,
+                "steps": steps,
+                "market": market_info,
+                "response": resp_data,
+                "positions": page_info,
+                "slug": req.slug,
+                "outcome": req.outcome,
+                "amount": req.amount,
+                "side": "BUY",
+                "market_url": market_info.get("url", ""),
+            }, message="F3 quick order placed")
+        else:
+            error = result.get("error", "未知错误")
+            return fail(f"F3 下单失败: {error}", code=500, data={"steps": steps, "raw": result})
+    except Exception as e:
+        logger.error(f"[POLY] F3 quick order failed: {e}，traceback: {traceback.format_exc()}")
+        return fail(f"F3 一键下单失败: {e}", code=502, data={"steps": steps})
