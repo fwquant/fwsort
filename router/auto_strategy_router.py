@@ -162,7 +162,7 @@ async def get_log_info():
     try:
         log_dir = str(fw_logger._get_log_dir())
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取日志目录失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取日志目录失败: {e},traceback={traceback.format_exc()}")
 
     try:
         if hasattr(fw_logger, 'log_path'):
@@ -186,7 +186,7 @@ async def get_log_info():
                         "mtime": int(stat.st_mtime),
                     })
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"读取日志目录失败: {e}")
+        raise HTTPException(status_code=500, detail=f"读取日志目录失败: {e},traceback={traceback.format_exc()}")
 
     return {
         "success": True,
@@ -221,7 +221,7 @@ async def open_log_dir(_=Depends(require_admin)):
         else:
             os.system(f'xdg-open "{log_dir}"')
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"打开目录失败: {e}")
+        raise HTTPException(status_code=500, detail=f"打开目录失败: {e},traceback={traceback.format_exc()}")
 
     return {"success": True, "message": f"已打开日志目录: {log_dir}"}
 
@@ -322,7 +322,7 @@ async def update_task_settlement(
         result = update_settlement_for_task(task_id)
         return {"success": True, "data": result, "message": result.get("message", "ok")}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"结算回查失败: {e}")
+        raise HTTPException(status_code=500, detail=f"结算回查失败: {e},traceback={traceback.format_exc()}")
 
 
 def _format_file_size(size: int) -> str:

@@ -223,7 +223,7 @@ def refresh_strategy_redis_zset() -> dict:
             except Exception as e:
                 failed += 1
                 logger.warning(
-                    f"[StrategyRank] 策略 {strategy.id} ({strategy.task_name}) 聚合失败: {e}"
+                    f"[StrategyRank] 策略 {strategy.id} ({strategy.task_name}) 聚合失败: {e},traceback={traceback.format_exc()}"
                 )
                 continue
 
@@ -237,7 +237,7 @@ def refresh_strategy_redis_zset() -> dict:
                     f"[StrategyRank] 策略榜单已写入 Redis: {len(rank_mapping)} 个策略"
                 )
             except Exception as e:
-                logger.error(f"[StrategyRank] Redis 写入失败: {e}")
+                logger.error(f"[StrategyRank] Redis 写入失败: {e},traceback={traceback.format_exc()}")
                 failed += len(rank_mapping)
                 updated -= len(rank_mapping)
 
@@ -274,7 +274,7 @@ def get_strategy_ranking(
         total = sync_redis.zcard(zset_key)
         rows = sync_redis.zrevrange(zset_key, offset, offset + limit - 1, withscores=True)
     except Exception as e:
-        logger.warning(f"[StrategyRank] Redis 查询失败: {e}")
+        logger.warning(f"[StrategyRank] Redis 查询失败: {e},traceback={traceback.format_exc()}")
         total = 0
         rows = []
 

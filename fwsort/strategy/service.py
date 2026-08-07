@@ -254,7 +254,7 @@ def update_task(task_id: int, data: dict) -> dict | None:
                     RiskProfileManager.get_or_create_strategy_profile(db, task_id)
                     logger.info(f"[AutoStrategy] StrategyRiskProfile 不存在，懒创建: task={task_id}")
             except Exception as e:
-                logger.warning(f"[AutoStrategy] 同步风控参数失败(不影响主流程): {e}")
+                logger.warning(f"[AutoStrategy] 同步风控参数失败(不影响主流程): {e},traceback={traceback.format_exc()}")
                 db.rollback()
 
             # 账户级冻结重评估：若账户因"连续失败"被冻结，且新阈值 > 当前失败次数，则自动解冻
@@ -279,7 +279,7 @@ def update_task(task_id: int, data: dict) -> dict | None:
                                 f"cur_consec={cur_consec} < new_threshold={new_threshold}"
                             )
             except Exception as e:
-                logger.warning(f"[AutoStrategy] 账户级冻结重评估失败(不影响主流程): {e}")
+                logger.warning(f"[AutoStrategy] 账户级冻结重评估失败(不影响主流程): {e},traceback={traceback.format_exc()}")
                 db.rollback()
 
         # 记录操作日志
@@ -424,7 +424,7 @@ async def _start_task_internal(task_id: int) -> dict:
             sync_redis.hset(DISPATCHER_KEY, str(task.id), str(initial_last_run))
             logger.info(f"[AutoStrategy] 初始化 Redis last_run 为 task={task.id}, initial={initial_last_run}")
         except Exception as e:
-            logger.warning(f"[AutoStrategy] 初始化 Redis last_run 失败: {e}")
+            logger.warning(f"[AutoStrategy] 初始化 Redis last_run 失败: {e},traceback={traceback.format_exc()}")
 
         add_progress("任务已启动", "completed")
 
@@ -480,8 +480,8 @@ def stop_task(task_id: int) -> dict:
                     settlement_result["batch_sync_error"] = str(batch_err)
                     
         except Exception as e:
-            logger.warning(f"[AutoStrategy] 任务停止结算回查异常(不影响停止): {e}")
-            settlement_result = {"message": f"结算回查异常: {e}"}
+            logger.warning(f"[AutoStrategy] 任务停止结算回查异常(不影响停止): {e},traceback={traceback.format_exc()}")
+            settlement_result = {"message": f"结算回查异常: {e},traceback={traceback.format_exc()}"}
 
         # 释放网关
         gateway_cleanup_ok = True
@@ -494,7 +494,7 @@ def stop_task(task_id: int) -> dict:
             except Exception as e:
                 gateway_cleanup_ok = False
                 gateway_error = str(e)
-                logger.warning(f"[AutoStrategy] gateway cleanup failed for task {task_id}: {e}")
+                logger.warning(f"[AutoStrategy] gateway cleanup failed for task {task_id}: {e},traceback={traceback.format_exc()}")
 
         task.is_active = False
         db.commit()
@@ -505,7 +505,7 @@ def stop_task(task_id: int) -> dict:
             sync_redis.hdel(DISPATCHER_KEY, str(task_id))
             logger.info(f"[AutoStrategy] 清理 Redis last_run 为 task={task_id}")
         except Exception as e:
-            logger.warning(f"[AutoStrategy] 清理 Redis last_run 失败: {e}")
+            logger.warning(f"[AutoStrategy] 清理 Redis last_run 失败: {e},traceback={traceback.format_exc()}")
 
         # 记录操作日志
         _add_operation_log(db, task.id, "stop", 0 if gateway_cleanup_ok else 1, detail={
@@ -577,7 +577,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                     )
                 pnl_check_result = pnl_check_results[0] if pnl_check_results else None
         except Exception as e:
-            logger.warning(f"[AutoStrategy] 任务 {task_id} 盈亏回查异常(不影响主流程): {e}")
+            logger.warning(f"[AutoStrategy] 任务 {task_id} 盈亏回查异常(不影响主流程): {e},traceback={traceback.format_exc()}")
             pnl_check_results = []
             pnl_check_result = None
 
@@ -597,7 +597,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                     )
             except Exception as e:
                 logger.warning(
-                    f"[AutoStrategy] 任务 {task_id} 自动赎回异常(不影响主流程): {e}"
+                    f"[AutoStrategy] 任务 {task_id} 自动赎回异常(不影响主流程): {e},traceback={traceback.format_exc()}"
                 )
                 redeem_result = None
 
@@ -663,7 +663,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                 except Exception as e:
                     status = 1
                     error_message = f"信号获取失败: {e}，traceback: {traceback.format_exc()}"
-                    logger.error(f"[AutoStrategy] ❌ 任务 {task_id} 信号获取失败: {e}")
+                    logger.error(f"[AutoStrategy] ❌ 任务 {task_id} 信号获取失败: {e},traceback={traceback.format_exc()}")
                     break
 
             if status == 0 and signal:
@@ -710,7 +710,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                     error_message = f"策略拦截: {reason}"
                     logger.info(f"[AutoStrategy] 🚫 任务 {task_id} 策略拦截: {reason}")
             except Exception as e:
-                logger.warning(f"[AutoStrategy] 任务 {task_id} 策略判断异常(默认放行): {e}")
+                logger.warning(f"[AutoStrategy] 任务 {task_id} 策略判断异常(默认放行): {e},traceback={traceback.format_exc()}")
 
         # ===== 下单（含重试一次）=====
         if status == 0 and signal:
@@ -756,8 +756,8 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                     status = 1
             except Exception as e:
                 status = 1
-                error_message = f"下单异常: {e}"
-                logger.error(f"[AutoStrategy] ❌ 任务 {task_id} 下单异常: {e}")
+                error_message = f"下单异常: {e},traceback={traceback.format_exc()}"
+                logger.error(f"[AutoStrategy] ❌ 任务 {task_id} 下单异常: {e},traceback={traceback.format_exc()}")
 
         # ===== 更新统计 =====
         duration_ms = int((time.time() - start_time) * 1000)
@@ -1589,7 +1589,7 @@ def _auto_redeem_resolved_positions(task: AutoStrategy) -> dict | None:
                             'market_title': market_title,
                         })
                 except Exception as e:
-                    err_msg = f"检查持仓异常: {market_slug or token_id[:16]}... {e}"
+                    err_msg = f"检查持仓异常: {market_slug or token_id[:16]}... {e},traceback={traceback.format_exc()}"
                     logger.warning(f"[AutoStrategy-Redeem] {err_msg}")
                     errors.append(err_msg)
 
@@ -1643,7 +1643,7 @@ def _auto_redeem_resolved_positions(task: AutoStrategy) -> dict | None:
                             f"tid={token_id[:12] if token_id else 'N/A'}，跳过"
                         )
                 except Exception as e:
-                    err_msg = f"赎回失败 {p.get('market_slug') or token_id[:12]}...: {e}"
+                    err_msg = f"赎回失败 {p.get('market_slug') or token_id[:12]}...: {e},traceback={traceback.format_exc()}"
                     logger.warning(f"[AutoStrategy-Redeem] {err_msg}")
                     errors.append(err_msg)
                     redeem_results.append({
@@ -1666,7 +1666,7 @@ def _auto_redeem_resolved_positions(task: AutoStrategy) -> dict | None:
         logger.error(f"[AutoStrategy-Redeem] 整体异常: {e}, traceback={traceback.format_exc()}")
         return {
             "redeemed_count": 0,
-            "msg": f"异常: {e}",
+            "msg": f"异常: {e},traceback={traceback.format_exc()}",
             "errors": [str(e)],
         }
 
@@ -1750,7 +1750,7 @@ def _check_and_update_previous_pnl(db, task: AutoStrategy) -> list[dict]:
                         updated_results.append(result)
                 except Exception as e:
                     logger.warning(
-                        f"[AutoStrategy] 任务 {task.id} 结算回查日志 {prev_log.id} 异常: {e}"
+                        f"[AutoStrategy] 任务 {task.id} 结算回查日志 {prev_log.id} 异常: {e},traceback={traceback.format_exc()}"
                     )
                     continue
 
@@ -1758,7 +1758,7 @@ def _check_and_update_previous_pnl(db, task: AutoStrategy) -> list[dict]:
             event_loop.close()
 
     except Exception as e:
-        logger.warning(f"[AutoStrategy] 任务 {task.id} 盈亏回查异常: {e}")
+        logger.warning(f"[AutoStrategy] 任务 {task.id} 盈亏回查异常: {e},traceback={traceback.format_exc()}")
         return updated_results
 
     # 提交所有更新
@@ -1820,7 +1820,7 @@ def _try_resolve_single_log(event_loop, pm_client, prev_log, task, db) -> dict |
     try:
         market = event_loop.run_until_complete(pm_client.get_market(slug=market_slug))
     except Exception as e:
-        logger.warning(f"[AutoStrategy] 日志 {prev_log.id} 市场查询异常: slug={market_slug} err={e}")
+        logger.warning(f"[AutoStrategy] 日志 {prev_log.id} 市场查询异常: slug={market_slug} err={e},traceback={traceback.format_exc()}")
         return None
 
     if market is None:
@@ -1941,7 +1941,7 @@ def _update_account_on_resolution(db, task: AutoStrategy, prev_log, pnl_amount: 
             f"pnl={pnl_amount:+.4f} balance={float(account.current_balance):.4f}"
         )
     except Exception as e:
-        logger.warning(f"[AutoStrategy] 账户结算回写失败: {e}")
+        logger.warning(f"[AutoStrategy] 账户结算回写失败: {e},traceback={traceback.format_exc()}")
 
 
 def update_settlement_for_task(task_id: int) -> dict:

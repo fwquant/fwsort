@@ -452,8 +452,8 @@ async def cancel_order(
         resp = await client.cancel_order(order_id)
         return success({"raw": resp, "order_id": order_id}, message="cancel requested")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[POLY] cancel_order failed: {e}")
-        return fail(f"撤单失败: {e}", code=502)
+        logger.warning(f"[POLY] cancel_order failed: {e},traceback={traceback.format_exc()}")
+        return fail(f"撤单失败: {e},traceback={traceback.format_exc()}", code=502)
 
 
 # ========== F3 Relayer Gasless 下单调试接口 ==========
@@ -519,8 +519,8 @@ async def f3_init(request: Request, _: User = Depends(require_admin)) -> dict:
             "market": market_info,
         }, message="F3 client initialized")
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[POLY] F3 init failed: {e}")
-        return fail(f"F3 初始化失败: {e}", code=502)
+        logger.error(f"[POLY] F3 init failed: {e},traceback={traceback.format_exc()}")
+        return fail(f"F3 初始化失败: {e},traceback={traceback.format_exc()}", code=502)
 
 
 @router.get("/f3/status", response_model=dict)
@@ -714,8 +714,8 @@ async def f3_market(
         }
         return success(market_info, message="market fetched")
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[POLY] F3 get_market failed: {e}")
-        return fail(f"获取市场失败: {e}", code=502)
+        logger.error(f"[POLY] F3 get_market failed: {e},traceback={traceback.format_exc()}")
+        return fail(f"获取市场失败: {e},traceback={traceback.format_exc()}", code=502)
 
 
 @router.post("/f3/order", response_model=dict)
@@ -753,8 +753,8 @@ async def f3_order(req: F3OrderRequest, request: Request, _: User = Depends(requ
                 "market_url": market_url,
             }, message="F3 order placed")
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[POLY] F3 order failed: {e}")
-        return fail(f"F3 下单失败: {e}", code=502)
+        logger.error(f"[POLY] F3 order failed: {e},traceback={traceback.format_exc()}")
+        return fail(f"F3 下单失败: {e},traceback={traceback.format_exc()}", code=502)
 
 
 @router.post("/f3/close", response_model=dict)
@@ -783,8 +783,8 @@ async def f3_close(req: F3CloseRequest, request: Request, _: User = Depends(requ
                 "failed_count": len(failed),
             }, message="F3 close completed")
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[POLY] F3 close failed: {e}")
-        return fail(f"F3 平仓失败: {e}", code=502)
+        logger.error(f"[POLY] F3 close failed: {e},traceback={traceback.format_exc()}")
+        return fail(f"F3 平仓失败: {e},traceback={traceback.format_exc()}", code=502)
 
 
 @router.post("/f3/liquidity", response_model=dict)
@@ -802,8 +802,8 @@ async def f3_liquidity(req: F3LiquidityRequest, request: Request, _: User = Depe
                 results.append(liq)
             return success({"liquidity": results, "count": len(results)})
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[POLY] F3 liquidity failed: {e}")
-        return fail(f"查询流动性失败: {e}", code=502)
+        logger.error(f"[POLY] F3 liquidity failed: {e},traceback={traceback.format_exc()}")
+        return fail(f"查询流动性失败: {e},traceback={traceback.format_exc()}", code=502)
 
 
 @router.get("/f3/positions", response_model=dict)
@@ -839,8 +839,8 @@ async def f3_positions(
                 "count": len(positions),
             }, message="F3 positions fetched")
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[POLY] F3 positions failed: {e}")
-        return fail(f"F3 查询持仓失败: {e}", code=502)
+        logger.error(f"[POLY] F3 positions failed: {e},traceback={traceback.format_exc()}")
+        return fail(f"F3 查询持仓失败: {e},traceback={traceback.format_exc()}", code=502)
 
 
 class F3QuickOrderRequest(BaseModel):
@@ -936,4 +936,4 @@ async def f3_quick_order(req: F3QuickOrderRequest, request: Request, _: User = D
             return fail(f"F3 下单失败: {error}", code=500, data={"steps": steps, "raw": result})
     except Exception as e:
         logger.error(f"[POLY] F3 quick order failed: {e}，traceback: {traceback.format_exc()}")
-        return fail(f"F3 一键下单失败: {e}", code=502, data={"steps": steps})
+        return fail(f"F3 一键下单失败: {e},traceback={traceback.format_exc()}", code=502, data={"steps": steps})

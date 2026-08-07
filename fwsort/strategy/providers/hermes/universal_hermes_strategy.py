@@ -22,17 +22,11 @@ from __future__ import annotations
 
 import json
 import time
+import traceback
 from typing import Optional
 
 from fwsort.fwlogs import logger
 from fwsort.strategy.base import Direction, Signal, StrategyBase
-
-固定前缀提示词 = (""
-                  ""
-                  "返回JSON结构 ：{'标的代码': 'unknown-updown-4h-1786075200','下单方向': '','amount': 1.0,  'source': 'hermes_universal',  'timestamp': 1786080106}"
-                  ""
-                  ""
-                  "")
 
 
 def _ensure_requests():
@@ -100,6 +94,13 @@ class UniversalHermesStrategy(StrategyBase):
     timeframe: str = ""
     symbol_hint: str = ""
 
+    固定前缀提示词 = (""
+                      ""
+                      "返回JSON结构 ：{'标的代码': 'unknown-updown-4h-1786075200','下单方向': '','amount': 1.0,  'source': 'hermes_universal',  'timestamp': 1786080106}"
+                      "根据三个模型的预测结果，选择置信度最高的方向作为最终下单方向"
+                      ""
+                      "")
+
     def __init__(self, config_json: dict | None = None, **kwargs):
         self.config = config_json or {}
 
@@ -128,6 +129,8 @@ class UniversalHermesStrategy(StrategyBase):
                     direction 为空字符串时表示无有效交易信号。
         """
         text = prompt or self.default_prompt
+        text = f"{self.固定前缀提示词} \n {text}"
+
         self._last_prompt = text
 
         # 1. 调用 Hermes HTTP 接口
@@ -144,7 +147,7 @@ class UniversalHermesStrategy(StrategyBase):
         return signal
 
     # ========== 公开接口：前端直接调用 ==========
-    def get_signal_from_text(self, text: str) -> dict:
+    def get_signal_from_text(self, text: str = "") -> dict:
         """前端友好接口：传入文本 → 返回包含信号和原始响应的完整 dict
 
         Args:
@@ -159,6 +162,10 @@ class UniversalHermesStrategy(StrategyBase):
                 "error": str | None,
             }
         """
+        if text == "":
+            text = self.default_prompt
+
+        text = f"{self.固定前缀提示词} \n {text} "
         try:
             signal = self.get_signal(prompt=text)
             return {
@@ -169,7 +176,7 @@ class UniversalHermesStrategy(StrategyBase):
                 "error": None if signal.is_valid else "Hermes 未返回有效方向",
             }
         except Exception as e:
-            logger.error(f"[UniversalHermes] get_signal_from_text error: {e}")
+            logger.error(f"[UniversalHermes] get_signal_from_text error: {e},traceback={traceback.format_exc()}")
             return {
                 "signal": Signal(
                     symbol="", amount=self.amount, direction="",
@@ -217,17 +224,17 @@ class UniversalHermesStrategy(StrategyBase):
             self._last_raw_response = data
             return data
         except requests.exceptions.ConnectionError as e:
-            logger.error(f"[UniversalHermes] Hermes 连接失败: {e}")
-            return {"success": False, "error": f"连接失败: {e}"}
+            logger.error(f"[UniversalHermes] Hermes 连接失败: {e},traceback={traceback.format_exc()}")
+            return {"success": False, "error": f"连接失败: {e},traceback={traceback.format_exc()}"}
         except requests.exceptions.Timeout as e:
-            logger.error(f"[UniversalHermes] Hermes 请求超时: {e}")
-            return {"success": False, "error": f"请求超时: {e}"}
+            logger.error(f"[UniversalHermes] Hermes 请求超时: {e},traceback={traceback.format_exc()}")
+            return {"success": False, "error": f"请求超时: {e},traceback={traceback.format_exc()}"}
         except requests.exceptions.RequestException as e:
-            logger.error(f"[UniversalHermes] Hermes 请求异常: {e}")
+            logger.error(f"[UniversalHermes] Hermes 请求异常: {e},traceback={traceback.format_exc()}")
             return {"success": False, "error": str(e)}
         except json.JSONDecodeError as e:
-            logger.error(f"[UniversalHermes] Hermes 响应解析失败: {e}")
-            return {"success": False, "error": f"响应解析失败: {e}"}
+            logger.error(f"[UniversalHermes] Hermes 响应解析失败: {e},traceback={traceback.format_exc()}")
+            return {"success": False, "error": f"响应解析失败: {e},traceback={traceback.format_exc()}"}
 
     # ========== 信号适配：Hermes → 统一 Signal ==========
 
@@ -502,7 +509,7 @@ if __name__ == "__main__":
 
         if choice == "1":
             t0 = time.time()
-            result = strategy.get_signal_from_text(strategy.default_prompt)
+            result = strategy.get_signal_from_text(text="")
             elapsed = time.time() - t0
             print(f"result={result}")
 

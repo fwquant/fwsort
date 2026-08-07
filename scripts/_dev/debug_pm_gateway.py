@@ -52,7 +52,7 @@ async def main():
         ping_res = await pm_v2.ping()
         print(f"  ping      = {ping_res}")
     except Exception as e:  # noqa: BLE001
-        print(f"  ping 失败: {type(e).__name__}: {e}")
+        print(f"  ping 失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # 1.2 get_status
     print(f"  status    = {json.dumps(pm_v2.get_status(), ensure_ascii=False, indent=4)[:600]}")
@@ -62,7 +62,7 @@ async def main():
         health = await pm_v2.health_check()
         print(f"  health    = {json.dumps(health, ensure_ascii=False, indent=4)[:600]}")
     except Exception as e:  # noqa: BLE001
-        print(f"  health 失败: {type(e).__name__}: {e}")
+        print(f"  health 失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # 1.4 get_markets 真实拉取（前 3 条）
     try:
@@ -76,7 +76,7 @@ async def main():
         else:
             print(f"  markets   = {str(markets)[:300]}")
     except Exception as e:  # noqa: BLE001
-        print(f"  get_markets 失败: {type(e).__name__}: {e}")
+        print(f"  get_markets 失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # 1.5 get_active_btc5m_market（Gamma 公开 API）
     try:
@@ -93,7 +93,7 @@ async def main():
             n = len(data) if isinstance(data, list) else 0
             print(f"  btc5m     = {n} 个（dict 包装）")
     except Exception as e:  # noqa: BLE001
-        print(f"  get_active_btc5m_market 失败: {type(e).__name__}: {e}")
+        print(f"  get_active_btc5m_market 失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # ========== V1 网关（PolymarketV1Client，路由层兼容）==========
     banner("2. PolymarketV1Client(V1) — 公开端点连通性")
@@ -108,7 +108,7 @@ async def main():
         sample = json.dumps(ping_v1, ensure_ascii=False)[:200]
         print(f"  ping     = {sample}...")
     except Exception as e:  # noqa: BLE001
-        print(f"  ping 失败: {type(e).__name__}: {e}")
+        print(f"  ping 失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # 2.2 get_markets
     try:
@@ -122,7 +122,7 @@ async def main():
         else:
             print(f"  markets  = {str(m1)[:200]}")
     except Exception as e:  # noqa: BLE001
-        print(f"  get_markets 失败: {type(e).__name__}: {e}")
+        print(f"  get_markets 失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # 2.3 get_active_btc_market
     try:
@@ -131,7 +131,7 @@ async def main():
         n = len(data) if isinstance(data, list) else 0
         print(f"  btc5m    = {n} 个活跃 BTC 5min 市场（V1 路径）")
     except Exception as e:  # noqa: BLE001
-        print(f"  get_active_btc_market 失败: {type(e).__name__}: {e}")
+        print(f"  get_active_btc_market 失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # ========== 关闭清理 ==========
     banner("3. 清理")

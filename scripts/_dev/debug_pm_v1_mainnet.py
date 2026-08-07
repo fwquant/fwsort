@@ -30,7 +30,7 @@ async def main():
         r = await pm.ping()
         print(f"\n  ping ok: ok={r.get('ok')} status={r.get('status', r.get('data', '?'))[:200]}")
     except Exception as e:  # noqa: BLE001
-        print(f"\n  ping FAILED: {type(e).__name__}: {e}")
+        print(f"\n  ping FAILED: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # get_markets
     try:
@@ -45,7 +45,7 @@ async def main():
         else:
             print(f"  get_markets: {str(m)[:200]}")
     except Exception as e:  # noqa: BLE001
-        print(f"  get_markets FAILED: {type(e).__name__}: {e}")
+        print(f"  get_markets FAILED: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     # get_active_btc_market
     try:
@@ -61,7 +61,7 @@ async def main():
             n = len(data) if isinstance(data, list) else 0
             print(f"  btc5m: {n} 个（dict 包装）")
     except Exception as e:  # noqa: BLE001
-        print(f"  btc5m FAILED: {type(e).__name__}: {e}")
+        print(f"  btc5m FAILED: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     await pm.close()
     print("\n  ✅ V1 客户端（MAINNET）调试完成")

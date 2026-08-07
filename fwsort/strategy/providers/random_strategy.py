@@ -56,7 +56,7 @@ class RandomStrategy(StrategyBase):
         """
         from fwsort.gateway.polymarket.F3.最简类_下单代码 import 获得当前区间时间戳
 
-        当前区间时间戳= 获得当前区间时间戳(标的代码=self.base_symbol)
+        当前区间时间戳, _ = 获得当前区间时间戳(标的代码=self.base_symbol)
         symbol = self.base_symbol.replace("{时间戳}", 当前区间时间戳)
         direction: Direction = random.choice(["UP", "DOWN", ""])
 

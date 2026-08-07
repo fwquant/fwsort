@@ -126,7 +126,7 @@ def update_trade_on_settlement(
         )
 
     except Exception as e:
-        logger.error(f"[SettlementSync] StrategyTrade 更新失败: {e}")
+        logger.error(f"[SettlementSync] StrategyTrade 更新失败: {e},traceback={traceback.format_exc()}")
 
 
 def update_auto_strategy_stats(
@@ -172,7 +172,7 @@ def update_auto_strategy_stats(
         )
 
     except Exception as e:
-        logger.error(f"[SettlementSync] AutoStrategy 统计更新失败: {e}")
+        logger.error(f"[SettlementSync] AutoStrategy 统计更新失败: {e},traceback={traceback.format_exc()}")
 
 
 def recalculate_performance(db, task: AutoStrategy) -> dict:
@@ -312,7 +312,7 @@ def recalculate_performance(db, task: AutoStrategy) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"[SettlementSync] Performance 重算失败: {e}")
+        logger.error(f"[SettlementSync] Performance 重算失败: {e},traceback={traceback.format_exc()}")
         return {"status": "failed", "error": str(e)}
 
 
@@ -348,7 +348,7 @@ def trigger_ranking_update(db, task: AutoStrategy) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"[SettlementSync] 榜单重算触发失败: {e}")
+        logger.error(f"[SettlementSync] 榜单重算触发失败: {e},traceback={traceback.format_exc()}")
         return {"error": str(e)}
 
 
@@ -439,7 +439,7 @@ def update_equity_curve(db, task: AutoStrategy) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"[SettlementSync] EquityCurve 更新失败: {e}")
+        logger.error(f"[SettlementSync] EquityCurve 更新失败: {e},traceback={traceback.format_exc()}")
         return {"status": "failed", "error": str(e)}
 
 

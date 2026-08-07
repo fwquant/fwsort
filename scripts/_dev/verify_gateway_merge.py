@@ -32,7 +32,7 @@ def main():
         from fwsort import gateway as gw_pkg
         ok &= check("import fwsort.gateway", True)
     except Exception as e:  # noqa: BLE001
-        ok &= check("import fwsort.gateway", False, f"{type(e).__name__}: {e}")
+        ok &= check("import fwsort.gateway", False, f"{type(e).__name__}: {e},traceback={traceback.format_exc()}")
         print("  → 顶层导入失败，后续验证无法继续")
         return False
 

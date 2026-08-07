@@ -221,7 +221,7 @@ def aggregate_all_accounts() -> dict:
                     logger.debug(f"[Aggregator] 账户 {account.uid} 无已结算日志，跳过")
             except Exception as e:
                 failed += 1
-                logger.warning(f"[Aggregator] 账户 {account.uid} 聚合失败: {e}")
+                logger.warning(f"[Aggregator] 账户 {account.uid} 聚合失败: {e},traceback={traceback.format_exc()}")
 
         # 重算 composite_score + 写 Redis
         if updated > 0:
@@ -230,7 +230,7 @@ def aggregate_all_accounts() -> dict:
                 refresh_redis_zset(db, rank_type=4)
                 logger.info(f"[Aggregator] 🏆 composite_score 已重算并写入 Redis")
             except Exception as e:
-                logger.warning(f"[Aggregator] 重算 composite_score 失败: {e}")
+                logger.warning(f"[Aggregator] 重算 composite_score 失败: {e},traceback={traceback.format_exc()}")
 
         db.commit()
 
@@ -307,7 +307,7 @@ def aggregate_all_strategies() -> dict:
         result = refresh_strategy_redis_zset()
         return result
     except Exception as e:
-        logger.error(f"[Aggregator] 策略聚合失败: {e}")
+        logger.error(f"[Aggregator] 策略聚合失败: {e},traceback={traceback.format_exc()}")
         return {"updated": 0, "failed": 0, "error": str(e)}
 
 

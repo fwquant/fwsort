@@ -99,10 +99,10 @@ class BtcSignalFetcher:
                     print(f"[{datetime.now()}] 用户 {self.username} 认证失败")
                     return False
             except paramiko.ssh_exception.NoValidConnectionsError as e:
-                print(f"[{datetime.now()}] 无法连接 {self.host}:22 - {e}")
+                print(f"[{datetime.now()}] 无法连接 {self.host}:22 - {e},traceback={traceback.format_exc()}")
                 return False
             except Exception as e:
-                print(f"[{datetime.now()}] SSH 错误: {e}")
+                print(f"[{datetime.now()}] SSH 错误: {e},traceback={traceback.format_exc()}")
                 return False
         return False
 
@@ -124,7 +124,7 @@ class BtcSignalFetcher:
             print(f"[{datetime.now()}] 信号文件 JSON 解析失败")
             return None
         except Exception as e:
-            print(f"[{datetime.now()}] 读取信号出错: {e}")
+            print(f"[{datetime.now()}] 读取信号出错: {e},traceback={traceback.format_exc()}")
             self._sftp = None
             return None
 
@@ -163,7 +163,7 @@ class BtcSignalFetcher:
             print("  请确保远程 btc_moa_signal.py 使用了 --readme 参数并已生成历史")
             return []
         except Exception as e:
-            print(f"[{datetime.now()}] 读取历史出错: {e}")
+            print(f"[{datetime.now()}] 读取历史出错: {e},traceback={traceback.format_exc()}")
             self._sftp = None
             return []
 
@@ -345,7 +345,7 @@ def _ssh_connect(
                 print(f"[{datetime.now()}] 用户 {username} 认证失败")
                 return None
         except Exception as e:
-            print(f"[{datetime.now()}] SSH 错误: {e}")
+            print(f"[{datetime.now()}] SSH 错误: {e},traceback={traceback.format_exc()}")
             return None
     return None
 

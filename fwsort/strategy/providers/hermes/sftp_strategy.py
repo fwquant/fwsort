@@ -41,7 +41,7 @@ def _ensure_paramiko():
             print("✅ paramiko 安装成功！")
             return True
         except Exception as e:
-            print(f"❌ paramiko 自动安装失败: {e}")
+            print(f"❌ paramiko 自动安装失败: {e},traceback={traceback.format_exc()}")
             return False
 
 
@@ -305,7 +305,7 @@ class SftpStrategy(StrategyBase):
 
 
         except Exception as e:
-            return False, f"行情获取失败: {e}"
+            return False, f"行情获取失败: {e},traceback={traceback.format_exc()}"
 
         # ===== 规则2：周期时间过半检查 =====
         ratio = 0.0

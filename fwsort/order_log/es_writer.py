@@ -116,7 +116,7 @@ def _log_es_task_result(task: asyncio.Task) -> None:
         if exc:
             logger.warning(f"[ES] async index task failed: {type(exc).__name__}: {exc}")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[ES] task result inspection failed: {e}")
+        logger.warning(f"[ES] task result inspection failed: {e},traceback={traceback.format_exc()}")
 
 
 async def search_order_logs(
@@ -155,5 +155,5 @@ async def search_order_logs(
         total = resp.get("hits", {}).get("total", {}).get("value", 0)
         return {"available": True, "total": total, "hits": hits}
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[ES] search failed: {e}")
+        logger.warning(f"[ES] search failed: {e},traceback={traceback.format_exc()}")
         return {"available": False, "total": 0, "hits": [], "error": str(e)}

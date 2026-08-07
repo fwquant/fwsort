@@ -40,7 +40,7 @@ def _execute_task_in_thread(task_id: int) -> None:
         status = result.get("status", "unknown")
         logger.info(f"[AutoStrategyDispatcher] ✓ task={task_id} executed, status={status}")
     except Exception as e:
-        logger.error(f"[AutoStrategyDispatcher] ✗ task={task_id} failed with error: {e}")
+        logger.error(f"[AutoStrategyDispatcher] ✗ task={task_id} failed with error: {e},traceback={traceback.format_exc()}")
     finally:
         with _executing_lock:
             _executing_tasks.discard(task_id)
@@ -57,7 +57,7 @@ def _dispatcher_loop() -> None:
         try:
             _scan_and_dispatch()
         except Exception as e:
-            logger.error(f"[AutoStrategyDispatcher] dispatcher loop error: {e}")
+            logger.error(f"[AutoStrategyDispatcher] dispatcher loop error: {e},traceback={traceback.format_exc()}")
 
         _dispatcher_stop_event.wait(CHECK_INTERVAL)
 
@@ -106,11 +106,11 @@ def _scan_and_dispatch() -> None:
                     _process_single_task(task, now)
                 except Exception as e:
                     logger.error(
-                        f"[AutoStrategyDispatcher] 处理任务 task={task.id} 时出错: {e}",
+                        f"[AutoStrategyDispatcher] 处理任务 task={task.id} 时出错: {e},traceback={traceback.format_exc()}",
                         exc_info=True,
                     )
     except Exception as e:
-        logger.error(f"[AutoStrategyDispatcher] 扫描任务时发生错误: {e}", exc_info=True)
+        logger.error(f"[AutoStrategyDispatcher] 扫描任务时发生错误: {e},traceback={traceback.format_exc()}", exc_info=True)
 
 
 def _process_single_task(task: AutoStrategy, now: int) -> None:
@@ -130,7 +130,7 @@ def _process_single_task(task: AutoStrategy, now: int) -> None:
         if raw is not None:
             last_run = int(raw)
     except Exception as e:
-        logger.warning(f"[AutoStrategyDispatcher] Redis hget 失败 task={task_id}: {e}")
+        logger.warning(f"[AutoStrategyDispatcher] Redis hget 失败 task={task_id}: {e},traceback={traceback.format_exc()}")
 
     interval_seconds = task.interval * 60
     elapsed = now - last_run
@@ -157,7 +157,7 @@ def _process_single_task(task: AutoStrategy, now: int) -> None:
             sync_redis.hset(DISPATCHER_KEY, str(task_id), str(now))
             logger.debug(f"[AutoStrategyDispatcher] Redis 更新 last_run task={task_id} -> {now}")
         except Exception as e:
-            logger.warning(f"[AutoStrategyDispatcher] Redis hset 失败 task={task_id}: {e}")
+            logger.warning(f"[AutoStrategyDispatcher] Redis hset 失败 task={task_id}: {e},traceback={traceback.format_exc()}")
 
         # 在新线程中执行任务
         thread = threading.Thread(

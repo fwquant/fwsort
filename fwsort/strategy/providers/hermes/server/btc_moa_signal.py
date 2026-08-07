@@ -30,7 +30,7 @@ def _append_to_history(signal: dict, history_file: str = HISTORY_FILE):
         with open(history_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(signal, ensure_ascii=False) + "\n")
     except Exception as e:
-        print(f"[WARN] 写入历史文件失败: {e}", file=sys.stderr)
+        print(f"[WARN] 写入历史文件失败: {e},traceback={traceback.format_exc()}", file=sys.stderr)
 
 
 # ---------- 读取密钥 ----------
@@ -206,7 +206,7 @@ def call_model(m, prompt=None):
         mch = re.search(r"涨|跌|平", after)
         return m["name"], (mch.group(0) if mch else None), text.strip()[:60]
     except Exception as e:
-        return m["name"], None, f"错误: {e}"
+        return m["name"], None, f"错误: {e},traceback={traceback.format_exc()}"
 
 
 def decide(results):

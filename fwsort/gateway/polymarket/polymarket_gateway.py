@@ -592,7 +592,7 @@ class PolymarketGateway(BaseGateway):
             }
 
         except httpx.TimeoutException as e:
-            err_msg = f"[{mName}]timeout: {e}"
+            err_msg = f"[{mName}]timeout: {e},traceback={traceback.format_exc()}"
             logger.error(f"[POLY-GW] {method} {path} {err_msg}")
             return {
                 "success": False,
@@ -601,7 +601,7 @@ class PolymarketGateway(BaseGateway):
                 "data": {"method": method, "path": path}
             }
         except httpx.ConnectError as e:
-            err_msg = f"[{mName}]connect error: {e}"
+            err_msg = f"[{mName}]connect error: {e},traceback={traceback.format_exc()}"
             logger.error(f"[POLY-GW] {method} {path} {err_msg}")
             return {
                 "success": False,
@@ -821,7 +821,7 @@ class PolymarketGateway(BaseGateway):
                     "data": {"slug_prefix": prefix, "target_epoch": target_epoch}
                 }
         except Exception as e:  # noqa: BLE001
-            err_msg = f"[{mName}]get_active_btc5m_market failed: {e}"
+            err_msg = f"[{mName}]get_active_btc5m_market failed: {e},traceback={traceback.format_exc()}"
             logger.warning(f"[POLY-GW] {err_msg}")
             return {
                 "success": False,
@@ -953,7 +953,7 @@ class PolymarketGateway(BaseGateway):
                 "data": signed
             }
         except Exception as e:  # noqa: BLE001
-            err_msg = f"[{mName}]create_order failed: {e}"
+            err_msg = f"[{mName}]create_order failed: {e},traceback={traceback.format_exc()}"
             logger.error(f"[POLY-GW] {err_msg}")
             return {
                 "success": False,
@@ -1034,7 +1034,7 @@ class PolymarketGateway(BaseGateway):
                 result["code"] = GatewayCode.POST_ORDER_FAILED
             return result
         except Exception as e:  # noqa: BLE001
-            err_msg = f"[{mName}]place_limit_order failed: {e}"
+            err_msg = f"[{mName}]place_limit_order failed: {e},traceback={traceback.format_exc()}"
             logger.error(f"[POLY-GW] {err_msg}")
             return {
                 "success": False,
@@ -1269,7 +1269,7 @@ class PolymarketGateway(BaseGateway):
                             "is_resolved": None,
                         })
                 except Exception as e:
-                    err_msg = f"检查持仓异常: {market_slug or token_id[:16]}... {e}"
+                    err_msg = f"检查持仓异常: {market_slug or token_id[:16]}... {e},traceback={traceback.format_exc()}"
                     logger.warning(f"[POLY-REDEEM] {err_msg}")
                     errors.append(err_msg)
 
@@ -1305,7 +1305,7 @@ class PolymarketGateway(BaseGateway):
                             })
                             logger.info(f"[POLY-REDEEM] 赎回成功 condition_id={cid[:12]}... result={result}")
                         except Exception as e:
-                            err_msg = f"赎回 condition_id={cid[:12]}... 失败: {e}"
+                            err_msg = f"赎回 condition_id={cid[:12]}... 失败: {e},traceback={traceback.format_exc()}"
                             logger.warning(f"[POLY-REDEEM] {err_msg}")
                             errors.append(err_msg)
                             redeemed_results.append({
@@ -1324,7 +1324,7 @@ class PolymarketGateway(BaseGateway):
                                 })
                                 logger.info(f"[POLY-REDEEM] 按 token 赎回成功 {p['token_id'][:12]}...")
                             except Exception as e:
-                                err_msg = f"赎回 token={p['token_id'][:12]}... 失败: {e}"
+                                err_msg = f"赎回 token={p['token_id'][:12]}... 失败: {e},traceback={traceback.format_exc()}"
                                 logger.warning(f"[POLY-REDEEM] {err_msg}")
                                 errors.append(err_msg)
                                 redeemed_results.append({
@@ -1332,7 +1332,7 @@ class PolymarketGateway(BaseGateway):
                                     "error": str(e),
                                 })
                 except Exception as e:
-                    err_msg = f"批量赎回异常: {e}"
+                    err_msg = f"批量赎回异常: {e},traceback={traceback.format_exc()}"
                     logger.error(f"[POLY-REDEEM] {err_msg}")
                     errors.append(err_msg)
             else:
@@ -1366,7 +1366,7 @@ class PolymarketGateway(BaseGateway):
                             logger.warning(f"[POLY-REDEEM] {err_msg}")
                             errors.append(err_msg)
                     except Exception as e:
-                        err_msg = f"赎回 {p.get('market_slug') or p.get('token_id', '')} 异常: {e}"
+                        err_msg = f"赎回 {p.get('market_slug') or p.get('token_id', '')} 异常: {e},traceback={traceback.format_exc()}"
                         logger.warning(f"[POLY-REDEEM] {err_msg}")
                         errors.append(err_msg)
 
@@ -1384,7 +1384,7 @@ class PolymarketGateway(BaseGateway):
             }
 
         except Exception as e:
-            err_msg = f"redeem_resolved_positions 整体异常: {e}"
+            err_msg = f"redeem_resolved_positions 整体异常: {e},traceback={traceback.format_exc()}"
             logger.error(f"[POLY-REDEEM] {err_msg}")
             return {
                 "success": False,
@@ -1446,7 +1446,7 @@ class PolymarketGateway(BaseGateway):
                 }
             }
         except Exception as e:  # noqa: BLE001
-            err_msg = f"[{mName}]get_balance failed: {e}"
+            err_msg = f"[{mName}]get_balance failed: {e},traceback={traceback.format_exc()}"
             logger.error(f"[POLY-GW] {err_msg}")
             return {
                 "success": False,
@@ -1495,7 +1495,7 @@ class PolymarketGateway(BaseGateway):
                     "data": {"status": r.status_code}
                 }
         except Exception as e:  # noqa: BLE001
-            err_msg = f"[{mName}]get_positions failed: {e}"
+            err_msg = f"[{mName}]get_positions failed: {e},traceback={traceback.format_exc()}"
             logger.warning(f"[POLY-GW] {err_msg}")
             return {
                 "success": False,
@@ -1680,7 +1680,7 @@ class PolymarketGateway(BaseGateway):
             return result
 
         except Exception as e:  # noqa: BLE001
-            err_msg = f"[{mName}]place_btc5m_order failed: {e}"
+            err_msg = f"[{mName}]place_btc5m_order failed: {e},traceback={traceback.format_exc()}"
             logger.error(f"[POLY-GW] {err_msg}")
             return {
                 "success": False,
@@ -1800,7 +1800,7 @@ class PolymarketV1Client(BaseGateway):
             try:
                 self._account = Account.from_key(self.private_key)
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"Polymarket wallet load failed: {e}")
+                logger.warning(f"Polymarket wallet load failed: {e},traceback={traceback.format_exc()}")
 
     # ===== 抽象方法实现（BaseGateway 要求） =====
     # 判断 V1 网关是否已就绪
@@ -2131,7 +2131,7 @@ class PolymarketV1Client(BaseGateway):
             except Exception:
                 return {"msg": resp.text[:200], "status": resp.status_code}
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"[POLY] public GET {host}{path} failed: {e}")
+            logger.warning(f"[POLY] public GET {host}{path} failed: {e},traceback={traceback.format_exc()}")
             return {"msg": str(e)}
 
     # 查询钱包余额（V1 兼容：data-api 持仓 + CLOB 旧 /collateral 尝试）
@@ -2342,7 +2342,7 @@ class PolymarketV1Client(BaseGateway):
                 return resp
             except Exception as e:  # noqa: BLE001
                 last_exc = e
-                logger.warning(f"[POLY-BTC5M] order attempt {attempt + 1} failed: {e}")
+                logger.warning(f"[POLY-BTC5M] order attempt {attempt + 1} failed: {e},traceback={traceback.format_exc()}")
         raise RuntimeError(
             f"BTC 5min order failed after {settings.POLYMARKET_ORDER_RETRY + 1} attempts: {last_exc}"
         )
@@ -2646,7 +2646,7 @@ async def _run_menu() -> None:
             try:
                 await match[2](gw)
             except Exception as e:  # noqa: BLE001
-                print(f"  [err] {e}")
+                print(f"  [err] {e},traceback={traceback.format_exc()}")
             input("  按任意键继续...")
     finally:
         await gw.close()

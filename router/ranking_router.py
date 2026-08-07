@@ -911,7 +911,7 @@ async def refresh_strategy_ranking() -> dict:
             except Exception as e:
                 settlement_result["failed"] += 1
                 import logging
-                logging.getLogger(__name__).warning(f"[refresh] 任务 {task.id} 刷新失败: {e}")
+                logging.getLogger(__name__).warning(f"[refresh] 任务 {task.id} 刷新失败: {e},traceback={traceback.format_exc()}")
 
     ranking_result = refresh_strategy_redis_zset()
 

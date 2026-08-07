@@ -204,7 +204,7 @@ def call_model(m, prompt=None):
         mch = re.search(r"涨|跌|平", after)
         return m["name"], (mch.group(0) if mch else None), text.strip()[:60]
     except Exception as e:
-        return m["name"], None, f"错误: {e}"
+        return m["name"], None, f"错误: {e},traceback={traceback.format_exc()}"
 
 
 def decide(results):

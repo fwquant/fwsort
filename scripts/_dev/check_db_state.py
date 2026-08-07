@@ -56,7 +56,7 @@ def inspect(db_path: str, label: str) -> None:
             print(f"      admin123456 match = {match_admin}")
             print(f"      demo123456  match = {match_demo}")
         except Exception as e:
-            print(f"    id={uid} email={email} 验证失败: {e}")
+            print(f"    id={uid} email={email} 验证失败: {e},traceback={traceback.format_exc()}")
 
     # 统计
     print("\n  --- 数据统计 ---")

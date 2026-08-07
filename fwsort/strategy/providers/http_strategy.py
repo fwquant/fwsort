@@ -79,8 +79,8 @@ class HttpStrategy(StrategyBase):
             self.set_external_signal(signal)
             return signal
         except Exception as e:
-            logger.error(f"[HttpStrategy] failed to parse external signal: {e}")
-            raise ValueError(f"Invalid signal data: {e}")
+            logger.error(f"[HttpStrategy] failed to parse external signal: {e},traceback={traceback.format_exc()}")
+            raise ValueError(f"Invalid signal data: {e},traceback={traceback.format_exc()}")
 
     def health_check(self) -> dict:
         return {

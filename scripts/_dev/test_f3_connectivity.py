@@ -43,7 +43,7 @@ async def main():
         )
         print(f"  ✅ 客户端创建成功: {client}")
     except Exception as e:
-        print(f"  ❌ 客户端创建失败: {type(e).__name__}: {e}")
+        print(f"  ❌ 客户端创建失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
         return
 
     # 获取当前 5min 市场
@@ -62,7 +62,7 @@ async def main():
         print(f"     no  token_id={market.outcomes.no.token_id}")
         print(f"     no  price={market.outcomes.no.price}")
     except Exception as e:
-        print(f"  ❌ 市场获取失败: {type(e).__name__}: {e}")
+        print(f"  ❌ 市场获取失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
         await client.close()
         return
 
@@ -74,7 +74,7 @@ async def main():
         for item in page.items[:3]:
             print(f"     - {item}")
     except Exception as e:
-        print(f"  ⚠️ 持仓查询失败: {type(e).__name__}: {e}")
+        print(f"  ⚠️ 持仓查询失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
 
     await client.close()
     print(f"\n[4] 客户端已关闭")

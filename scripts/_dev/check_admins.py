@@ -39,6 +39,6 @@ try:
         print(f"    pwd_match('admin123456')={match}")
         print(f"    hash_preview={ph[:40] if ph else None}...")
 except Exception as e:
-    print(f"密码验证失败: {e}")
+    print(f"密码验证失败: {e},traceback={traceback.format_exc()}")
 
 conn.close()

@@ -17,7 +17,7 @@ def check(name, fn):
         print(f"  [OK] {name}")
         return True
     except Exception as e:  # noqa: BLE001
-        print(f"  [FAIL] {name}: {type(e).__name__}: {e}")
+        print(f"  [FAIL] {name}: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
         return False
 
 

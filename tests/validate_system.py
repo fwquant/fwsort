@@ -227,7 +227,7 @@ class SystemValidator:
                 self.log("ERROR", f"智能体列表查询失败: {data.get('message')}")
                 return False
         except Exception as e:
-            self.log("ERROR", f"智能体列表请求失败: {e}")
+            self.log("ERROR", f"智能体列表请求失败: {e},traceback={traceback.format_exc()}")
             return False
 
     def test_execution_logs(self) -> bool:
@@ -249,7 +249,7 @@ class SystemValidator:
                 self.log("ERROR", f"执行日志查询失败: {data.get('message')}")
                 return False
         except Exception as e:
-            self.log("ERROR", f"执行日志请求失败: {e}")
+            self.log("ERROR", f"执行日志请求失败: {e},traceback={traceback.format_exc()}")
             return False
 
     def run_all_tests(self):

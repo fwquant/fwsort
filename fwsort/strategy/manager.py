@@ -68,10 +68,10 @@ def _discover_providers() -> None:
                             _PROVIDER_CATEGORIES[name] = category
                             logger.info(f"[SignalManager] auto-discovered provider: {name} ({category})")
                     except Exception as e:
-                        logger.warning(f"[SignalManager] failed to instantiate {attr_name}: {e}")
+                        logger.warning(f"[SignalManager] failed to instantiate {attr_name}: {e},traceback={traceback.format_exc()}")
             logger.info(f"[SignalManager] _discover_providers: module {module_name} has {attr_count} StrategyBase subclasses")
         except Exception as e:
-            logger.warning(f"[SignalManager] failed to import module {module_name}: {e}")
+            logger.warning(f"[SignalManager] failed to import module {module_name}: {e},traceback={traceback.format_exc()}")
             import traceback
             logger.error(f"[SignalManager] traceback: {traceback.format_exc()}")
 

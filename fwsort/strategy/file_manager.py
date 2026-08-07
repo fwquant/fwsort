@@ -66,7 +66,7 @@ def list_all_providers() -> list[dict[str, Any]]:
             result.append(provider_info)
             seen_names.add(name)
         except Exception as e:
-            logger.warning(f"[FileManager] failed to build info for {name}: {e}")
+            logger.warning(f"[FileManager] failed to build info for {name}: {e},traceback={traceback.format_exc()}")
 
     # 2. 扫描磁盘文件，找出已停用的策略（不在 _PROVIDERS 中的）
     inactive_providers = _scan_disk_providers()
@@ -77,7 +77,7 @@ def list_all_providers() -> list[dict[str, Any]]:
                 result.append(provider_info)
                 seen_names.add(name)
             except Exception as e:
-                logger.warning(f"[FileManager] failed to build info for inactive {name}: {e}")
+                logger.warning(f"[FileManager] failed to build info for inactive {name}: {e},traceback={traceback.format_exc()}")
 
     # 按名称排序
     result.sort(key=lambda x: x.get("name", ""))
@@ -134,7 +134,7 @@ def _scan_disk_providers() -> dict[str, type[StrategyBase]]:
                         except Exception:
                             pass
             except Exception as e:
-                logger.debug(f"[FileManager] failed to scan {fpath}: {e}")
+                logger.debug(f"[FileManager] failed to scan {fpath}: {e},traceback={traceback.format_exc()}")
 
     return result
 
@@ -488,7 +488,7 @@ def create_provider(
         if isinstance(cls, type) and issubclass(cls, StrategyBase):
             register_provider(provider_name, cls, category=category)
     except Exception as e:
-        logger.warning(f"[FileManager] failed to register new provider: {e}")
+        logger.warning(f"[FileManager] failed to register new provider: {e},traceback={traceback.format_exc()}")
 
     return {
         "name": provider_name,
@@ -521,7 +521,7 @@ def delete_provider(provider_name: str) -> bool:
             os.remove(file_path)
             logger.info(f"[FileManager] deleted provider file: {file_path}")
         except Exception as e:
-            logger.warning(f"[FileManager] failed to delete file: {e}")
+            logger.warning(f"[FileManager] failed to delete file: {e},traceback={traceback.format_exc()}")
             raise
 
     reset_provider_instance(provider_name)
@@ -596,7 +596,7 @@ def _activate_provider(provider_name: str) -> None:
             logger.info(f"[FileManager] activated provider via reload: {provider_name}")
             return
     except Exception as e:
-        logger.warning(f"[FileManager] reload_providers failed: {e}")
+        logger.warning(f"[FileManager] reload_providers failed: {e},traceback={traceback.format_exc()}")
 
     raise ValueError(f"无法找到或加载信号源 {provider_name}，请确认文件存在且格式正确")
 

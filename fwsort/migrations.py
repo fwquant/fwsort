@@ -760,7 +760,7 @@ def _migrate_030_risk_backfill(engine) -> list[str]:
                            })
                 n_acc += 1
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"insert account_risk_profile failed acc={row.get('id')}: {e}")
+                logger.warning(f"insert account_risk_profile failed acc={row.get('id')}: {e},traceback={traceback.format_exc()}")
         if n_acc:
             applied.append(f"account_risk_profile: backfilled {n_acc} rows")
 
@@ -797,7 +797,7 @@ def _migrate_030_risk_backfill(engine) -> list[str]:
                            })
                 n_tasks += 1
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"insert strategy_risk_profile failed task={row.get('id')}: {e}")
+                logger.warning(f"insert strategy_risk_profile failed task={row.get('id')}: {e},traceback={traceback.format_exc()}")
         if n_tasks:
             applied.append(f"strategy_risk_profile: backfilled {n_tasks} rows")
 

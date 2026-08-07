@@ -20,7 +20,7 @@ async def explore():
             for e in events:
                 print(f"  title={e.get('title')}, slug={e.get('slug')}, markets={len(e.get('markets', []))}")
         except Exception as e:
-            print(f"error: {e}")
+            print(f"error: {e},traceback={traceback.format_exc()}")
 
         # 方法 2: /events 不加 slug，用 limit+offset 翻页
         print("\n=== 方法 2: /events 翻页 limit=50 ===")
@@ -38,7 +38,7 @@ async def explore():
                     print(f"  ★ title={e.get('title')}, slug={slug}")
                     print(f"    markets={len(e.get('markets', []))}")
         except Exception as e:
-            print(f"error: {e}")
+            print(f"error: {e},traceback={traceback.format_exc()}")
 
         # 方法 3: /markets?q=btc-updown
         print("\n=== 方法 3: /markets?q=btc-updown ===")
@@ -55,7 +55,7 @@ async def explore():
             else:
                 print(f"  body={json.dumps(data, ensure_ascii=False)[:500]}")
         except Exception as e:
-            print(f"error: {e}")
+            print(f"error: {e},traceback={traceback.format_exc()}")
 
         # 方法 4: 用 /events 并在 slug 里用前缀匹配
         print("\n=== 方法 4: /events?slug_prefix=btc-updown ===")
@@ -73,7 +73,7 @@ async def explore():
             data = r.json()
             print(f"  body len: {len(r.text)}, body: {r.text[:300]}")
         except Exception as e:
-            print(f"error: {e}")
+            print(f"error: {e},traceback={traceback.format_exc()}")
 
 
 asyncio.run(explore())

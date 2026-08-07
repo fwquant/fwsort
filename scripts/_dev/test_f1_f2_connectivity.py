@@ -31,7 +31,7 @@ async def test_f1():
         await client.close()
         return True
     except Exception as e:
-        print(f"  ❌ F1 客户端创建失败: {type(e).__name__}: {e}")
+        print(f"  ❌ F1 客户端创建失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
         return False
 
 
@@ -59,7 +59,7 @@ async def test_f2():
         await client.close()
         return True
     except Exception as e:
-        print(f"  ❌ F2 客户端创建失败: {type(e).__name__}: {e}")
+        print(f"  ❌ F2 客户端创建失败: {type(e).__name__}: {e},traceback={traceback.format_exc()}")
         return False
 
 
