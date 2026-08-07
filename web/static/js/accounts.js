@@ -247,6 +247,13 @@
     const publicTag = a.public_enabled
       ? `<span class="fwui-tag fwui-tag--primary" title="参与总榜单">🌍 公开</span>`
       : `<span class="fwui-tag" title="不参与总榜单">🔒 私有</span>`;
+    // 启用开关
+    const isRunning = a.status === 0;
+    const statusTag = a.status === 0
+      ? `<span class="fwui-tag fwui-tag--success">运行中</span>`
+      : a.status === 1
+      ? `<span class="fwui-tag fwui-tag--warning">已暂停</span>`
+      : `<span class="fwui-tag fwui-tag--danger">已停用</span>`;
     // 绩效指标
     const totalPnl = a.total_pnl || 0;
     const totalPnlCls = totalPnl >= 0 ? "fwui-up" : "fwui-down";
@@ -269,7 +276,12 @@
             ${frozenTag}
             <span class="fwui-tag">${a.account_type === 0 ? "模拟盘" : "实盘"}</span>
             ${publicTag}
+            ${statusTag}
           </div>
+          <label class="fwui-switch account-card__enable-switch" title="${isRunning ? "运行中，点击暂停" : "已暂停，点击启用"}">
+            <input type="checkbox" data-action="toggle-status" data-id="${a.id}" ${isRunning ? "checked" : ""}>
+            <span class="fwui-switch__slider"></span>
+          </label>
         </div>
         <div class="account-card__stats">
           <div class="account-card__stat">
@@ -336,6 +348,7 @@
     view.querySelectorAll("[data-action=edit]").forEach((b) => (b.onclick = openEditModal));
     view.querySelectorAll("[data-action=detail]").forEach((b) => (b.onclick = goDetail));
     view.querySelectorAll("[data-action=delete]").forEach((b) => (b.onclick = delAccount));
+    view.querySelectorAll("[data-action=toggle-status]").forEach((b) => (b.onchange = toggleStatus));
   }
 
   // ========== 列表视图 ==========
@@ -356,7 +369,7 @@
               <th data-sort-key="current_balance" style="text-align:right;">余额</th>
               <th data-sort-key="daily_pnl" style="text-align:right;">日盈亏</th>
               <th data-sort-key="public_enabled">公开</th>
-              <th data-sort-key="status">状态</th>
+              <th data-sort-key="status">启用</th>
               <th style="text-align:center;">操作</th>
             </tr>
           </thead>
@@ -382,11 +395,17 @@
         <input type="checkbox" data-action="toggle-public" data-id="${a.id}" ${a.public_enabled ? "checked" : ""}>
         <span class="fwui-switch__slider"></span>
       </label>`;
-    const statusTag = a.status === 0
-      ? `<span class="fwui-tag fwui-tag--success" style="font-size:11px;padding:2px 6px;">运行</span>`
+    // 启用开关：status=0 表示运行（开启），status=1 表示暂停（关闭），status=2 表示停用
+    const isRunning = a.status === 0;
+    const enableToggle = `<label class="fwui-switch" title="${isRunning ? "运行中，点击暂停" : "已暂停，点击启用"}">
+        <input type="checkbox" data-action="toggle-status" data-id="${a.id}" ${isRunning ? "checked" : ""}>
+        <span class="fwui-switch__slider"></span>
+      </label>`;
+    const statusLabel = a.status === 0
+      ? `<span style="font-size:10px;color:var(--fwui-success);margin-top:2px;">运行中</span>`
       : a.status === 1
-      ? `<span class="fwui-tag fwui-tag--warning" style="font-size:11px;padding:2px 6px;">暂停</span>`
-      : `<span class="fwui-tag fwui-tag--danger" style="font-size:11px;padding:2px 6px;">停用</span>`;
+      ? `<span style="font-size:10px;color:var(--fwui-warning);margin-top:2px;">已暂停</span>`
+      : `<span style="font-size:10px;color:var(--fwui-danger);margin-top:2px;">已停用</span>`;
     return `
       <tr>
         <td><code style="font-size:11px;color:var(--fwui-text-muted);background:var(--fwui-bg);padding:2px 6px;border-radius:4px;">${escapeHtml(a.uid)}</code></td>
@@ -399,7 +418,10 @@
         <td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">${FWUI.utils.fmtUsd(a.current_balance, 2)}</td>
         <td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums;" class="${pnlCls}">${(a.daily_pnl >= 0 ? "+" : "")}${FWUI.utils.fmtUsd(a.daily_pnl, 2)}</td>
         <td>${publicToggle}</td>
-        <td>${statusTag}${a.risk_frozen ? " " + frozenTag : ""}</td>
+        <td style="text-align:center;">
+          ${enableToggle}
+          <div>${statusLabel}${a.risk_frozen ? " " + frozenTag : ""}</div>
+        </td>
         <td style="text-align:center;white-space:nowrap;">
           <button class="fwui-btn fwui-btn--primary fwui-btn--xs" data-action="vote" data-id="${a.id}" ${a.risk_frozen || a.status !== 0 ? "disabled" : ""} title="触发投票">🧠</button>
           <button class="fwui-btn fwui-btn--sm" data-action="signal" data-id="${a.id}" title="刷新信号" style="padding:4px 8px;font-size:12px;">📡</button>
@@ -419,6 +441,7 @@
     view.querySelectorAll("[data-action=detail]").forEach((b) => (b.onclick = goDetail));
     view.querySelectorAll("[data-action=delete]").forEach((b) => (b.onclick = delAccount));
     view.querySelectorAll("[data-action=toggle-public]").forEach((b) => (b.onchange = togglePublic));
+    view.querySelectorAll("[data-action=toggle-status]").forEach((b) => (b.onchange = toggleStatus));
   }
 
   // ========== 排序 ==========
@@ -600,6 +623,27 @@
     } catch (e) {
       FWUI.toast.error(e.message);
       e.currentTarget.checked = !v;
+    }
+  }
+
+  // ========== 行内启用/停用 toggle ==========
+  async function toggleStatus(e) {
+    const id = parseInt(e.currentTarget.dataset.id);
+    const isEnabled = e.currentTarget.checked;
+    // isEnabled=true -> status=0 (运行), isEnabled=false -> status=1 (暂停)
+    const newStatus = isEnabled ? 0 : 1;
+    try {
+      const resp = await fetch("/api/agent/accounts/" + id, {
+        method: "PUT",
+        headers: { "Authorization": "Bearer " + FWUI.api.getToken(), "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.message);
+      FWUI.toast.success(isEnabled ? "账户已启用运行" : "账户已暂停");
+    } catch (e) {
+      FWUI.toast.error(e.message);
+      e.currentTarget.checked = !isEnabled;
     }
   }
 

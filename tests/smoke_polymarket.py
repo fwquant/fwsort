@@ -2,6 +2,7 @@
 import asyncio
 import os
 import sys
+import traceback
 
 # 让脚本能直接从项目根目录运行
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -23,7 +24,7 @@ async def main():
         ping_resp = await p.ping()
         print(f"  reachable=True, sample={str(ping_resp)[:120]}...")
     except Exception as e:
-        print(f"  ping failed: {e}")
+        print(f"  ping failed:{e}，traceback: {traceback.format_exc()}")
 
     # ---- 1) BTC 5min 活跃市场（公开端点，无需密钥） ----
     print("\n[1] get_active_btc_market (public) ...")
@@ -40,7 +41,7 @@ async def main():
             for i, t in enumerate(tokens):
                 print(f"  token[{i}] outcome={t.get('outcome')} token_id={str(t.get('token_id') or t.get('clobTokenId'))[:18]}...")
     except Exception as e:
-        print(f"  get_active_btc_market failed: {e}")
+        print(f"  get_active_btc_market failed:{e}，traceback: {traceback.format_exc()}")
 
     # ---- 后续测试需要密钥 ----
     if not p.is_configured():
@@ -57,7 +58,7 @@ async def main():
         print(f"  apiKey: {keys.get('apiKey', '?')[:24]}...")
         print(f"  has secret: {bool(keys.get('secret'))}")
     except Exception as e:
-        print(f"  ensure L2 keys failed: {e}")
+        print(f"  ensure L2 keys failed:{e}，traceback: {traceback.format_exc()}")
 
     # ---- 3) 余额 ----
     print("\n[3] get_balance (wallet) ...")
@@ -65,7 +66,7 @@ async def main():
         bal = await p.get_balance()
         print(f"  raw: {bal}")
     except Exception as e:
-        print(f"  get_balance failed: {e}")
+        print(f"  get_balance failed:{e}，traceback: {traceback.format_exc()}")
 
     # ---- 4) 持仓 ----
     print("\n[4] get_positions ...")
@@ -73,7 +74,7 @@ async def main():
         pos = await p.get_positions()
         print(f"  raw (head): {str(pos)[:200]}...")
     except Exception as e:
-        print(f"  get_positions failed: {e}")
+        print(f"  get_positions failed:{e}，traceback: {traceback.format_exc()}")
 
     # ---- 5) 当前挂单 ----
     print("\n[5] get_open_orders ...")
@@ -81,7 +82,7 @@ async def main():
         orders = await p.get_open_orders()
         print(f"  raw (head): {str(orders)[:200]}...")
     except Exception as e:
-        print(f"  get_open_orders failed: {e}")
+        print(f"  get_open_orders failed:{e}，traceback: {traceback.format_exc()}")
 
     # ---- 6) EIP-712 签名测试（不下单） ----
     print("\n[6] EIP-712 sign test (no submit) ...")
@@ -91,7 +92,7 @@ async def main():
         print(f"  maker: {signed['maker'][:18]}...")
         print(f"  signature: {signed['signature'][:24]}...")
     except Exception as e:
-        print(f"  sign test failed: {e}")
+        print(f"  sign test failed:{e}，traceback: {traceback.format_exc()}")
 
     # ---- 7) BTC 5min 真实下单（默认 skip，需显式环境变量打开） ----
     if os.environ.get("POLY_BTC5M_LIVE_ORDER") == "1":
@@ -100,7 +101,7 @@ async def main():
             resp = await p.place_btc5m_order(side="UP", amount_usd=5.0)
             print(f"  resp: {resp}")
         except Exception as e:
-            print(f"  place_btc5m_order failed: {e}")
+            print(f"  place_btc5m_order failed:{e}，traceback: {traceback.format_exc()}")
     else:
         print("\n[7] skip place_btc5m_order (set POLY_BTC5M_LIVE_ORDER=1 to enable)")
 

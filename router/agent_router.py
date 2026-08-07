@@ -638,7 +638,7 @@ async def sync_execution_status(
                             r.quantity = float(payload.get("fillSz", r.quantity))
                         synced.append({"order_id": r.order_id, "new_state": new_state, "status": r.status})
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(f"sync order {r.order_id} failed: {e}")
+                    logger.warning(f"sync order {r.order_id} failed:{e}，traceback: {traceback.format_exc()}")
                     synced.append({"order_id": r.order_id, "error": str(e)})
             await db.flush()
     else:
@@ -730,7 +730,7 @@ async def trigger_task(
     try:
         async_result = celery_app.send_task(f"fwsort.scheduler.{task_name}")
     except Exception as e:  # noqa: BLE001
-        raise ParamError(f"send task failed: {e}")
+        raise ParamError(f"send task failed:{e}，traceback: {traceback.format_exc()}")
     return success(
         {"task": task_name, "task_id": async_result.id, "triggered_by": user.id},
         message="task triggered",

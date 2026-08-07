@@ -166,7 +166,7 @@ async def _record_login_audit(
         await db.flush()
     except Exception as e:  # noqa: BLE001
         # 审计失败只记日志，不影响主流程
-        logger.warning(f"login audit persist failed (skip): {e}")
+        logger.warning(f"login audit persist failed (skip):{e}，traceback: {traceback.format_exc()}")
 
 
 # ========== 接口：登录 ==========
@@ -239,7 +239,7 @@ async def demo_login(
                 "demo mode: auto-created admin account"
             )
         except Exception as e:  # noqa: BLE001
-            logger.error(f"demo-login bootstrap admin failed: {e}")
+            logger.error(f"demo-login bootstrap admin failed:{e}，traceback: {traceback.format_exc()}")
             from fwsort.exceptions import NotFoundError
             raise NotFoundError("admin not found, please seed-admin first")
 

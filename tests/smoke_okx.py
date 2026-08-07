@@ -1,5 +1,7 @@
 """OKX DEMO 链路 smoke test"""
 import asyncio
+import traceback
+
 from fwsort.gateway.okx_client import OkxClient
 from fwsort.gateway.okx_executor import OkxExecutor
 
@@ -49,7 +51,7 @@ async def main():
             print(f"  order_id={res.order_id} avg_px={res.avg_price} state={res.state}")
         except RuntimeError as e:
             # DEMO 账户无交易权限时，gateway 会自动降级 simulator
-            print(f"  place_order failed (expected for DEMO without trade permission): {e}")
+            print(f"  place_order failed (expected for DEMO without trade permission):{e}，traceback: {traceback.format_exc()}")
         await executor.close()
     else:
         print("  skip: DEMO acc balance < $5")

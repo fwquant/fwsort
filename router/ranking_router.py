@@ -805,3 +805,154 @@ async def export_ranking(
             "export_url": f"/static/exports/{rank_type}_{datetime.now().strftime('%Y%m%d')}.csv",
         }
     )
+
+
+# ========== 接口：策略榜单列表 ==========
+@router.get("/strategy/list", response_model=dict)
+async def strategy_ranking_list(
+    request: Request,
+    rank_type: str = Query(default="realtime", description="榜单类型: realtime"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    platform: str | None = Query(default=None, description="polymarket/okx"),
+) -> dict:
+    """获取策略榜单列表（基于 AutoStrategy 维度）"""
+    from fwsort.strategy.strategy_ranking import get_strategy_ranking
+
+    offset = (page - 1) * page_size
+    result = get_strategy_ranking(
+        rank_type=rank_type,
+        limit=page_size,
+        offset=offset,
+    )
+
+    # 按平台筛选（如果指定）
+    if platform and result["items"]:
+        result["items"] = [
+            item for item in result["items"]
+            if item.get("platform") == platform
+        ]
+        result["total"] = len(result["items"])
+
+    return success(data=result)
+
+
+# ========== 接口：策略详情 ==========
+@router.get("/strategy/detail/{strategy_id}", response_model=dict)
+async def strategy_ranking_detail(
+    request: Request,
+    strategy_id: int,
+) -> dict:
+    """获取单个策略的榜单详情"""
+    from fwsort.strategy.strategy_ranking import get_strategy_detail
+
+    detail = get_strategy_detail(strategy_id)
+    if detail is None:
+        raise NotFoundError(f"策略 {strategy_id} 不存在")
+
+    return success(data=detail)
+
+
+# ========== 接口：刷新策略榜单（含结算回查）==========
+@router.post("/strategy/refresh", response_model=dict)
+async def refresh_strategy_ranking() -> dict:
+    """手动触发策略榜单刷新：先结算回查未结算交易，再重算绩效，最后刷新榜单"""
+    from fwsort.database import get_sync_db
+    from fwsort.models import AutoStrategy, AutoStrategyLog
+    from fwsort.strategy.service import _check_and_update_previous_pnl
+    from fwsort.strategy.settlement_service import batch_sync_after_resolution
+    from fwsort.strategy.strategy_ranking import refresh_strategy_redis_zset
+    from datetime import datetime
+
+    settlement_result = {"checked": 0, "updated": 0, "failed": 0, "skipped": 0}
+    performance_result = {"updated": 0, "failed": 0}
+    ranking_result = {"updated": 0, "failed": 0}
+
+    with get_sync_db() as db:
+        active_tasks = (
+            db.query(AutoStrategy)
+            .filter(
+                AutoStrategy.is_active == True,
+                AutoStrategy.deleted_at.is_(None),
+            )
+            .all()
+        )
+
+        for task in active_tasks:
+            settlement_result["checked"] += 1
+            try:
+                unresolved_count = (
+                    db.query(AutoStrategyLog)
+                    .filter(
+                        AutoStrategyLog.task_id == task.id,
+                        AutoStrategyLog.log_type == 0,
+                        AutoStrategyLog.status.in_([0, 2]),
+                        AutoStrategyLog.market_resolved == False,
+                    )
+                    .count()
+                )
+
+                task_updated = 0
+                if unresolved_count > 0 and task.gateway == "polymarket_f3":
+                    updated = _check_and_update_previous_pnl(db, task)
+                    task_updated = len(updated)
+                    settlement_result["updated"] += task_updated
+
+                if task_updated > 0:
+                    perf = batch_sync_after_resolution(db, task)
+                    if isinstance(perf, dict):
+                        ranking_count = perf.get("ranking", {}).get("strategy_ranking", {}).get("updated", 0)
+                        performance_result["updated"] += 1
+                    else:
+                        performance_result["failed"] += 1
+                else:
+                    settlement_result["skipped"] += 1
+
+            except Exception as e:
+                settlement_result["failed"] += 1
+                import logging
+                logging.getLogger(__name__).warning(f"[refresh] 任务 {task.id} 刷新失败: {e}")
+
+    ranking_result = refresh_strategy_redis_zset()
+
+    last_update = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    return success(data={
+        "settlement": settlement_result,
+        "performance": performance_result,
+        "ranking": ranking_result,
+        "last_update": last_update,
+    })
+
+
+# ========== 接口：策略榜单对比 ==========
+@router.get("/strategy/compare", response_model=dict)
+async def compare_strategies(
+    request: Request,
+    strategy_ids: str = Query(description="逗号分隔的策略ID列表, e.g. 1,2,3"),
+) -> dict:
+    """对比多个策略的绩效指标"""
+    from fwsort.strategy.strategy_ranking import get_strategy_detail
+
+    ids = [int(sid.strip()) for sid in strategy_ids.split(",") if sid.strip().isdigit()]
+    if len(ids) > 10:
+        ids = ids[:10]  # 最多对比10个
+
+    comparisons = []
+    for sid in ids:
+        detail = get_strategy_detail(sid)
+        if detail:
+            comparisons.append(detail)
+
+    if not comparisons:
+        return success(data={"error": "未找到有效的策略", "comparisons": []})
+
+    # 计算排名
+    comparisons.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
+    for idx, comp in enumerate(comparisons, start=1):
+        comp["rank"] = idx
+
+    return success(data={
+        "count": len(comparisons),
+        "comparisons": comparisons,
+    })

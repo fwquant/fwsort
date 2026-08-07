@@ -290,7 +290,7 @@ class PolymarketGateway(BaseGateway):
                     self.wallet_address = self._account.address
                     self.funder_address = self.funder_address or self._account.address
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"[POLY-GW] wallet load failed: {e}")
+                logger.warning(f"[POLY-GW] wallet load failed:{e}，traceback: {traceback.format_exc()}")
 
     # ===== 1. 抽象方法实现（BaseGateway 要求） =====
     def is_ready(self) -> bool:
@@ -340,7 +340,7 @@ class PolymarketGateway(BaseGateway):
                     }
                 }
         except httpx.TimeoutException as e:
-            err_msg = f"[{mName}]timeout: {e}"
+            err_msg = f"[{mName}]timeout:{e}，traceback: {traceback.format_exc()}"
             logger.error(f"[POLY-GW] ping {err_msg}")
             return {
                 "success": False,
@@ -349,7 +349,7 @@ class PolymarketGateway(BaseGateway):
                 "data": {"status": 408, "at": datetime.utcnow().isoformat(), "host": self.host}
             }
         except httpx.ConnectError as e:
-            err_msg = f"[{mName}]connect error: {e}"
+            err_msg = f"[{mName}]connect error:{e}，traceback: {traceback.format_exc()}"
             logger.error(f"[POLY-GW] ping {err_msg}")
             return {
                 "success": False,
@@ -389,7 +389,7 @@ class PolymarketGateway(BaseGateway):
                 )
                 logger.info(f"[POLY-GW] SDK loaded, host={self.host} chain={self.chain_id}")
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"[POLY-GW] SDK init failed, fallback to HTTP: {e}")
+                logger.warning(f"[POLY-GW] SDK init failed, fallback to HTTP:{e}，traceback: {traceback.format_exc()}")
                 self._sdk_client = None
         logger.info(
             f"[POLY-GW] connected: host={self.host} chain={self.chain_id} "

@@ -12,23 +12,23 @@
       <div class="fwui-nav__logo">🟣 福纹排行榜</div>
     </a>
     <div class="fwui-nav__links">
-      <!-- 榜单 -->
-      <div class="fwui-nav__dropdown" data-nav-group="ranking">
-        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/">📊 榜单</a>
-        <div class="fwui-nav__dropdown-menu">
-          <a class="fwui-nav__dropdown-item" href="/">🌍 总榜单</a>
-          <a class="fwui-nav__dropdown-item" href="/accounts">👤 我的执行账户</a>
-        </div>
-      </div>
-      <!-- 跟单 -->
-      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
       <!-- 策略 -->
       <div class="fwui-nav__dropdown" data-nav-group="strategy">
-        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/strategy/tasks">📡 策略</a>
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/strategy/leaderboard">📡 策略</a>
         <div class="fwui-nav__dropdown-menu">
-          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/leaderboard">🏆 策略榜单</a>
           <a class="fwui-nav__dropdown-item" href="/strategy/auto-tasks">🤖 自动策略</a>
           <a class="fwui-nav__dropdown-item" href="/strategy/logs">📜 策略日志</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+        </div>
+      </div>
+      <!-- 账户 -->
+      <div class="fwui-nav__dropdown" data-nav-group="accounts">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/accounts" title="我的执行账户">💼 账户</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/accounts">💼 执行账户</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts/tasks">🛰 账户任务</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts/execution">⚡ 执行记录</a>
         </div>
       </div>
       <!-- 齿轮 -->
@@ -297,6 +297,21 @@
                 <div>
                   <label>📊 最大回撤（净值最大跌幅）
                     <input name="max_drawdown_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1">
+                  </label>
+                </div>
+                <div>
+                  <label>🔁 最大同时持仓数
+                    <input name="max_open_positions" class="fwui-input" type="number" step="1" min="0">
+                  </label>
+                </div>
+                <div>
+                  <label>🛑 止损比例（触发卖出，%）
+                    <input name="stop_loss_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1">
+                  </label>
+                </div>
+                <div>
+                  <label>🎯 止盈比例（触发卖出，%）
+                    <input name="take_profit_ratio" class="fwui-input" type="number" step="0.01" min="0" max="1">
                   </label>
                 </div>
                 <div class="risk-task-runtime">

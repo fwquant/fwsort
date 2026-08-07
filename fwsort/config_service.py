@@ -90,7 +90,7 @@ async def _load_config_from_db(key: str) -> Any | None:
                 if raw is not None:
                     return _convert_value(raw, row[2])
     except Exception as e:
-        logger.debug(f"从数据库加载配置 {key} 失败: {e}")
+        logger.debug(f"从数据库加载配置 {key} 失败:{e}，traceback: {traceback.format_exc()}")
     return None
 
 
@@ -130,7 +130,7 @@ async def get_all_configs() -> list[dict]:
                     "updated_at": at.isoformat() if at else None,
                 })
     except Exception as e:
-        logger.warning(f"获取所有配置失败: {e}")
+        logger.warning(f"获取所有配置失败:{e}，traceback: {traceback.format_exc()}")
 
     return configs
 
@@ -282,7 +282,7 @@ async def sync_env_to_db(sensitive_keys: set[str]) -> int:
             if count > 0:
                 await session.commit()
     except Exception as e:
-        logger.warning(f"sync_env_to_db 失败（非致命）: {e}")
+        logger.warning(f"sync_env_to_db 失败（非致命）:{e}，traceback: {traceback.format_exc()}")
     return count
 
 
@@ -311,5 +311,5 @@ async def load_all_from_db() -> dict[str, Any]:
                 if raw is not None:
                     configs[key] = _convert_value(raw, vtype)
     except Exception as e:
-        logger.warning(f"加载所有配置失败: {e}")
+        logger.warning(f"加载所有配置失败:{e}，traceback: {traceback.format_exc()}")
     return configs

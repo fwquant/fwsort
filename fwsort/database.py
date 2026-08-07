@@ -288,7 +288,7 @@ def _backup_database(engine) -> str | None:
 
         return str(backup_file)
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[reset_db] Database backup failed: {e}")
+        logger.error(f"[reset_db] Database backup failed:{e}，traceback: {traceback.format_exc()}")
         return None
 
 
@@ -356,8 +356,8 @@ def reset_db(engine=None, confirm_token: str = "") -> dict:
                 cleared_tables.append(table)
                 logger.info(f"[reset_db] Cleared table: {table}")
             except Exception as e:  # noqa: BLE001
-                errors.append(f"{table}: {e}")
-                logger.warning(f"[reset_db] Failed to clear {table}: {e}")
+                errors.append(f"{table}:{e}，traceback: {traceback.format_exc()}")
+                logger.warning(f"[reset_db] Failed to clear {table}:{e}，traceback: {traceback.format_exc()}")
 
         # 重新开启外键约束
         conn.execute(text("PRAGMA foreign_keys=ON"))
@@ -374,7 +374,7 @@ def reset_db(engine=None, confirm_token: str = "") -> dict:
             sync_redis.delete(*keys_to_delete)
             logger.info(f"[reset_db] Cleared {len(keys_to_delete)} Redis keys")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[reset_db] Failed to clear Redis: {e}")
+        logger.warning(f"[reset_db] Failed to clear Redis:{e}，traceback: {traceback.format_exc()}")
 
     result = {
         "status": "ok",
@@ -1057,8 +1057,8 @@ def reset_demo_db(confirm_token: str = "") -> dict:
             result["message"] += " | 演示数据已自动播种"
             logger.info("[reset_demo_db] demo data seeded after reset")
         except Exception as e:
-            logger.error(f"[reset_demo_db] Failed to seed demo data: {e}")
+            logger.error(f"[reset_demo_db] Failed to seed demo data:{e}，traceback: {traceback.format_exc()}")
             result["seeded"] = False
-            result["message"] += f" | 播种失败: {e}"
+            result["message"] += f" | 播种失败:{e}，traceback: {traceback.format_exc()}"
 
     return result

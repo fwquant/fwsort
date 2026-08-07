@@ -183,7 +183,7 @@ class ExecutionGateway(BaseGateway):
                 if platform == "polymarket":
                     return await self._submit_polymarket(symbol, side, amount_usd)
             except Exception as e:  # noqa: BLE001
-                logger.error(f"[GATEWAY] {platform} live order failed, fallback to simulator: {e}")
+                logger.error(f"[GATEWAY] {platform} live order failed, fallback to simulator:{e}，traceback: {traceback.format_exc()}")
                 # 实盘失败 → 降级模拟（保证主流程不挂）
 
         # 默认：模拟盘
@@ -249,7 +249,7 @@ class ExecutionGateway(BaseGateway):
                 extra={"poly": resp},
             )
         except Exception as e:  # noqa: BLE001
-            logger.error(f"[GATEWAY] polymarket place_order error: {e}")
+            logger.error(f"[GATEWAY] polymarket place_order error:{e}，traceback: {traceback.format_exc()}")
             return await self._submit_simulator("polymarket", symbol, side, amount_usd)
 
     async def _submit_simulator(self, platform: str, symbol: str, side: int, amount_usd: float) -> ExecutionResult:

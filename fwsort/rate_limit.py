@@ -21,7 +21,7 @@ async def _recent_failures(scope: str, key: str, window_min: int = 30) -> int:
         # 统计窗口内
         return await async_redis.zcard(rk)
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"rate limit read failed (skip): {e}")
+        logger.warning(f"rate limit read failed (skip):{e}，traceback: {traceback.format_exc()}")
         return 0
 
 
@@ -36,7 +36,7 @@ async def _record_failure(scope: str, key: str, lock_minutes: int) -> int:
         # 自身 key 也设过期，避免泄漏
         await async_redis.expire(rk, 3600)
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"rate limit record failed (skip): {e}")
+        logger.warning(f"rate limit record failed (skip):{e}，traceback: {traceback.format_exc()}")
     return await _recent_failures(scope, key)
 
 
@@ -86,7 +86,7 @@ async def check_login_rate_limit(email: str, request: Request) -> None:
             await _clear_failures("login:ip", ip)
             await _clear_failures("login:email", email)
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"failed to auto-clear localhost lock (skip): {e}")
+            logger.warning(f"failed to auto-clear localhost lock (skip):{e}，traceback: {traceback.format_exc()}")
         return
     # 非本地 / 生产环境：支持手动绕过
     try:
@@ -101,7 +101,7 @@ async def check_login_rate_limit(email: str, request: Request) -> None:
             await _clear_failures("login:email", email)
             logger.warning(f"login lock bypass used for ip={ip} email={email}")
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"failed to clear locks during bypass (skip): {e}")
+            logger.warning(f"failed to clear locks during bypass (skip):{e}，traceback: {traceback.format_exc()}")
         return
     # 任一维度被锁，则拒绝
     if await _is_locked("login:ip", ip):

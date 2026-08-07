@@ -258,8 +258,8 @@ async def gateway_ping(__=Depends(_bootstrap_or_readonly)) -> dict:
         resp = await client.ping()
         return success({"reachable": True, "sample": str(resp)[:200]}, message="ping ok")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[POLY] ping failed: {e}")
-        return fail(f"网关连通失败: {e}", code=502)
+        logger.warning(f"[POLY] ping failed:{e}，traceback: {traceback.format_exc()}")
+        return fail(f"网关连通失败:{e}，traceback: {traceback.format_exc()}", code=502)
 
 
 # ========== 2. 查询用户余额 ==========
@@ -282,8 +282,8 @@ async def gateway_balance(_: User = Depends(require_admin)) -> dict:
             "balance": balance,
         }, message="balance fetched")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[POLY] get_balance failed: {e}")
-        return fail(f"查询余额失败: {e}", code=502)
+        logger.warning(f"[POLY] get_balance failed:{e}，traceback: {traceback.format_exc()}")
+        return fail(f"查询余额失败:{e}，traceback: {traceback.format_exc()}", code=502)
 
 
 # ========== 3. 查询持仓 + 当前挂单 ==========
@@ -302,8 +302,8 @@ async def gateway_positions(
         resp = await client.get_positions(market=market, size_greater_than=size_greater_than)
         return success({"raw": resp}, message="positions fetched")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[POLY] get_positions failed: {e}")
-        return fail(f"查询持仓失败: {e}", code=502)
+        logger.warning(f"[POLY] get_positions failed:{e}，traceback: {traceback.format_exc()}")
+        return fail(f"查询持仓失败:{e}，traceback: {traceback.format_exc()}", code=502)
 
 
 @router.get("/orders", response_model=dict)
@@ -320,8 +320,8 @@ async def gateway_open_orders(
         resp = await client.get_open_orders(market=market)
         return success({"raw": resp}, message="open orders fetched")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[POLY] get_open_orders failed: {e}")
-        return fail(f"查询挂单失败: {e}", code=502)
+        logger.warning(f"[POLY] get_open_orders failed:{e}，traceback: {traceback.format_exc()}")
+        return fail(f"查询挂单失败:{e}，traceback: {traceback.format_exc()}", code=502)
 
 
 # ========== 4. BTC 5min 市场：查询活跃市场 ==========
@@ -342,8 +342,8 @@ async def btc5m_active_market(
             "markets": data,
         }, message="active BTC 5min market fetched")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[POLY] get_active_btc_market failed: {e}")
-        return fail(f"查询活跃市场失败: {e}", code=502)
+        logger.warning(f"[POLY] get_active_btc_market failed:{e}，traceback: {traceback.format_exc()}")
+        return fail(f"查询活跃市场失败:{e}，traceback: {traceback.format_exc()}", code=502)
 
 
 # ========== 5. BTC 5min 市场：下单 ==========
@@ -396,8 +396,8 @@ async def btc5m_place_order(
             "meta": resp.get("_meta") if isinstance(resp, dict) else None,
         }, message="BTC 5min order placed")
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[POLY] btc5m order failed: {e}")
-        return fail(f"BTC 5min 下单失败: {e}", code=502)
+        logger.error(f"[POLY] btc5m order failed:{e}，traceback: {traceback.format_exc()}")
+        return fail(f"BTC 5min 下单失败:{e}，traceback: {traceback.format_exc()}", code=502)
 
 
 # ========== 6. BTC 5min 模块配置查询（脱敏，方便运维核对）==========

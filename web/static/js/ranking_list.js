@@ -61,6 +61,108 @@
     bindUI();
     initMainTabFromUrl();
     updateMyTabState();
+    loadLastRefreshTime();
+  }
+
+  // ========== 刷新按钮 ==========
+  let _refreshTimer = null;
+
+  function bindRefreshButton() {
+    const btn = document.getElementById("btn-refresh");
+    if (!btn) return;
+    btn.addEventListener("click", () => handleRefresh());
+  }
+
+  function loadLastRefreshTime() {
+    const saved = localStorage.getItem("fwsort.lastRefreshTime");
+    if (saved) {
+      updateRefreshTimeDisplay(saved);
+    }
+  }
+
+  function updateRefreshTimeDisplay(timeStr) {
+    const timeEl = document.getElementById("refresh-time");
+    if (timeEl) {
+      const time = timeStr || new Date().toISOString();
+      const date = new Date(time);
+      const hh = String(date.getHours()).padStart(2, "0");
+      const mm = String(date.getMinutes()).padStart(2, "0");
+      const ss = String(date.getSeconds()).padStart(2, "0");
+      timeEl.textContent = `上次: ${hh}:${mm}:${ss}`;
+      localStorage.setItem("fwsort.lastRefreshTime", time);
+    }
+  }
+
+  function setRefreshStatus(text, type) {
+    const statusEl = document.getElementById("refresh-status");
+    const btn = document.getElementById("btn-refresh");
+    if (!statusEl || !btn) return;
+
+    if (text) {
+      statusEl.textContent = text;
+      statusEl.style.display = "";
+      statusEl.className = "fwui-toolbar__refresh-status";
+      if (type) statusEl.classList.add("is-" + type);
+    } else {
+      statusEl.style.display = "none";
+    }
+
+    if (type === "loading") {
+      btn.classList.add("is-loading");
+      btn.disabled = true;
+    } else {
+      btn.classList.remove("is-loading");
+      btn.disabled = false;
+    }
+  }
+
+  async function handleRefresh() {
+    const btn = document.getElementById("btn-refresh");
+    if (!btn || btn.classList.contains("is-loading")) return;
+
+    setRefreshStatus("结算回查中...", "loading");
+
+    try {
+      const apiPath = window.__FW_DEMO_MODE__
+        ? "/api/demo/ranking/strategy/refresh"
+        : "/api/ranking/strategy/refresh";
+      const result = await FWUI.api.post(apiPath);
+      const data = result.data || result;
+
+      const settlementInfo = data.settlement
+        ? `结算${data.settlement.updated || 0}笔`
+        : "";
+      const rankingInfo = data.ranking
+        ? `榜单更新${data.ranking.updated || 0}`
+        : "";
+
+      if (data.last_update) {
+        updateRefreshTimeDisplay(data.last_update);
+      }
+
+      setRefreshStatus(`${settlementInfo} ${rankingInfo}`.trim() || "已刷新", "success");
+
+      if (mainTab === "global") {
+        loadGlobal();
+      } else {
+        loadMy();
+      }
+
+      FWUI.toast && FWUI.toast.success && FWUI.toast.success(
+        `刷新完成${settlementInfo ? "（" + settlementInfo + "）" : ""}`
+      );
+
+      if (_refreshTimer) clearTimeout(_refreshTimer);
+      _refreshTimer = setTimeout(() => setRefreshStatus("", ""), 5000);
+
+    } catch (e) {
+      console.error("刷新失败:", e);
+      setRefreshStatus("刷新失败", "error");
+      FWUI.toast && FWUI.toast.error && FWUI.toast.error("刷新失败: " + (e.message || "未知错误"));
+
+      if (_refreshTimer) clearTimeout(_refreshTimer);
+      _refreshTimer = setTimeout(() => setRefreshStatus("", ""), 8000);
+    }
   }
 
   function initMainTabFromUrl() {
@@ -120,20 +222,64 @@
       });
     });
 
-    // 排序
-    document.querySelectorAll("[data-sort]").forEach((el) => {
-      el.addEventListener("click", () => {
-        state.sortBy = el.dataset.sort;
-        state.sortDir = "desc";
+    // ========== 移动端排序下拉框 ==========
+    function initSortDropdown(dropdownEl, options, onSelect) {
+      const trigger = dropdownEl.querySelector(".fwui-select-dropdown__trigger");
+      if (!trigger) return;
+
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = dropdownEl.classList.contains("is-open");
+        document.querySelectorAll(".fwui-select-dropdown.is-open").forEach((d) => d.classList.remove("is-open"));
+        if (!isOpen) dropdownEl.classList.add("is-open");
+      });
+
+      options.forEach((opt) => {
+        opt.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onSelect(opt);
+          dropdownEl.classList.remove("is-open");
+          options.forEach((o) => o.classList.remove("is-selected"));
+          opt.classList.add("is-selected");
+        });
+      });
+    }
+
+    // 总榜单排序下拉框
+    const globalSortDropdown = document.querySelector('[data-sort-dropdown="global"]');
+    if (globalSortDropdown) {
+      const sortOptions = globalSortDropdown.querySelectorAll("[data-sort-value]");
+      initSortDropdown(globalSortDropdown, sortOptions, (opt) => {
+        const val = opt.dataset.sortValue;
+        const [field, dir] = val.split("_");
+        state.sortBy = field;
+        state.sortDir = dir;
+        const labelEl = globalSortDropdown.querySelector("[data-sort-label]");
+        if (labelEl) labelEl.textContent = opt.querySelector(".fwui-select-dropdown__option-name").textContent;
         updateSortIndicators();
-        document.querySelectorAll("[data-sort]").forEach((x) => x.classList.remove("fwui-btn--primary"));
-        el.classList.add("fwui-btn--primary");
         loadGlobal();
       });
-    });
+    }
 
-    // 表头点击排序
+    // 我的榜单排序下拉框
+    const mySortDropdown = document.querySelector('[data-sort-dropdown="my"]');
+    if (mySortDropdown) {
+      const mySortOptions = mySortDropdown.querySelectorAll("[data-my-sort-value]");
+      initSortDropdown(mySortDropdown, mySortOptions, (opt) => {
+        const val = opt.dataset.mySortValue;
+        const [field, dir] = val.split("_");
+        state.sortBy = field;
+        state.sortDir = dir;
+        const labelEl = mySortDropdown.querySelector("[data-my-sort-label]");
+        if (labelEl) labelEl.textContent = opt.querySelector(".fwui-select-dropdown__option-name").textContent;
+        updateSortIndicators();
+        loadMy();
+      });
+    }
+
+    // 表头点击排序（桌面端）
     document.querySelectorAll("th[data-sort-key]").forEach((th) => {
+      th.style.cursor = "pointer";
       th.addEventListener("click", () => {
         const key = th.dataset.sortKey;
         const sortMap = mainTab === "global" ? globalSortMap : mySortMap;
@@ -144,11 +290,8 @@
           state.sortBy = mapped;
           state.sortDir = "desc";
         }
-        // 同步顶部排序按钮高亮
-        document.querySelectorAll("[data-sort]").forEach((x) => {
-          x.classList.toggle("fwui-btn--primary", x.dataset.sort === state.sortBy);
-        });
         updateSortIndicators();
+        syncSortDropdown();
         if (mainTab === "global") loadGlobal();
         else loadMy();
       });
@@ -245,6 +388,9 @@
     }
     syncDropdownState(globalDropdown, state.view, "[data-view-label]");
     syncDropdownState(myDropdown, state.myView, "[data-my-view-label]");
+
+    // 绑定刷新按钮
+    bindRefreshButton();
   }
 
   // 切换一级Tab

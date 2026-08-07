@@ -145,7 +145,7 @@ def refresh_redis_zset(db, rank_type: int | None = None) -> dict:
         except Exception as e:  # noqa: BLE001
             from fwsort.fwlogs import logger
 
-            logger.warning(f"redis delete {zkey} failed: {e}")
+            logger.warning(f"redis delete {zkey} failed:{e}，traceback: {traceback.format_exc()}")
 
         for p in perfs:
             try:
@@ -163,12 +163,12 @@ def refresh_redis_zset(db, rank_type: int | None = None) -> dict:
                 except Exception as e:  # noqa: BLE001
                     from fwsort.fwlogs import logger
 
-                    logger.warning(f"redis zadd {p.uid} failed: {e}")
+                    logger.warning(f"redis zadd {p.uid} failed:{e}，traceback: {traceback.format_exc()}")
                 updated += 1
             except Exception as e:  # noqa: BLE001
                 from fwsort.fwlogs import logger
 
-                logger.warning(f"refresh_redis_zset uid={p.uid} failed: {e}")
+                logger.warning(f"refresh_redis_zset uid={p.uid} failed:{e}，traceback: {traceback.format_exc()}")
                 failed += 1
 
     return {"updated": updated, "failed": failed, "rank_types": rank_types}

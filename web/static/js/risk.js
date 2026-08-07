@@ -167,13 +167,23 @@
         ? `<span class="risk-profile-card__badge" style="background:color-mix(in srgb,var(--fwui-primary) 18%,transparent);color:var(--fwui-primary);">系统内置</span>`
         : (p.is_default ? `<span class="risk-profile-card__badge" style="background:color-mix(in srgb,#f59e0b 20%,transparent);color:#d97706;">我的默认</span>` : "");
       const paramsHtml = [
-        ["单笔比例", p.risk_single_ratio],
-        ["日亏比例", p.risk_daily_loss_ratio],
-        ["单日金额", p.max_daily_amount],
-        ["单日次数", p.max_daily_count],
-        ["连续失败", p.max_consecutive_failures],
-        ["最大回撤", p.max_drawdown_ratio],
-      ].map(([k, v]) => `<span>${k}：<b>${v == null ? "-" : fmtNum(v)}</b></span>`).join("");
+        ["单笔比例", p.risk_single_ratio, "pct"],
+        ["日亏比例", p.risk_daily_loss_ratio, "pct"],
+        ["单日金额", p.max_daily_amount, "usd"],
+        ["单日次数", p.max_daily_count, "int"],
+        ["连续失败", p.max_consecutive_failures, "int"],
+        ["最大回撤", p.max_drawdown_ratio, "pct"],
+        ["最大持仓", p.max_open_positions, "int"],
+        ["止损", p.stop_loss_ratio, "pct"],
+        ["止盈", p.take_profit_ratio, "pct"],
+      ].map(([k, v, t]) => {
+        let display;
+        if (v == null) display = "-";
+        else if (t === "pct") display = (parseFloat(v) * 100).toFixed(1) + "%";
+        else if (t === "usd") display = "$" + fmtNum(v);
+        else display = fmtNum(v);
+        return `<span>${k}：<b>${display}</b></span>`;
+      }).join("");
       return `
         <div class="${cls}" data-profile-id="${p.id}">
           <div class="risk-profile-card__header">
@@ -294,12 +304,47 @@
     try {
       const r = await FWUI.api.request("GET", `/api/risk/account/${id}`);
       const d = r.data || r;
+      const eff = d.effective_params || {};
       // 填表单
       const f = form;
+      const paramLabels = {
+        risk_single_ratio: "单笔下单比例",
+        risk_daily_loss_ratio: "日亏比例阈值",
+        max_daily_amount: "单日累计金额",
+        max_daily_count: "单日累计次数",
+        max_consecutive_failures: "连续失败阈值",
+        max_drawdown_ratio: "最大回撤比例",
+        max_open_positions: "最大持仓数",
+        stop_loss_ratio: "止损比例",
+        take_profit_ratio: "止盈比例",
+      };
       const set = (name, val) => {
         const el = f.querySelector(`[name=${name}]`);
         if (!el) return;
-        el.value = val == null ? "" : String(val);
+        if (val != null && val !== "") {
+          el.value = String(val);
+          el.style.borderColor = "";
+          el.title = "";
+        } else {
+          el.value = "";
+          // 设置 placeholder 显示实际生效值
+          const effVal = eff[name];
+          if (effVal != null) {
+            let displayVal;
+            if (name.includes("ratio") || name === "max_drawdown_ratio") {
+              displayVal = (parseFloat(effVal) * 100).toFixed(2) + "%";
+            } else if (name.includes("amount")) {
+              displayVal = "$" + fmtNum(effVal);
+            } else {
+              displayVal = fmtNum(effVal);
+            }
+            el.placeholder = `生效值: ${displayVal}（设置后覆盖）`;
+            el.title = `当前生效值来自${d.risk_profile_id ? "风控模板" : "全局默认"}`;
+          } else {
+            el.placeholder = "";
+            el.title = "";
+          }
+        }
       };
       set("risk_profile_id", d.risk_profile_id || "");
       set("risk_single_ratio", d.risk_single_ratio);
@@ -419,10 +464,39 @@
     try {
       const r = await FWUI.api.request("GET", `/api/risk/strategy/${id}`);
       const d = r.data || r;
+      const eff = d.effective_params || {};
       const set = (name, val) => {
         const el = form.querySelector(`[name=${name}]`);
         if (!el) return;
-        el.value = val == null ? "" : String(val);
+        if (name.startsWith("__")) {
+          // 只读字段直接设值
+          el.value = val == null ? "0" : String(val);
+          return;
+        }
+        if (val != null && val !== "") {
+          el.value = String(val);
+          el.style.borderColor = "";
+          el.title = "";
+        } else {
+          el.value = "";
+          // 设置 placeholder 显示实际生效值
+          const effVal = eff[name];
+          if (effVal != null) {
+            let displayVal;
+            if (name.includes("ratio") || name === "max_drawdown_ratio") {
+              displayVal = (parseFloat(effVal) * 100).toFixed(2) + "%";
+            } else if (name.includes("amount")) {
+              displayVal = "$" + fmtNum(effVal);
+            } else {
+              displayVal = fmtNum(effVal);
+            }
+            el.placeholder = `生效值: ${displayVal}（设置后覆盖）`;
+            el.title = `当前生效值来自${d.risk_profile_id ? "风控模板" : "全局默认"}`;
+          } else {
+            el.placeholder = "";
+            el.title = "";
+          }
+        }
       };
       set("risk_profile_id", d.risk_profile_id || "");
       set("risk_single_ratio", d.risk_single_ratio);
@@ -431,6 +505,9 @@
       set("max_daily_count", d.max_daily_count);
       set("max_consecutive_failures", d.max_consecutive_failures);
       set("max_drawdown_ratio", d.max_drawdown_ratio);
+      set("max_open_positions", d.max_open_positions);
+      set("stop_loss_ratio", d.stop_loss_ratio);
+      set("take_profit_ratio", d.take_profit_ratio);
       set("__read_consecutive_failures", d.consecutive_failures || 0);
       renderEffectiveParams("#risk-task-effective", d.effective_params);
     } catch (e) { FWUI.toast.error(e.message || "加载任务风控失败"); }

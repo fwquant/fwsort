@@ -93,7 +93,7 @@ async def init_all(
         import traceback as _tb
         logger.bind(action="init_all").error(f"init_all failed: {type(e).__name__}: {e}\n{_tb.format_exc()}")
         from fwsort.response import fail
-        return fail(f"init_all failed: {type(e).__name__}: {e}", code=500)
+        return fail(f"init_all failed: {type(e).__name__}:{e}，traceback: {traceback.format_exc()}", code=500)
 
 
 async def _do_init_all(db: AsyncSession, n_accounts: int, n_votes: int) -> dict:
@@ -458,7 +458,7 @@ async def trigger_task(task_name: str, _admin: User = Depends(require_admin)) ->
                 message="task executed synchronously (Celery broker unavailable in dev mode)",
             )
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"sync fallback for {task_name} failed: {e}")
+            logger.warning(f"sync fallback for {task_name} failed:{e}，traceback: {traceback.format_exc()}")
             return success(
                 {"task_id": f"local-{task_name}", "task": task_name, "error": str(e), "mode": "sync-fallback-failed"},
                 message="task sync fallback failed",

@@ -366,7 +366,7 @@ async def init_config_from_db() -> None:
                 f"📊 数据库配置已加载: {len(db_configs)} 项 | APP_PORT={settings.APP_PORT} | TRADE_MODE={settings.TRADE_MODE}")
     except Exception as e:
         from fwsort.fwlogs import logger
-        logger.warning(f"从数据库加载配置失败（将使用代码默认值）: {e}")
+        logger.warning(f"从数据库加载配置失败（将使用代码默认值）:{e}，traceback: {traceback.format_exc()}")
 
 
 if __name__ == '__main__':

@@ -380,7 +380,7 @@ def _init_demo_db_sync() -> None:
                 logger.info(f"WP-06: seeded {len(agents)} rental orders")
 
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"WP-06 demo sync init failed: {type(e).__name__}: {e}")
+        logger.warning(f"WP-06 demo sync init failed: {type(e).__name__}:{e}，traceback: {traceback.format_exc()}")
 
 
 async def _seed_demo_redis_zset() -> None:
@@ -413,7 +413,7 @@ async def _seed_demo_redis_zset() -> None:
                     await _global_redis.zadd(key, {acc.uid: score})
             logger.info(f"WP-06: seeded Redis ZSet with {len(perfs)} accounts x 5 rank types")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"WP-06: failed to seed Redis ZSet: {e}")
+        logger.warning(f"WP-06: failed to seed Redis ZSet:{e}，traceback: {traceback.format_exc()}")
 
 
 @asynccontextmanager
@@ -427,7 +427,7 @@ async def lifespan(app: FastAPI):
         try:
             await ensure_order_log_index()
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"ES init failed (ignored, will run without ES): {type(e).__name__}: {e}")
+            logger.warning(f"ES init failed (ignored, will run without ES): {type(e).__name__}:{e}，traceback: {traceback.format_exc()}")
 
     # 主数据库建表（幂等，首次启动必须）
     from fwsort.database import init_db
@@ -441,7 +441,7 @@ async def lifespan(app: FastAPI):
             # 新架构：信号源由 manager._discover_providers() 自动发现
             logger.info("[signal-providers] auto-discovered %d providers", len(list_providers()))
         except Exception as e:
-            logger.warning(f"[signal-providers] sync failed: {e}")
+            logger.warning(f"[signal-providers] sync failed:{e}，traceback: {traceback.format_exc()}")
     asyncio.create_task(_sync_signal_providers())
 
     # 从数据库加载配置（种子默认值 + 加载当前值覆盖 settings）
@@ -452,7 +452,7 @@ async def lifespan(app: FastAPI):
             from fwsort.config import init_config_from_db
             await init_config_from_db()
         except Exception as e:
-            logger.warning(f"从数据库加载配置失败（将使用代码默认值）: {e}")
+            logger.warning(f"从数据库加载配置失败（将使用代码默认值）:{e}，traceback: {traceback.format_exc()}")
 
     asyncio.create_task(_load_db_config())
 
@@ -474,7 +474,7 @@ async def lifespan(app: FastAPI):
             status = get_dispatcher_status()
             logger.info("[AutoStrategyDispatcher] 状态: {}", status)
         except Exception as e:
-            logger.warning(f"[AutoStrategyDispatcher] 启动失败（非致命）: {e}")
+            logger.warning(f"[AutoStrategyDispatcher] 启动失败（非致命）:{e}，traceback: {traceback.format_exc()}")
     asyncio.create_task(_start_auto_strategy_dispatcher())
 
     logger.info(f"fwsort started | env={settings.APP_ENV} | mode={settings.TRADE_MODE} | demo={settings.APP_DEMO_MODE}")
@@ -484,19 +484,19 @@ async def lifespan(app: FastAPI):
         from fwsort.strategy.dispatcher import stop_dispatcher
         stop_dispatcher()
     except Exception as e:
-        logger.warning(f"[AutoStrategyDispatcher] 停止失败: {e}")
+        logger.warning(f"[AutoStrategyDispatcher] 停止失败:{e}，traceback: {traceback.format_exc()}")
 
     try:
         await close_es_client()
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"ES close error: {type(e).__name__}: {e}")
+        logger.warning(f"ES close error: {type(e).__name__}:{e}，traceback: {traceback.format_exc()}")
     # 清理 Polymarket 网关 httpx 连接
     try:
         if polymarket_router._client is not None:
             await polymarket_router._client.close()
             polymarket_router._client = None
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"Polymarket client close error: {type(e).__name__}: {e}")
+        logger.warning(f"Polymarket client close error: {type(e).__name__}:{e}，traceback: {traceback.format_exc()}")
     logger.info("fwsort shutting down")
 
 
@@ -1225,7 +1225,7 @@ async def _render_strategy_page(demo: bool = False, initial_tab: str = "auto-tas
 # --- 生产模式路由 ---
 @app.get("/", response_class=HTMLResponse)
 async def index() -> HTMLResponse:
-    return await _render_page("index")
+    return await _render_strategy_page(initial_tab="leaderboard")
 
 @app.get("/global", response_class=HTMLResponse)
 async def global_ranking_page() -> HTMLResponse:

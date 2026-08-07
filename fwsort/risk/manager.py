@@ -29,13 +29,13 @@ class RiskProfileManager:
         return {
             "risk_single_ratio": float(settings.RISK_SINGLE_RATIO),
             "risk_daily_loss_ratio": float(settings.RISK_DAILY_LOSS_RATIO),
-            "max_daily_amount": None,   # 账户级默认不设日总额（由策略级控制）
-            "max_daily_count": None,
-            "max_consecutive_failures": None,
-            "max_drawdown_ratio": None,
-            "max_open_positions": None,
-            "stop_loss_ratio": None,
-            "take_profit_ratio": None,
+            "max_daily_amount": 2000.0,
+            "max_daily_count": 10,
+            "max_consecutive_failures": 8,
+            "max_drawdown_ratio": 0.15,
+            "max_open_positions": 3,
+            "stop_loss_ratio": 0.05,
+            "take_profit_ratio": 0.10,
         }
 
     # ---------- 参数合并：三级覆盖 ----------
@@ -151,9 +151,11 @@ class RiskProfileManager:
             if profile.risk_profile_id else None
         )
         effective = RiskProfileManager._merge(profile, template)
-        # 策略级特有的 3 个字段：优先用 profile 上的值（兼容旧任务）
-        for f in ("max_daily_amount", "max_daily_count", "max_consecutive_failures"):
-            v = getattr(profile, f, None)
-            if v is not None:
-                effective[f] = float(v) if f == "max_daily_amount" else int(v)
+        # 策略级特有的 3 个字段：优先从 AutoStrategy 表读取（用户编辑的源头，确保热加载）
+        task = db.query(AutoStrategy).filter(AutoStrategy.id == auto_strategy_id).first()
+        if task:
+            for f in ("max_daily_amount", "max_daily_count", "max_consecutive_failures"):
+                v = getattr(task, f, None)
+                if v is not None:
+                    effective[f] = float(v) if f == "max_daily_amount" else int(v)
         return profile, effective

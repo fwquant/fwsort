@@ -12,23 +12,23 @@
       <div class="fwui-nav__logo">🟣 福纹排行榜</div>
     </a>
     <div class="fwui-nav__links">
-      <!-- 榜单 -->
-      <div class="fwui-nav__dropdown" data-nav-group="ranking">
-        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/">📊 榜单</a>
-        <div class="fwui-nav__dropdown-menu">
-          <a class="fwui-nav__dropdown-item" href="/">🌍 总榜单</a>
-          <a class="fwui-nav__dropdown-item" href="/accounts">👤 我的执行账户</a>
-        </div>
-      </div>
-      <!-- 跟单 -->
-      <a class="fwui-nav__link fwui-nav__link--active" href="/follow">👥 跟单</a>
       <!-- 策略 -->
       <div class="fwui-nav__dropdown" data-nav-group="strategy">
-        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/strategy/tasks">📡 策略</a>
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link fwui-nav__link--active" href="/strategy/leaderboard">📡 策略</a>
         <div class="fwui-nav__dropdown-menu">
-          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/leaderboard">🏆 策略榜单</a>
           <a class="fwui-nav__dropdown-item" href="/strategy/auto-tasks">🤖 自动策略</a>
           <a class="fwui-nav__dropdown-item" href="/strategy/logs">📜 策略日志</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+        </div>
+      </div>
+      <!-- 账户 -->
+      <div class="fwui-nav__dropdown" data-nav-group="accounts">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/accounts" title="我的执行账户">💼 账户</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/accounts">💼 执行账户</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts/tasks">🛰 账户任务</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts/execution">⚡ 执行记录</a>
         </div>
       </div>
       <!-- 齿轮 -->
@@ -54,8 +54,16 @@
     <span class="fwui-breadcrumb__current">跟单</span>
   </div>
   <main class="fwui-main">
-    <h1 class="fwui-page-title">👥 跟单管理</h1>
+    <h1 class="fwui-page-title">👥 跟单管理 <span style="font-size:13px;font-weight:500;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:8px;">🚧 待开发 · 演示数据</span></h1>
     <p class="fwui-page-subtitle">订阅高胜算交易员，自动跟单其信号 · 支持"订阅费 + 利润分成"双轨</p>
+
+    <div style="background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(239,68,68,0.05));border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;">
+      <div style="font-size:28px;">🚧</div>
+      <div style="flex:1;">
+        <div style="font-weight:600;color:#d97706;font-size:14px;margin-bottom:4px;">功能开发中</div>
+        <div style="color:var(--fwui-text-muted);font-size:13px;line-height:1.5;">跟单功能目前仅展示演示数据，真实跟单市场、订阅扣费、利润分成等逻辑正在开发中。</div>
+      </div>
+    </div>
 
     <div class="fwui-tabs">
       <div class="fwui-tab fwui-tab--active" data-tab="market">🌟 跟单市场</div>

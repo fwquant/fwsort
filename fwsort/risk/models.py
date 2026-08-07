@@ -152,6 +152,9 @@ class StrategyRiskProfile(Base):
     risk_single_ratio: Mapped[float | None] = mapped_column(DECIMAL(5, 4), nullable=True)
     risk_daily_loss_ratio: Mapped[float | None] = mapped_column(DECIMAL(5, 4), nullable=True)
     max_drawdown_ratio: Mapped[float | None] = mapped_column(DECIMAL(5, 4), nullable=True)
+    max_open_positions: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="最大同时持仓数")
+    stop_loss_ratio: Mapped[float | None] = mapped_column(DECIMAL(5, 4), nullable=True, comment="单笔止损比例")
+    take_profit_ratio: Mapped[float | None] = mapped_column(DECIMAL(5, 4), nullable=True, comment="单笔止盈比例")
 
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, comment="当前连续失败次数（旧 AutoStrategy.consecutive_failures 迁移至此）")
 

@@ -103,6 +103,9 @@ class StrategyRiskProfileOut(BaseModel):
     risk_single_ratio: Optional[float]
     risk_daily_loss_ratio: Optional[float]
     max_drawdown_ratio: Optional[float]
+    max_open_positions: Optional[int]
+    stop_loss_ratio: Optional[float]
+    take_profit_ratio: Optional[float]
     consecutive_failures: int
     effective_params: dict = Field(default_factory=dict)
 

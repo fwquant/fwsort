@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>福纹排行榜 · FWQuant</title>
+  <title>策略榜单 · FWQuant</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -13,23 +13,23 @@
       <div class="fwui-nav__logo">🟣 福纹排行榜</div>
     </a>
     <div class="fwui-nav__links">
-      <!-- 榜单 -->
-      <div class="fwui-nav__dropdown" data-nav-group="ranking">
-        <a class="fwui-nav__dropdown-trigger fwui-nav__link fwui-nav__link--active" href="/">📊 榜单</a>
-        <div class="fwui-nav__dropdown-menu">
-          <a class="fwui-nav__dropdown-item" href="/">🌍 总榜单</a>
-          <a class="fwui-nav__dropdown-item" href="/accounts">👤 我的执行账户</a>
-        </div>
-      </div>
-      <!-- 跟单 -->
-      <a class="fwui-nav__link" href="/follow">👥 跟单</a>
       <!-- 策略 -->
       <div class="fwui-nav__dropdown" data-nav-group="strategy">
-        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/strategy/tasks">📡 策略</a>
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link fwui-nav__link--active" href="/strategy/leaderboard">📡 策略</a>
         <div class="fwui-nav__dropdown-menu">
-          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/leaderboard">🏆 策略榜单</a>
           <a class="fwui-nav__dropdown-item" href="/strategy/auto-tasks">🤖 自动策略</a>
           <a class="fwui-nav__dropdown-item" href="/strategy/logs">📜 策略日志</a>
+          <a class="fwui-nav__dropdown-item" href="/strategy/tasks">📡 策略管理</a>
+        </div>
+      </div>
+      <!-- 账户 -->
+      <div class="fwui-nav__dropdown" data-nav-group="accounts">
+        <a class="fwui-nav__dropdown-trigger fwui-nav__link" href="/accounts" title="我的执行账户">💼 账户</a>
+        <div class="fwui-nav__dropdown-menu">
+          <a class="fwui-nav__dropdown-item" href="/accounts">💼 执行账户</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts/tasks">🛰 账户任务</a>
+          <a class="fwui-nav__dropdown-item" href="/accounts/execution">⚡ 执行记录</a>
         </div>
       </div>
       <!-- 齿轮 -->
@@ -52,16 +52,23 @@
   <div class="fwui-breadcrumb">
     <a href="/" class="fwui-breadcrumb__home">🏠 首页</a>
     <span class="fwui-breadcrumb__sep">/</span>
-    <span class="fwui-breadcrumb__current">总榜单</span>
+    <span class="fwui-breadcrumb__current">策略榜单</span>
   </div>
   <main class="fwui-main">
-    <h1 class="fwui-page-title">福纹榜单</h1>
-    <p class="fwui-page-subtitle">多智能体策略-订单执行规则 V1.0 · 实时/日/周/月/总榜</p>
+    <h1 class="fwui-page-title">🏆 策略榜单 <span style="font-size:13px;font-weight:500;color:#6366f1;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:8px;">演示数据</span></h1>
+    <p class="fwui-page-subtitle">策略综合排名 · 按收益率 / 胜率 / 最大回撤排序</p>
 
-    <!-- 一级 Tab：总榜单 / 我的榜单 -->
+    <div style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.05));border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;">
+      <div style="font-size:28px;">📊</div>
+      <div style="flex:1;">
+        <div style="font-weight:600;color:#6366f1;font-size:14px;margin-bottom:4px;">演示模式</div>
+        <div style="color:var(--fwui-text-muted);font-size:13px;line-height:1.5;">当前为演示模式，展示的是策略榜单的演示数据。真实数据请使用主站访问。</div>
+      </div>
+    </div>
+
+    <!-- 一级 Tab：策略榜单 -->
     <div class="fwui-tabs fwui-tabs--primary">
-      <div class="fwui-tab fwui-tab--active" data-main-tab="global">🌍 总榜单</div>
-      <div class="fwui-tab" data-main-tab="my">👤 我的榜单</div>
+      <div class="fwui-tab fwui-tab--active" data-main-tab="global">🏆 策略榜单</div>
     </div>
 
     <!-- 总榜单面板 -->
@@ -86,9 +93,22 @@
 
         <div class="fwui-toolbar__group fwui-toolbar__group--sort">
           <span class="fwui-toolbar__label">排序</span>
-          <button class="fwui-btn fwui-btn--sm fwui-btn--primary" data-sort="composite">综合分</button>
-          <button class="fwui-btn fwui-btn--sm" data-sort="return">收益率</button>
-          <button class="fwui-btn fwui-btn--sm" data-sort="capital">资金量</button>
+          <div class="fwui-select-dropdown" data-sort-dropdown="global">
+            <div class="fwui-select-dropdown__trigger">
+              <span data-sort-label>综合分 ↓</span>
+              <svg class="fwui-select-dropdown__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="fwui-select-dropdown__menu">
+              <div class="fwui-select-dropdown__option is-selected" data-sort-value="composite_desc"><span class="fwui-select-dropdown__option-name">综合分 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-sort-value="composite_asc"><span class="fwui-select-dropdown__option-name">综合分 ↑</span></div>
+              <div class="fwui-select-dropdown__option" data-sort-value="return_desc"><span class="fwui-select-dropdown__option-name">收益率 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-sort-value="return_asc"><span class="fwui-select-dropdown__option-name">收益率 ↑</span></div>
+              <div class="fwui-select-dropdown__option" data-sort-value="capital_desc"><span class="fwui-select-dropdown__option-name">资金量 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-sort-value="capital_asc"><span class="fwui-select-dropdown__option-name">资金量 ↑</span></div>
+              <div class="fwui-select-dropdown__option" data-sort-value="trades_desc"><span class="fwui-select-dropdown__option-name">笔数 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-sort-value="trades_asc"><span class="fwui-select-dropdown__option-name">笔数 ↑</span></div>
+            </div>
+          </div>
         </div>
 
         <div class="fwui-toolbar__group">
@@ -113,6 +133,25 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <div class="fwui-toolbar__spacer"></div>
+
+        <!-- 刷新按钮 -->
+        <div class="fwui-toolbar__group">
+          <div class="fwui-toolbar__refresh-meta" id="refresh-meta">
+            <span class="fwui-toolbar__refresh-time" id="refresh-time" title="上次刷新时间">上次: --:--:--</span>
+            <span class="fwui-toolbar__refresh-status" id="refresh-status" style="display:none;">已刷新</span>
+          </div>
+          <button class="fwui-toolbar__refresh" id="btn-refresh" title="结算回查并刷新榜单">
+            <svg class="fwui-toolbar__refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+              <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+            </svg>
+            <span class="fwui-toolbar__refresh-label">刷新榜单</span>
+          </button>
         </div>
       </div>
 
@@ -149,6 +188,27 @@
           <span class="fwui-tag fwui-tag--primary" data-my-platform="">全部</span>
           <span class="fwui-tag" data-my-platform="polymarket">Polymarket</span>
           <span class="fwui-tag" data-my-platform="okx">OKX</span>
+        </div>
+        <div class="fwui-toolbar__group fwui-toolbar__group--sort">
+          <span class="fwui-toolbar__label">排序</span>
+          <div class="fwui-select-dropdown" data-sort-dropdown="my">
+            <div class="fwui-select-dropdown__trigger">
+              <span data-my-sort-label>综合分 ↓</span>
+              <svg class="fwui-select-dropdown__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="fwui-select-dropdown__menu">
+              <div class="fwui-select-dropdown__option is-selected" data-my-sort-value="composite_desc"><span class="fwui-select-dropdown__option-name">综合分 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="composite_asc"><span class="fwui-select-dropdown__option-name">综合分 ↑</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="apr_desc"><span class="fwui-select-dropdown__option-name">年化 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="apr_asc"><span class="fwui-select-dropdown__option-name">年化 ↑</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="drawdown_desc"><span class="fwui-select-dropdown__option-name">回撤 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="drawdown_asc"><span class="fwui-select-dropdown__option-name">回撤 ↑</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="sharpe_desc"><span class="fwui-select-dropdown__option-name">夏普 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="sharpe_asc"><span class="fwui-select-dropdown__option-name">夏普 ↑</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="trades_desc"><span class="fwui-select-dropdown__option-name">笔数 ↓</span></div>
+              <div class="fwui-select-dropdown__option" data-my-sort-value="trades_asc"><span class="fwui-select-dropdown__option-name">笔数 ↑</span></div>
+            </div>
+          </div>
         </div>
         <div class="fwui-toolbar__group">
           <span class="fwui-toolbar__label">视图</span>

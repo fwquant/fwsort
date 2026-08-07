@@ -15,7 +15,10 @@
 from __future__ import annotations
 
 import time
+import traceback
 from typing import Optional
+
+from celery.bin.result import result
 
 from fwsort.strategy.base import Direction, Signal, StrategyBase
 
@@ -67,6 +70,8 @@ class SftpStrategy(StrategyBase):
     """
 
     name: str = "hermes_sftp"
+    symbol: str = ""
+
     category: str = "external"
     description: str = "Hermes SFTP 远程信号源"
 
@@ -77,16 +82,20 @@ class SftpStrategy(StrategyBase):
     amount: float = 1.0
     long_connection: bool = False
     # 策略参数
-    UP价格上限: float = 80
-    UP价格下限: float = 10
+    UP_隐含概率_上限: float = 90
+    UP_隐含概率_下限: float = 10
+
+    DOWN_隐含概率_上限: float = 90
+    DOWN_隐含概率_下限: float = 10
 
     周期时间比例上限: float = 0.6
     周期秒数: int = None  # 自动根据标的代码调整
 
     # 显示参数（Web 可编辑 其值 ）
-    parameters = ["host", "username", "amount", "UP价格上限", "周期时间比例上限", "周期秒数"]
+    parameters = ["host", "username", "amount", "UP_隐含概率_上限", "UP_隐含概率_下限", "DOWN_隐含概率_上限",
+                  "DOWN_隐含概率_下限", "周期时间比例上限", "周期秒数"]
     # 隐藏参数
-    hidden_parameters = ["password", "long_connection"]
+    hidden_parameters = ["username", "password", "long_connection"]
 
     def __init__(
             self,
@@ -96,7 +105,10 @@ class SftpStrategy(StrategyBase):
             password: str | None = None,
             amount: float | None = None,
             long_connection: bool | None = None,
+
             max_up_price: float | None = None,
+            min_up_price: float | None = None,
+            max_down_price: float | None = None,
             min_down_price: float | None = None,
 
             max_cycle_ratio: float | None = None,
@@ -112,9 +124,15 @@ class SftpStrategy(StrategyBase):
         lc = long_connection if long_connection is not None else self.config.get("long_connection",
                                                                                  self.long_connection)
         self.long_connection = bool(lc)
-        self.UP价格上限 = max_up_price if max_up_price is not None else self.config.get("max_up_price", self.UP价格上限)
-        self.UP价格下限 = min_down_price if min_down_price is not None else self.config.get("min_down_price",
-                                                                                          self.UP价格下限)
+        self.UP_隐含概率_上限 = max_up_price if max_up_price is not None else self.config.get("max_up_price",
+                                                                                              self.UP_隐含概率_上限)
+        self.UP_隐含概率_下限 = min_up_price if min_up_price is not None else self.config.get("min_up_price",
+                                                                                              self.UP_隐含概率_下限)
+
+        self.DOWN_隐含概率_上限 = max_down_price if max_down_price is not None else self.config.get("max_down_price",
+                                                                                                    self.DOWN_隐含概率_上限)
+        self.DOWN_隐含概率_下限 = min_down_price if min_down_price is not None else self.config.get("min_down_price",
+                                                                                                    self.DOWN_隐含概率_下限)
 
         self.周期时间比例上限 = max_cycle_ratio if max_cycle_ratio is not None else self.config.get("max_cycle_ratio",
                                                                                                     self.周期时间比例上限)
@@ -168,18 +186,26 @@ class SftpStrategy(StrategyBase):
                 source=self.name,
                 timestamp=int(time.time()),
             )
-
-        raw_direction = raw.get("下单方向", "")
+        # 获得下单方向
+        raw_direction = raw.get("direction", "")
+        if raw_direction == "":
+            raw_direction = raw.get("下单方向", "")
         direction: Direction = raw_direction if raw_direction in ("UP", "DOWN") else ""
-        symbol = raw.get("标的代码", "")
 
-        return Signal(
+        # 获得标的代码
+        raw_symbol = raw.get("symbol", "")
+        if raw_symbol == "":
+            raw_symbol = raw.get("标的代码", "")
+        symbol = raw_symbol
+
+        result = Signal(
             symbol=symbol,
             amount=self.amount,
             direction=direction,
             source=self.name,
             timestamp=int(time.time()),
         )
+        return result
 
     # 健康检查
     def health_check(self) -> dict:
@@ -249,6 +275,7 @@ class SftpStrategy(StrategyBase):
             if not prices or "UP" not in prices:
                 return False, "行情获取失败：返回数据异常"
 
+            # 看涨 判断
             up_info = prices.get("UP", {})
             up_mid_str = up_info.get("midpoint")
             if up_mid_str is None:
@@ -257,11 +284,24 @@ class SftpStrategy(StrategyBase):
             up_mid = float(up_mid_str)  # 0-1 范围
             up_price_percent = up_mid * 100  # 转为百分比
 
-            if up_price_percent > self.UP价格上限:
-                return False, f"UP价格{up_price_percent:.1f}% > {self.UP价格上限}%，不开仓"
-            if up_price_percent < self.UP价格下限:
-                return False, f"UP价格{up_price_percent:.1f}% < {self.UP价格下限}%，不开仓"
+            if up_price_percent > self.UP_隐含概率_上限:
+                return False, f"UP隐含概率{up_price_percent:.1f}% > {self.UP_隐含概率_上限}%，不开仓"
+            if up_price_percent < self.UP_隐含概率_下限:
+                return False, f"UP隐含概率{up_price_percent:.1f}% < {self.UP_隐含概率_下限}%，不开仓"
 
+            # 看跌 判断
+            down_info = prices.get("DOWN", {})
+            down_mid_str = down_info.get("midpoint")
+            if down_mid_str is None:
+                return False, "行情获取失败：DOWN midpoint 为空"
+
+            down_mid = float(down_mid_str)  # 0-1 范围
+            down_price_percent = down_mid * 100  # 转为百分比
+
+            if down_price_percent > self.DOWN_隐含概率_上限:
+                return False, f"DOWN隐含概率{down_price_percent:.1f}% > {self.DOWN_隐含概率_上限}%，不开仓"
+            if down_price_percent < self.DOWN_隐含概率_下限:
+                return False, f"DOWN隐含概率{down_price_percent:.1f}% < {self.DOWN_隐含概率_下限}%，不开仓"
 
 
         except Exception as e:
@@ -271,6 +311,11 @@ class SftpStrategy(StrategyBase):
         ratio = 0.0
         if now:
             try:
+                开始时间戳 = signal.timestamp
+                结束时间戳 = now.timestamp()
+
+                当前时间戳 = time.time()
+
                 now_ts = now.timestamp()
                 cycle = self.周期秒数
                 if cycle > 0:
@@ -281,6 +326,6 @@ class SftpStrategy(StrategyBase):
                     if ratio > self.周期时间比例上限:
                         return False, f"周期已过{ratio * 100:.0f}% > {self.周期时间比例上限 * 100:.0f}%，不开单"
             except Exception as e:
-                return False, f"周期时间计算失败: {e}"
+                return False, f"周期时间计算失败: {e},traceback={traceback.format_exc()}"
 
         return True, f"条件满足(UP={up_price_percent:.1f}%, 周期={ratio * 100:.0f}%)"

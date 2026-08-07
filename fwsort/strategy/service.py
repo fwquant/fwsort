@@ -21,6 +21,8 @@ from fwsort.database import get_sync_db
 from fwsort.fwlogs import logger
 from fwsort.models import AutoStrategy, AutoStrategyLog, ExecutionAccount, StrategyTrade
 from fwsort.redis_client import sync_redis
+from fwsort.risk.manager import RiskProfileManager
+from fwsort.risk.models import StrategyRiskProfile
 from fwsort.risk.service import RiskControlService
 from fwsort.strategy import get_signal
 
@@ -121,23 +123,29 @@ def create_task(data: dict) -> dict:
             start_time = None
 
     with get_sync_db() as db:
-        # 自动创建关联的执行账户（1:1）
         gateway_name = data.get("gateway", "polymarket_f3")
-        platform = "polymarket" if "polymarket" in gateway_name else "okx"
-        account = ExecutionAccount(
-            uid=f"ACC-TASK-{uuid.uuid4().hex[:8].upper()}",
-            owner_id=1,  # admin
-            name=f"策略: {data['task_name']}",
-            platform=platform,
-            account_type=1,  # 实盘
-            initial_balance=0.0,
-            current_balance=0.0,
-            daily_pnl=0.0,
-            order_amount_usd=float(data.get("max_daily_amount", 50.0)),
-            signal_source=data.get("signal_source", "random"),
-        )
-        db.add(account)
-        db.flush()  # 拿到 account.id
+        # 如果指定了现有账户，使用关联账户；否则自动创建（1:1）
+        account_id = data.get("account_id")
+        if account_id:
+            account = db.query(ExecutionAccount).filter(ExecutionAccount.id == account_id).first()
+            if not account:
+                raise ValueError(f"指定的账户 #{account_id} 不存在")
+        else:
+            platform = "polymarket" if "polymarket" in gateway_name else "okx"
+            account = ExecutionAccount(
+                uid=f"ACC-TASK-{uuid.uuid4().hex[:8].upper()}",
+                owner_id=1,  # admin
+                name=f"策略: {data['task_name']}",
+                platform=platform,
+                account_type=1,  # 实盘
+                initial_balance=0.0,
+                current_balance=0.0,
+                daily_pnl=0.0,
+                order_amount_usd=float(data.get("max_daily_amount", 50.0)),
+                signal_source=data.get("signal_source", "random"),
+            )
+            db.add(account)
+            db.flush()  # 拿到 account.id
 
         initial_balance = float(data.get("initial_balance", 1000.0))
         task = AutoStrategy(
@@ -183,7 +191,7 @@ def update_task(task_id: int, data: dict) -> dict | None:
         updatable_fields = [
             "task_name", "signal_source", "gateway", "interval",
             "max_daily_amount", "max_daily_count", "max_consecutive_failures",
-            "loop_count",
+            "loop_count", "account_id",
         ]
         changes = {}
         for field in updatable_fields:
@@ -221,6 +229,58 @@ def update_task(task_id: int, data: dict) -> dict | None:
 
         db.commit()
         db.refresh(task)
+
+        # 同步风控参数到 StrategyRiskProfile（热加载：修改后立即生效）
+        risk_fields = ["max_daily_amount", "max_daily_count", "max_consecutive_failures"]
+        risk_changed = any(f in changes for f in risk_fields)
+        if risk_changed:
+            try:
+                profile = db.query(StrategyRiskProfile).filter(
+                    StrategyRiskProfile.auto_strategy_id == task_id
+                ).first()
+                if profile:
+                    if "max_daily_amount" in changes:
+                        profile.max_daily_amount = float(task.max_daily_amount) if task.max_daily_amount is not None else None
+                    if "max_daily_count" in changes:
+                        profile.max_daily_count = int(task.max_daily_count) if task.max_daily_count is not None else None
+                    if "max_consecutive_failures" in changes:
+                        profile.max_consecutive_failures = int(task.max_consecutive_failures) if task.max_consecutive_failures is not None else None
+                    db.commit()
+                    logger.info(
+                        f"[AutoStrategy] 同步风控参数到 StrategyRiskProfile: task={task_id} "
+                        f"changed={[f for f in risk_fields if f in changes]}"
+                    )
+                else:
+                    RiskProfileManager.get_or_create_strategy_profile(db, task_id)
+                    logger.info(f"[AutoStrategy] StrategyRiskProfile 不存在，懒创建: task={task_id}")
+            except Exception as e:
+                logger.warning(f"[AutoStrategy] 同步风控参数失败(不影响主流程): {e}")
+                db.rollback()
+
+            # 账户级冻结重评估：若账户因"连续失败"被冻结，且新阈值 > 当前失败次数，则自动解冻
+            try:
+                acc_id = task.account_id
+                if acc_id:
+                    acc_profile = RiskProfileManager.get_or_create_account_profile(db, acc_id)
+                    if acc_profile.is_frozen and "连续失败" in (acc_profile.frozen_reason or ""):
+                        cur_consec = int(profile.consecutive_failures) if profile else 0
+                        new_threshold = int(task.max_consecutive_failures) if task.max_consecutive_failures is not None else 0
+                        if new_threshold > 0 and cur_consec < new_threshold:
+                            RiskControlService.unfreeze_account(
+                                db, acc_id,
+                                reason=f"风控阈值调整为{new_threshold}，当前连续失败{cur_consec}次低于阈值，自动解冻",
+                            )
+                            # 同步重置策略级 consecutive_failures
+                            if profile:
+                                profile.consecutive_failures = 0
+                                db.commit()
+                            logger.info(
+                                f"[AutoStrategy] 账户级自动解冻: account={acc_id} "
+                                f"cur_consec={cur_consec} < new_threshold={new_threshold}"
+                            )
+            except Exception as e:
+                logger.warning(f"[AutoStrategy] 账户级冻结重评估失败(不影响主流程): {e}")
+                db.rollback()
 
         # 记录操作日志
         _add_operation_log(db, task.id, "update", 0, detail={
@@ -344,6 +404,7 @@ async def _start_task_internal(task_id: int) -> dict:
         add_progress("标记任务为活跃状态", "running")
         task.is_active = True
         task.executed_count = 0  # 重置执行次数
+        task.consecutive_failures = 0  # 重置连续失败次数（用户手动启用，视为确认重置熔断状态）
         db.commit()
         db.refresh(task)
 
@@ -386,7 +447,7 @@ async def _start_task_internal(task_id: int) -> dict:
 
 
 def stop_task(task_id: int) -> dict:
-    """停止任务：释放网关 + 标记为不活跃 + 清理 Redis 记录 + 结算回查"""
+    """停止任务：释放网关 + 标记为不活跃 + 清理 Redis 记录 + 结算回查 + 全量重算"""
     with get_sync_db() as db:
         task = db.query(AutoStrategy).filter(AutoStrategy.id == task_id).first()
         if not task:
@@ -405,6 +466,19 @@ def stop_task(task_id: int) -> dict:
                 logger.info(
                     f"[AutoStrategy] 任务停止结算回查: {len(updated)} 条交易已更新结算"
                 )
+                
+                # ===== 结算回查后触发全量重算 =====
+                try:
+                    from fwsort.strategy.settlement_service import batch_sync_after_resolution
+                    batch_result = batch_sync_after_resolution(db, task)
+                    settlement_result["batch_sync"] = batch_result
+                    logger.info(
+                        f"[AutoStrategy] 任务停止全量重算完成: {batch_result}"
+                    )
+                except Exception as batch_err:
+                    logger.warning(f"[AutoStrategy] 全量重算异常(不影响停止): {batch_err}")
+                    settlement_result["batch_sync_error"] = str(batch_err)
+                    
         except Exception as e:
             logger.warning(f"[AutoStrategy] 任务停止结算回查异常(不影响停止): {e}")
             settlement_result = {"message": f"结算回查异常: {e}"}
@@ -550,7 +624,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
             db.commit()
             return {"status": "fuse_triggered", "message": msg, "risk_event_log_id": risk_result.event_log_id}
         if not risk_result.passed:
-            status = 1
+            status = 6  # 风控拦截（黄色警告，非程序错误）
             error_message = risk_result.first_block_reason or risk_result.message
 
         # ===== 获取信号 =====
@@ -588,7 +662,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
                         raise
                 except Exception as e:
                     status = 1
-                    error_message = f"信号获取失败: {e}"
+                    error_message = f"信号获取失败: {e}，traceback: {traceback.format_exc()}"
                     logger.error(f"[AutoStrategy] ❌ 任务 {task_id} 信号获取失败: {e}")
                     break
 
@@ -750,15 +824,32 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
             except Exception as trade_err:
                 logger.warning(f"[AutoStrategy] 交易明细写入失败(不影响主流程): {trade_err}")
 
-        # 策略拦截（status=5）不计入执行、不触发熔断
-        if status != 5:
+        # 策略拦截（status=5）、风控拦截（status=6）不计入执行、不触发熔断
+        if status not in (5, 6):
             task.total_executions += 1
             task.executed_count += 1
             if status == 0 or status == 2:
                 task.total_success += 1
                 RiskControlService.update_strategy_consecutive_failures(db, task_id, success=True)
             elif status == 4:
-                pass
+                pass  # 无信号跳过，不计入失败
+            elif status == 1:
+                # 程序错误：计入失败 + 可能触发自动停止
+                task.total_failed += 1
+                RiskControlService.update_strategy_consecutive_failures(db, task_id, success=False)
+                # 严重程序错误自动停止任务
+                cf = task.consecutive_failures + 1
+                if cf >= (task.max_consecutive_failures or 5):
+                    task.is_active = False
+                    _add_operation_log(db, task_id, "auto_stopped", 1, detail={
+                        "reason": "程序连续错误过多，自动停止",
+                        "consecutive_failures": cf,
+                        "last_error": error_message,
+                    })
+                    logger.warning(
+                        f"[AutoStrategy] ⛔ 任务 {task_id} 因连续程序错误自动停止 "
+                        f"(连续{cf}次失败), 最后错误: {error_message}"
+                    )
             else:
                 task.total_failed += 1
                 RiskControlService.update_strategy_consecutive_failures(db, task_id, success=False)
@@ -793,7 +884,7 @@ def execute_task(task_id: int, manual: bool = False) -> dict:
             "execution_detail": execution_detail,
             "result_detail": result_detail,
             "order_result": order_result_json,
-            "status": ["成功", "失败", "重试成功", "熔断", "无信号", "策略拦截"][status],
+            "status": ["成功", "失败", "重试成功", "熔断", "无信号", "策略拦截", "风控拦截"][status],
             "error": error_message,
             "duration_ms": duration_ms,
             "order_id": order_id,
@@ -1113,6 +1204,7 @@ def list_all_task_logs(
 
 
 def _task_to_dict(task: AutoStrategy) -> dict:
+    is_frozen = task.consecutive_failures >= (task.max_consecutive_failures or 5)
     return {
         "id": task.id,
         "task_name": task.task_name,
@@ -1120,6 +1212,7 @@ def _task_to_dict(task: AutoStrategy) -> dict:
         "gateway": task.gateway,
         "interval": task.interval,
         "is_active": task.is_active,
+        "is_frozen": is_frozen,
         "start_time": task.start_time.isoformat() if task.start_time else None,
         "loop_count": task.loop_count,
         "executed_count": task.executed_count,
@@ -1791,6 +1884,23 @@ def _try_resolve_single_log(event_loop, pm_client, prev_log, task, db) -> dict |
     # 回写账户
     _update_account_on_resolution(db, task, prev_log, pnl_amount)
 
+    # 结算数据同步：更新 StrategyTrade、AutoStrategy 统计、净值曲线等
+    try:
+        from fwsort.strategy.settlement_service import sync_all_on_settlement
+        sync_all_on_settlement(
+            db=db,
+            task=task,
+            prev_log=prev_log,
+            pnl_amount=pnl_amount,
+            pnl_percent=pnl_percent,
+            is_profit=is_profit,
+            we_won=we_won,
+            market_slug=market_slug,
+            direction=direction,
+        )
+    except Exception as sync_err:
+        logger.warning(f"[SettlementSync] 结算数据同步失败(不影响主流程): {sync_err}")
+
     resolution_result = {
         "log_id": prev_log.id,
         "pnl_amount": pnl_amount,
@@ -1873,7 +1983,22 @@ def update_settlement_for_task(task_id: int) -> dict:
 
 
 def get_strategy_leaderboard(sort_by: str = "win_rate", sort_dir: str = "desc") -> list[dict]:
-    """策略排行榜：按策略 ID 统计开仓次数、胜负、胜率等
+    """策略排行榜：按策略名称(signal_source)为基准，合并文件夹策略与数据库交易数据
+
+    数据来源：
+    1. 文件夹策略：strategy/providers/ 下所有继承 StrategyBase 的策略 (list_providers())
+    2. 数据库策略：auto_strategy 表中已配置的任务
+    3. 交易数据：auto_strategy_log 表中的执行记录
+
+    状态标识：
+    - active:   文件夹存在 + 数据库有交易数据
+    - no_data:  文件夹存在 + 数据库无交易数据（尚未开单）
+    - removed:  文件夹不存在 + 数据库有交易数据（策略已移除）
+
+    统计规则：
+    - 总下单次数：所有成功执行的订单（status in [0,2]）
+    - 胜负判定：仅统计已结算（market_resolved=True）的订单
+    - 胜率 = 胜利次数 / (胜利 + 亏损) * 100
 
     Args:
         sort_by: 排序字段 (win_rate/win_count/loss_count/total_trades/total_pnl/profit_loss_ratio)
@@ -1884,119 +2009,228 @@ def get_strategy_leaderboard(sort_by: str = "win_rate", sort_dir: str = "desc") 
     """
     from sqlalchemy import func, case
 
+    from fwsort.strategy.manager import list_providers, get_provider_info
+
+    # 获取文件夹中所有策略 provider
+    provider_names = set(list_providers())
+    provider_info_map = {}
+    for name in provider_names:
+        info = get_provider_info(name)
+        if info:
+            provider_info_map[name] = info
+
     with get_sync_db() as db:
-        # 只统计执行日志 (log_type=0)，且状态为成功/重试成功 (status in [0,2]) 的记录代表实际开仓
-        # 胜负判定：is_profit=True 为胜，is_profit=False 且 market_resolved=True 为负
-        stats = (
-            db.query(
-                AutoStrategyLog.task_id,
-                AutoStrategy.task_name,
-                AutoStrategy.is_active,
-                AutoStrategy.signal_source,
-                AutoStrategy.gateway,
-                func.count(AutoStrategyLog.id).label("total_trades"),
-                func.sum(
-                    case(
-                        (AutoStrategyLog.is_profit == True, 1),
-                        else_=0,
-                    )
-                ).label("win_count"),
-                func.sum(
-                    case(
-                        (AutoStrategyLog.is_profit == False, 1),
-                        else_=0,
-                    )
-                ).label("loss_count"),
-                func.sum(AutoStrategyLog.pnl_amount).label("total_pnl"),
-                func.avg(AutoStrategyLog.pnl_amount).label("avg_pnl"),
-                func.max(AutoStrategyLog.executed_at).label("last_trade_at"),
-                func.min(AutoStrategyLog.executed_at).label("first_trade_at"),
-            )
-            .join(AutoStrategy, AutoStrategyLog.task_id == AutoStrategy.id)
-            .filter(
-                AutoStrategyLog.log_type == 0,
-                AutoStrategyLog.status.in_([0, 2]),
-                AutoStrategy.deleted_at.is_(None),
-            )
-            .group_by(
-                AutoStrategyLog.task_id,
-                AutoStrategy.task_name,
-                AutoStrategy.is_active,
-                AutoStrategy.signal_source,
-                AutoStrategy.gateway,
-            )
+        # ===== 1. 获取数据库中所有策略配置（按 signal_source 分组）=====
+        db_strategies = (
+            db.query(AutoStrategy)
+            .filter(AutoStrategy.deleted_at.is_(None))
             .all()
         )
 
-        result = []
-        for row in stats:
-            total = row.total_trades or 0
-            wins = row.win_count or 0
-            losses = row.loss_count or 0
-            # 胜率 = 胜利次数 / (胜利+失败) * 100
-            resolved = wins + losses
-            win_rate = round(wins / resolved * 100, 2) if resolved > 0 else 0.0
-            total_pnl = float(row.total_pnl) if row.total_pnl is not None else 0.0
-            avg_pnl = float(row.avg_pnl) if row.avg_pnl is not None else 0.0
-            # 盈亏比 = 总盈利金额 / 总亏损金额
-            # 需要分别计算盈利和亏损金额
-            pnl_stats = (
-                db.query(
-                    func.sum(
-                        case(
-                            (AutoStrategyLog.pnl_amount > 0, AutoStrategyLog.pnl_amount),
-                            else_=0,
-                        )
-                    ).label("gross_profit"),
-                    func.sum(
-                        case(
-                            (AutoStrategyLog.pnl_amount < 0, func.abs(AutoStrategyLog.pnl_amount)),
-                            else_=0,
-                        )
-                    ).label("gross_loss"),
-                )
-                .filter(
-                    AutoStrategyLog.task_id == row.task_id,
-                    AutoStrategyLog.log_type == 0,
-                    AutoStrategyLog.status.in_([0, 2]),
-                )
-                .first()
+        # 按 signal_source 分组，聚合任务基本信息
+        db_source_map: dict[str, dict] = {}
+        for s in db_strategies:
+            src = s.signal_source
+            if src not in db_source_map:
+                db_source_map[src] = {
+                    "signal_source": src,
+                    "task_ids": [],
+                    "task_names": [],
+                    "gateways": set(),
+                    "is_active_any": False,
+                    "total_executions": 0,
+                }
+            db_source_map[src]["task_ids"].append(s.id)
+            db_source_map[src]["task_names"].append(s.task_name)
+            db_source_map[src]["gateways"].add(s.gateway)
+            if s.is_active:
+                db_source_map[src]["is_active_any"] = True
+            db_source_map[src]["total_executions"] += s.total_executions or 0
+
+        # ===== 2. 构建 task_id → signal_source 映射（用于日志统计）=====
+        task_to_source: dict[int, str] = {}
+        for s in db_strategies:
+            task_to_source[s.id] = s.signal_source
+
+        # ===== 3. 总下单次数（按 signal_source 分组）=====
+        total_trades_rows = (
+            db.query(
+                AutoStrategyLog.task_id,
+                func.count(AutoStrategyLog.id).label("total_trades"),
+                func.max(AutoStrategyLog.executed_at).label("last_trade_at"),
+                func.min(AutoStrategyLog.executed_at).label("first_trade_at"),
             )
-            gross_profit = float(pnl_stats.gross_profit) if pnl_stats and pnl_stats.gross_profit else 0.0
-            gross_loss = float(pnl_stats.gross_loss) if pnl_stats and pnl_stats.gross_loss else 0.0
-            profit_loss_ratio = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (float('inf') if gross_profit > 0 else 0.0)
+            .filter(
+                AutoStrategyLog.log_type == 0,
+                AutoStrategyLog.status.in_([0, 2]),
+            )
+            .group_by(AutoStrategyLog.task_id)
+            .all()
+        )
+        # 按 signal_source 汇总
+        source_trades_map: dict[str, dict] = {}
+        for row in total_trades_rows:
+            src = task_to_source.get(row.task_id)
+            if not src:
+                continue
+            if src not in source_trades_map:
+                source_trades_map[src] = {
+                    "total_trades": 0,
+                    "last_trade_at": None,
+                    "first_trade_at": None,
+                }
+            source_trades_map[src]["total_trades"] += row.total_trades or 0
+            if row.last_trade_at:
+                if not source_trades_map[src]["last_trade_at"] or row.last_trade_at > source_trades_map[src]["last_trade_at"]:
+                    source_trades_map[src]["last_trade_at"] = row.last_trade_at
+            if row.first_trade_at:
+                if not source_trades_map[src]["first_trade_at"] or row.first_trade_at < source_trades_map[src]["first_trade_at"]:
+                    source_trades_map[src]["first_trade_at"] = row.first_trade_at
 
-            result.append({
-                "task_id": row.task_id,
-                "task_name": row.task_name,
-                "is_active": row.is_active,
-                "signal_source": row.signal_source,
-                "gateway": row.gateway,
-                "total_trades": total,
-                "win_count": wins,
-                "loss_count": losses,
-                "win_rate": win_rate,
-                "total_pnl": round(total_pnl, 2),
-                "avg_pnl": round(avg_pnl, 2),
-                "gross_profit": round(gross_profit, 2),
-                "gross_loss": round(gross_loss, 2),
-                "profit_loss_ratio": profit_loss_ratio if profit_loss_ratio != float('inf') else 999.99,
-                "first_trade_at": row.first_trade_at.isoformat() if row.first_trade_at else None,
-                "last_trade_at": row.last_trade_at.isoformat() if row.last_trade_at else None,
-            })
+        # ===== 4. 已结算交易统计（按 signal_source 分组）=====
+        resolved_rows = (
+            db.query(
+                AutoStrategyLog.task_id,
+                func.sum(case((AutoStrategyLog.is_profit == True, 1), else_=0)).label("win_count"),
+                func.sum(case((AutoStrategyLog.is_profit == False, 1), else_=0)).label("loss_count"),
+                func.sum(AutoStrategyLog.pnl_amount).label("total_pnl"),
+                func.avg(AutoStrategyLog.pnl_amount).label("avg_pnl"),
+            )
+            .filter(
+                AutoStrategyLog.log_type == 0,
+                AutoStrategyLog.status.in_([0, 2]),
+                AutoStrategyLog.market_resolved == True,
+            )
+            .group_by(AutoStrategyLog.task_id)
+            .all()
+        )
+        source_resolved_map: dict[str, dict] = {}
+        for row in resolved_rows:
+            src = task_to_source.get(row.task_id)
+            if not src:
+                continue
+            if src not in source_resolved_map:
+                source_resolved_map[src] = {"win_count": 0, "loss_count": 0, "total_pnl": 0.0, "avg_pnl_sum": 0.0, "resolved_count": 0}
+            source_resolved_map[src]["win_count"] += row.win_count or 0
+            source_resolved_map[src]["loss_count"] += row.loss_count or 0
+            source_resolved_map[src]["total_pnl"] += float(row.total_pnl) if row.total_pnl else 0.0
+            cnt = (row.win_count or 0) + (row.loss_count or 0)
+            source_resolved_map[src]["resolved_count"] += cnt
 
-        # 排序
-        sort_map = {
-            "win_rate": "win_rate",
-            "win_count": "win_count",
-            "loss_count": "loss_count",
-            "total_trades": "total_trades",
-            "total_pnl": "total_pnl",
-            "avg_pnl": "avg_pnl",
-            "profit_loss_ratio": "profit_loss_ratio",
-            "task_id": "task_id",
-        }
-        sort_field = sort_map.get(sort_by, "win_rate")
-        result.sort(key=lambda x: x.get(sort_field, 0), reverse=(sort_dir != "asc"))
+        # ===== 5. 盈亏比统计（按 signal_source 分组）=====
+        pnl_rows = (
+            db.query(
+                AutoStrategyLog.task_id,
+                func.sum(case((AutoStrategyLog.pnl_amount > 0, AutoStrategyLog.pnl_amount), else_=0)).label("gross_profit"),
+                func.sum(case((AutoStrategyLog.pnl_amount < 0, func.abs(AutoStrategyLog.pnl_amount)), else_=0)).label("gross_loss"),
+            )
+            .filter(
+                AutoStrategyLog.log_type == 0,
+                AutoStrategyLog.status.in_([0, 2]),
+                AutoStrategyLog.market_resolved == True,
+            )
+            .group_by(AutoStrategyLog.task_id)
+            .all()
+        )
+        source_pnl_map: dict[str, dict] = {}
+        for row in pnl_rows:
+            src = task_to_source.get(row.task_id)
+            if not src:
+                continue
+            if src not in source_pnl_map:
+                source_pnl_map[src] = {"gross_profit": 0.0, "gross_loss": 0.0}
+            source_pnl_map[src]["gross_profit"] += float(row.gross_profit) if row.gross_profit else 0.0
+            source_pnl_map[src]["gross_loss"] += float(row.gross_loss) if row.gross_loss else 0.0
 
-        return result
+    # ===== 6. 合并：以文件夹策略为基准，加入数据库策略 =====
+    all_sources = provider_names | set(db_source_map.keys())
+
+    result = []
+    for source_name in sorted(all_sources):
+        tt = source_trades_map.get(source_name, {})
+        resolved = source_resolved_map.get(source_name, {})
+        pnl = source_pnl_map.get(source_name, {})
+        db_info = db_source_map.get(source_name, {})
+        prov_info = provider_info_map.get(source_name, {})
+
+        total = tt.get("total_trades", 0)
+        wins = resolved.get("win_count", 0)
+        losses = resolved.get("loss_count", 0)
+        resolved_count = wins + losses
+        total_pnl_val = resolved.get("total_pnl", 0.0)
+        avg_pnl_val = total_pnl_val / resolved_count if resolved_count > 0 else 0.0
+
+        win_rate = round(wins / resolved_count * 100, 2) if resolved_count > 0 else 0.0
+
+        gross_profit = pnl.get("gross_profit", 0.0)
+        gross_loss = pnl.get("gross_loss", 0.0)
+        profit_loss_ratio = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (float('inf') if gross_profit > 0 else 0.0)
+
+        last_trade = tt.get("last_trade_at")
+        first_trade = tt.get("first_trade_at")
+
+        # 判定策略状态
+        is_in_folder = source_name in provider_names
+        is_in_db = source_name in db_source_map
+
+        if is_in_folder and is_in_db:
+            provider_status = "active"  # 正常使用中
+        elif is_in_folder and not is_in_db:
+            provider_status = "no_data"  # 文件夹有但未建自动任务
+        elif not is_in_folder and is_in_db:
+            provider_status = "past"  # 过去的策略（文件夹已删除）
+        else:
+            provider_status = "unknown"
+
+        # 显示名称：策略名 (source_name)
+        display_name = source_name
+        if prov_info:
+            display_name = prov_info.get("name", source_name)
+
+        # 类别
+        category = prov_info.get("category", "custom") if prov_info else "unknown"
+
+        result.append({
+            "strategy_name": source_name,
+            "display_name": display_name,
+            "category": category,
+            "provider_status": provider_status,  # active/no_data/removed
+            "status_label": {
+                "active": "正常",
+                "no_data": "尚未开单",
+                "past": "过去策略",
+                "unknown": "未知",
+            }.get(provider_status, provider_status),
+            "is_active": db_info.get("is_active_any", False),
+            "task_count": len(db_info.get("task_ids", [])),
+            "task_names": db_info.get("task_names", []),
+            "gateways": sorted(db_info.get("gateways", set())),
+            "total_trades": total,
+            "win_count": wins,
+            "loss_count": losses,
+            "win_rate": win_rate,
+            "total_pnl": round(total_pnl_val, 2),
+            "avg_pnl": round(avg_pnl_val, 2),
+            "gross_profit": round(gross_profit, 2),
+            "gross_loss": round(gross_loss, 2),
+            "profit_loss_ratio": profit_loss_ratio if profit_loss_ratio != float('inf') else 999.99,
+            "first_trade_at": first_trade.isoformat() if first_trade else None,
+            "last_trade_at": last_trade.isoformat() if last_trade else None,
+            "open_trades": total - resolved_count,
+        })
+
+    # 排序
+    sort_map = {
+        "win_rate": "win_rate",
+        "win_count": "win_count",
+        "loss_count": "loss_count",
+        "total_trades": "total_trades",
+        "total_pnl": "total_pnl",
+        "avg_pnl": "avg_pnl",
+        "profit_loss_ratio": "profit_loss_ratio",
+        "strategy_name": "strategy_name",
+    }
+    sort_field = sort_map.get(sort_by, "win_rate")
+    result.sort(key=lambda x: x.get(sort_field, 0), reverse=(sort_dir != "asc"))
+
+    return result

@@ -331,6 +331,9 @@ async def get_strategy_risk(
         risk_single_ratio=profile.risk_single_ratio,
         risk_daily_loss_ratio=profile.risk_daily_loss_ratio,
         max_drawdown_ratio=profile.max_drawdown_ratio,
+        max_open_positions=getattr(profile, 'max_open_positions', None),
+        stop_loss_ratio=getattr(profile, 'stop_loss_ratio', None),
+        take_profit_ratio=getattr(profile, 'take_profit_ratio', None),
         consecutive_failures=profile.consecutive_failures,
         effective_params=effective,
     )
@@ -354,7 +357,8 @@ async def patch_strategy_risk(
         for k in (
             "risk_single_ratio", "risk_daily_loss_ratio",
             "max_daily_amount", "max_daily_count", "max_consecutive_failures",
-            "max_drawdown_ratio",
+            "max_drawdown_ratio", "max_open_positions",
+            "stop_loss_ratio", "take_profit_ratio",
         ):
             if k in data:
                 setattr(p, k, data[k])

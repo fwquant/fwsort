@@ -277,3 +277,72 @@ def get_account_equity_curve(account_id: int, limit: int = 100) -> list[dict]:
                 "cumulative": round(running, 4),
             })
         return curve
+
+
+def aggregate_strategy_performance(db, strategy: AutoStrategy) -> dict | None:
+    """聚合单个策略的绩效指标
+
+    Args:
+        db: SQLAlchemy 同步 session
+        strategy: AutoStrategy ORM 对象
+
+    Returns:
+        dict: 聚合结果，无数据返回 None
+    """
+    from fwsort.strategy.strategy_ranking import _aggregate_strategy_performance
+
+    result = _aggregate_strategy_performance(db, strategy)
+    return result
+
+
+def aggregate_all_strategies() -> dict:
+    """聚合所有策略的绩效到策略榜单
+
+    Returns:
+        dict: {"updated": N, "failed": N, "details": [...]}
+    """
+    from fwsort.strategy.strategy_ranking import refresh_strategy_redis_zset
+
+    try:
+        result = refresh_strategy_redis_zset()
+        return result
+    except Exception as e:
+        logger.error(f"[Aggregator] 策略聚合失败: {e}")
+        return {"updated": 0, "failed": 0, "error": str(e)}
+
+
+def get_strategy_equity_curve(strategy_id: int, limit: int = 100) -> list[dict]:
+    """获取策略资金曲线数据（用于前端 sparkline）
+
+    Args:
+        strategy_id: AutoStrategy.id
+        limit: 最多返回点数
+
+    Returns:
+        [{"time": iso, "pnl": float, "cumulative": float}, ...]
+    """
+    with get_sync_db() as db:
+        logs = (
+            db.query(AutoStrategyLog)
+            .filter(
+                AutoStrategyLog.task_id == strategy_id,
+                AutoStrategyLog.log_type == 0,
+                AutoStrategyLog.market_resolved == True,
+                AutoStrategyLog.pnl_amount != 0,
+            )
+            .order_by(AutoStrategyLog.executed_at.asc())
+            .limit(limit)
+            .all()
+        )
+
+        curve = []
+        running = 0.0
+        for log in logs:
+            pnl = float(log.pnl_amount)
+            running += pnl
+            curve.append({
+                "time": log.executed_at.isoformat() if log.executed_at else None,
+                "pnl": round(pnl, 4),
+                "cumulative": round(running, 4),
+            })
+        return curve

@@ -129,12 +129,17 @@ async def update_one(provider_name: str, data: dict, _=Depends(require_admin)):
 
 
 @router.post("/api/signal-providers/{provider_name}/toggle")
-async def toggle_active(provider_name: str, data: dict, _=Depends(require_admin)):
-    """切换策略启用/停用状态"""
-    is_active = data.get("is_active", True)
+async def toggle_active(provider_name: str, data: dict | None = None, _=Depends(require_admin)):
+    """切换策略启用/停用状态（自动取反）
+    
+    如果请求体包含 is_active 字段则使用该值，否则自动取反当前状态。
+    """
+    data = data or {}
+    is_active = data.get("is_active", None)
     try:
         result = toggle_provider(provider_name, is_active)
-        return {"success": True, "data": result, "message": f"已{'启用' if is_active else '停用'}"}
+        new_state = result.get("is_active", False)
+        return {"success": True, "data": result, "message": f"已{'启用' if new_state else '停用'}"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

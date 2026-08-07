@@ -46,7 +46,7 @@ _PROVIDERS_DIR = os.path.join(os.path.dirname(__file__), "providers")
 
 
 def list_all_providers() -> list[dict[str, Any]]:
-    """扫描 providers/ 目录，返回所有信号源的元数据列表
+    """扫描 providers/ 目录，返回所有信号源的元数据列表（包括已停用的）
 
     Returns:
         [{
@@ -57,18 +57,140 @@ def list_all_providers() -> list[dict[str, Any]]:
         }]
     """
     result = []
+    seen_names = set()
 
-    # 从运行时注册表获取
+    # 1. 从运行时注册表获取（活跃的策略）
     for name, cls in _PROVIDERS.items():
         try:
             provider_info = _build_provider_info(name, cls)
             result.append(provider_info)
+            seen_names.add(name)
         except Exception as e:
             logger.warning(f"[FileManager] failed to build info for {name}: {e}")
 
-    # 按 ID 排序（如果有）
+    # 2. 扫描磁盘文件，找出已停用的策略（不在 _PROVIDERS 中的）
+    inactive_providers = _scan_disk_providers()
+    for name, cls in inactive_providers.items():
+        if name not in seen_names:
+            try:
+                provider_info = _build_provider_info_for_inactive(name, cls)
+                result.append(provider_info)
+                seen_names.add(name)
+            except Exception as e:
+                logger.warning(f"[FileManager] failed to build info for inactive {name}: {e}")
+
+    # 按名称排序
     result.sort(key=lambda x: x.get("name", ""))
     return result
+
+
+def _scan_disk_providers() -> dict[str, type[StrategyBase]]:
+    """扫描磁盘上的 providers/ 目录，找出所有策略类（包括未注册的）
+
+    Returns:
+        {provider_name: provider_class}
+    """
+    result = {}
+
+    if not os.path.isdir(_PROVIDERS_DIR):
+        return result
+
+    # 遍历 providers/ 目录下的所有 .py 文件
+    for root, dirs, files in os.walk(_PROVIDERS_DIR):
+        # 跳过 __pycache__ 和 _ 开头的文件
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for fname in files:
+            if not fname.endswith(".py") or fname.startswith("_"):
+                continue
+
+            fpath = os.path.join(root, fname)
+            try:
+                # 尝试导入模块
+                rel_path = os.path.relpath(fpath, _PROVIDERS_DIR)
+                module_parts = ["fwsort", "strategy", "providers"]
+                # 转换路径为模块名
+                parts = rel_path.replace(os.sep, "/").replace(".py", "").split("/")
+                module_name = ".".join(module_parts + parts)
+
+                # 跳过已导入的模块
+                if module_name in sys.modules:
+                    module = sys.modules[module_name]
+                else:
+                    module = importlib.import_module(module_name)
+
+                # 查找 StrategyBase 子类
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    if (
+                        isinstance(attr, type)
+                        and issubclass(attr, StrategyBase)
+                        and attr is not StrategyBase
+                    ):
+                        try:
+                            inst = attr()
+                            name = inst.name
+                            if name:
+                                result[name] = attr
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.debug(f"[FileManager] failed to scan {fpath}: {e}")
+
+    return result
+
+
+def _build_provider_info_for_inactive(name: str, cls: type[StrategyBase]) -> dict[str, Any]:
+    """为已停用的策略构建元数据（不依赖注册表）"""
+    file_path = get_provider_file_path(name) or ""
+    category = getattr(cls, "category", "custom")
+
+    # 获取参数信息（如果可以）
+    try:
+        all_param_info = cls.get_parameter_info()
+    except Exception:
+        all_param_info = []
+
+    visible_param_info = [p for p in all_param_info if p.get("editable", True)]
+    visible_param_names = [p["name"] for p in visible_param_info]
+    hidden_param_names = [p["name"] for p in all_param_info if not p.get("editable", True)]
+
+    # 构建 parameter_meta
+    parameter_meta = {}
+    for p in all_param_info:
+        parameter_meta[p["name"]] = {
+            "value": p.get("value", None),
+            "type": p.get("type", "str"),
+            "type_name": p.get("type_name", "字符串"),
+        }
+
+    # 已停用
+    is_active = False
+
+    # 判断是否可删除：custom 类别可删除
+    can_delete = category == SignalCategory.CUSTOM.value
+
+    display_name = getattr(cls, "display_name", "") or ""
+
+    return {
+        "provider_name": name,
+        "name": name,
+        "display_name": display_name or name,
+        "category": category,
+        "category_display": SignalCategory.display_names().get(category, category),
+        "class_name": cls.__name__,
+        "module_path": cls.__module__,
+        "file_path": file_path,
+        "description": getattr(cls, "description", ""),
+        "author": getattr(cls, "author", ""),
+        "version": getattr(cls, "version", "1.0.0"),
+        "parameters": visible_param_names,
+        "hidden_parameters": hidden_param_names,
+        "parameter_meta": parameter_meta,
+        "is_active": is_active,
+        "can_delete": can_delete,
+        "is_builtin": not can_delete,
+        "health_status": "unknown",
+    }
 
 
 def _build_provider_info(name: str, cls: type[StrategyBase]) -> dict[str, Any]:
@@ -91,6 +213,9 @@ def _build_provider_info(name: str, cls: type[StrategyBase]) -> dict[str, Any]:
             "type_name": p["type_name"],
         }
 
+    # 判断是否活跃：检查 provider 是否仍在注册表中
+    is_active = name in _PROVIDERS and cls in _PROVIDERS.values()
+
     # 判断是否可删除：custom 类别可删除
     can_delete = category == SignalCategory.CUSTOM.value
 
@@ -111,7 +236,7 @@ def _build_provider_info(name: str, cls: type[StrategyBase]) -> dict[str, Any]:
         "parameters": visible_param_names,
         "hidden_parameters": hidden_param_names,
         "parameter_meta": parameter_meta,
-        "is_active": True,
+        "is_active": is_active,
         "can_delete": can_delete,
         "is_builtin": not can_delete,
         "health_status": "unknown",
@@ -119,19 +244,37 @@ def _build_provider_info(name: str, cls: type[StrategyBase]) -> dict[str, Any]:
 
 
 def get_provider_detail(provider_name: str) -> dict[str, Any] | None:
-    """获取单个信号源的详细信息"""
+    """获取单个信号源的详细信息（包括已停用的）"""
+    # 先从注册表查找
     cls = _PROVIDERS.get(provider_name)
-    if not cls:
-        return None
-    return _build_provider_info(provider_name, cls)
+    if cls:
+        return _build_provider_info(provider_name, cls)
+
+    # 如果不在注册表中，尝试从磁盘扫描获取
+    inactive_providers = _scan_disk_providers()
+    if provider_name in inactive_providers:
+        cls = inactive_providers[provider_name]
+        return _build_provider_info_for_inactive(provider_name, cls)
+
+    return None
 
 
 def get_provider_parameters(provider_name: str) -> list[dict[str, Any]]:
     """获取信号源的可见参数列表（供前端表单渲染）"""
     cls = _PROVIDERS.get(provider_name)
-    if not cls:
-        return []
-    return cls.get_visible_parameter_info()
+    if cls:
+        return cls.get_visible_parameter_info()
+
+    # 如果不在注册表中，尝试从磁盘扫描获取
+    inactive_providers = _scan_disk_providers()
+    if provider_name in inactive_providers:
+        cls = inactive_providers[provider_name]
+        try:
+            return cls.get_visible_parameter_info()
+        except Exception:
+            return []
+
+    return []
 
 
 def update_provider_values(provider_name: str, values: dict[str, Any]) -> dict[str, Any]:
@@ -391,17 +534,29 @@ def delete_provider(provider_name: str) -> bool:
     return True
 
 
-def toggle_provider(provider_name: str, is_active: bool) -> dict[str, Any]:
+def toggle_provider(provider_name: str, is_active: bool | None = None) -> dict[str, Any]:
     """切换信号源启用状态
 
-    由于新架构中文件存在即代表活跃，停用意味着从注册表移除。
-    启用则重新加载。
+    Args:
+        provider_name: 信号源名称
+        is_active: 目标状态。None 表示自动取反（当前启用则停用，反之亦然）
+
+    Returns:
+        切换后的状态
     """
+    # 获取当前状态
+    currently_active = provider_name in _PROVIDERS
+
+    # 确定目标状态
+    if is_active is None:
+        is_active = not currently_active
+
     if is_active:
-        # 重新加载
-        reload_providers()
+        # 启用策略：从磁盘加载并注册
+        if not currently_active:
+            _activate_provider(provider_name)
     else:
-        # 从注册表移除（文件保留）
+        # 停用策略：从注册表移除（文件保留）
         if provider_name in _PROVIDERS:
             del _PROVIDERS[provider_name]
         if provider_name in _PROVIDER_CATEGORIES:
@@ -409,6 +564,41 @@ def toggle_provider(provider_name: str, is_active: bool) -> dict[str, Any]:
         reset_provider_instance(provider_name)
 
     return {"is_active": is_active}
+
+
+def _activate_provider(provider_name: str) -> None:
+    """从磁盘加载并注册一个已停用的策略
+
+    Args:
+        provider_name: 信号源名称
+
+    Raises:
+        ValueError: 无法找到或加载策略文件
+    """
+    # 首先尝试通过 reload_providers() 重新加载
+    # 但这会重新扫描所有文件，可能会影响其他已停用的策略
+    # 所以我们采用更精确的方式：直接从磁盘加载单个策略
+
+    # 尝试从磁盘扫描找到该策略
+    inactive_providers = _scan_disk_providers()
+    if provider_name in inactive_providers:
+        cls = inactive_providers[provider_name]
+        category = getattr(cls, "category", "custom")
+        register_provider(provider_name, cls, category=category)
+        logger.info(f"[FileManager] activated provider: {provider_name}")
+        return
+
+    # 如果磁盘扫描没有找到，尝试 reload_providers()
+    # 这是一个兜底方案
+    try:
+        reload_providers()
+        if provider_name in _PROVIDERS:
+            logger.info(f"[FileManager] activated provider via reload: {provider_name}")
+            return
+    except Exception as e:
+        logger.warning(f"[FileManager] reload_providers failed: {e}")
+
+    raise ValueError(f"无法找到或加载信号源 {provider_name}，请确认文件存在且格式正确")
 
 
 def run_health_check(provider_name: str) -> dict:

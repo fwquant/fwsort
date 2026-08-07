@@ -23,7 +23,6 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Any, Literal
 
-
 Direction = Literal["UP", "DOWN", ""]
 
 # 支持的参数类型
@@ -45,9 +44,9 @@ class SignalCategory(str, Enum):
     - external: 外部信号（系统自动发现）
     - custom: 自定义信号（用户创建）
     """
-    INTERNAL = "internal"
-    EXTERNAL = "external"
-    CUSTOM = "custom"
+    INTERNAL = "internal"  # 内置信号（系统自带）
+    EXTERNAL = "external"  # 外部信号（系统自动发现）
+    CUSTOM = "custom"  # 自定义信号（用户创建,默认）
 
     @classmethod
     def display_names(cls) -> dict[str, str]:
@@ -110,7 +109,7 @@ class StrategyBase(ABC):
 
     # === 元信息 ===
     name: str = "base"
-    category: str = SignalCategory.CUSTOM.value
+    category: SignalCategory | str = SignalCategory.CUSTOM.value
     description: str = ""
     author: str = ""
     version: str = "1.0.0"

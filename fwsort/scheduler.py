@@ -82,6 +82,16 @@ celery_app.conf.update(
             "task": "fwsort.scheduler.aggregate_performance",
             "schedule": crontab(minute="*/5"),
         },
+        # 定时结算回查：每 10 分钟扫描未结算交易
+        "settlement-check": {
+            "task": "fwsort.scheduler.settlement_check",
+            "schedule": crontab(minute="*/10"),
+        },
+        # 策略榜单刷新：每 5 分钟刷新策略榜单
+        "strategy-rank-refresh": {
+            "task": "fwsort.scheduler.refresh_strategy_rank",
+            "schedule": crontab(minute="*/5"),
+        },
     },
 )
 
@@ -200,7 +210,7 @@ def archive_hot_to_cold() -> dict:
                     archived += 1
                 except Exception as e:  # noqa: BLE001
                     failed += 1
-                    logger.warning(f"archive row {r.order_id} failed: {e}")
+                    logger.warning(f"archive row {r.order_id} failed:{e}，traceback: {traceback.format_exc()}")
             db.commit()
         return archived, failed
 
@@ -208,7 +218,7 @@ def archive_hot_to_cold() -> dict:
         archived, failed = asyncio.run(_run())
         logger.info(f"[scheduler] archive done: {archived} ok, {failed} failed")
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[scheduler] archive failed: {e}")
+        logger.error(f"[scheduler] archive failed:{e}，traceback: {traceback.format_exc()}")
         return {"archived": 0, "failed": 0, "error": str(e)}
 
     return {"archived": archived, "failed": failed}
@@ -369,7 +379,7 @@ def refresh_account_signals() -> dict:
                 updated += 1
             except Exception as e:  # noqa: BLE001
                 failed += 1
-                logger.warning(f"refresh signal for {a.uid} failed: {e}")
+                logger.warning(f"refresh signal for {a.uid} failed:{e}，traceback: {traceback.format_exc()}")
     result = {"updated": updated, "failed": failed, "started_at": started.isoformat()}
     _record_task_status("refresh_account_signals", "ok", result)
     logger.info(f"[scheduler] refresh_account_signals: {result}")
@@ -525,7 +535,7 @@ def auto_predict_vote_trade() -> dict:
                 success_count += 1
             except Exception as e:  # noqa: BLE001
                 fail_count += 1
-                logger.warning(f"auto_predict_vote_trade for {acc.uid} failed: {e}")
+                logger.warning(f"auto_predict_vote_trade for {acc.uid} failed:{e}，traceback: {traceback.format_exc()}")
     result = {
         "success": success_count,
         "skipped": skip_count,
@@ -562,7 +572,7 @@ def aggregate_performance() -> dict:
         _record_task_status("aggregate_performance", "ok", result)
         return result
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[scheduler] aggregate_performance failed: {e}")
+        logger.error(f"[scheduler] aggregate_performance failed:{e}，traceback: {traceback.format_exc()}")
         _record_task_status("aggregate_performance", "error", {"error": str(e)})
         return {"updated": 0, "failed": 0, "error": str(e)}
 
@@ -581,7 +591,7 @@ def _record_task_status(task_name: str, status: str, payload: dict) -> None:
     try:
         sync_redis.hset(TASK_STATUS_KEY, task_name, _json.dumps(field_map, ensure_ascii=False))
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"record task status {task_name} failed: {e}")
+        logger.warning(f"record task status {task_name} failed:{e}，traceback: {traceback.format_exc()}")
 
 
 def get_all_task_status() -> list[dict]:
@@ -600,6 +610,8 @@ def get_all_task_status() -> list[dict]:
         "flush_outbox",  # WP-09
         "auto_strategy_dispatcher",  # 自动任务调度器
         "aggregate_performance",  # 绩效聚合
+        "settlement_check",  # 定时结算回查
+        "refresh_strategy_rank",  # 策略榜单刷新
     ]
     result: list[dict] = []
     try:
@@ -726,7 +738,7 @@ def auto_strategy_dispatcher() -> dict:
                 try:
                     execute_auto_strategy.delay(task.id)
                 except Exception as e:
-                    logger.error(f"[auto_strategy_dispatcher] failed to dispatch task {task.id}: {e}")
+                    logger.error(f"[auto_strategy_dispatcher] failed to dispatch task {task.id}:{e}，traceback: {traceback.format_exc()}")
             else:
                 skipped.append(task.id)
 
@@ -752,5 +764,90 @@ def execute_auto_strategy(self, task_id: int) -> dict:
         logger.info(f"[execute_auto_strategy] task={task_id} result={result.get('status')}")
         return result
     except Exception as e:
-        logger.error(f"[execute_auto_strategy] task={task_id} failed: {e}")
+        logger.error(f"[execute_auto_strategy] task={task_id} failed:{e}，traceback: {traceback.format_exc()}")
         return {"task_id": task_id, "status": "error", "error": str(e)}
+
+
+# ========== 任务 12：定时结算回查（扫描未结算交易）==========
+@celery_app.task(name="fwsort.scheduler.settlement_check")
+def settlement_check() -> dict:
+    """每 10 分钟扫描所有活跃任务的未结算交易，触发结算回查"""
+    try:
+        from fwsort.models import AutoStrategy, AutoStrategyLog
+        from fwsort.strategy.service import _check_and_update_previous_pnl
+
+        total_updated = 0
+        total_tasks = 0
+        failed_tasks = 0
+
+        with get_sync_db() as db:
+            active_tasks = (
+                db.query(AutoStrategy)
+                .filter(
+                    AutoStrategy.is_active == True,
+                    AutoStrategy.deleted_at.is_(None),
+                    AutoStrategy.gateway == "polymarket_f3",
+                )
+                .all()
+            )
+
+            for task in active_tasks:
+                try:
+                    unresolved_count = (
+                        db.query(AutoStrategyLog)
+                        .filter(
+                            AutoStrategyLog.task_id == task.id,
+                            AutoStrategyLog.log_type == 0,
+                            AutoStrategyLog.status.in_([0, 2]),
+                            AutoStrategyLog.market_resolved == False,
+                        )
+                        .count()
+                    )
+
+                    if unresolved_count > 0:
+                        logger.info(
+                            f"[settlement_check] 任务 {task.id} ({task.task_name}) "
+                            f"有 {unresolved_count} 条未结算交易"
+                        )
+                        updated = _check_and_update_previous_pnl(db, task)
+                        total_updated += len(updated)
+                        total_tasks += 1
+
+                except Exception as e:
+                    failed_tasks += 1
+                    logger.warning(
+                        f"[settlement_check] 任务 {task.id} 结算回查失败:{e}，traceback: {traceback.format_exc()}"
+                    )
+                    continue
+
+        result = {
+            "checked_tasks": len(active_tasks),
+            "updated_logs": total_updated,
+            "tasks_with_updates": total_tasks,
+            "failed_tasks": failed_tasks,
+        }
+        _record_task_status("settlement_check", "ok", result)
+        logger.info(f"[settlement_check] completed: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"[settlement_check] failed:{e}，traceback: {traceback.format_exc()}")
+        _record_task_status("settlement_check", "error", {"error": str(e)})
+        return {"error": str(e)}
+
+
+# ========== 任务 13：策略榜单刷新（AutoStrategy → Redis）==========
+@celery_app.task(name="fwsort.scheduler.refresh_strategy_rank")
+def refresh_strategy_rank() -> dict:
+    """每 5 分钟从 AutoStrategy 聚合绩效到 Redis 策略榜单"""
+    try:
+        from fwsort.strategy.strategy_ranking import refresh_strategy_redis_zset
+
+        result = refresh_strategy_redis_zset()
+        _record_task_status("refresh_strategy_rank", "ok", result)
+        return result
+
+    except Exception as e:
+        logger.error(f"[refresh_strategy_rank] failed:{e}，traceback: {traceback.format_exc()}")
+        _record_task_status("refresh_strategy_rank", "error", {"error": str(e)})
+        return {"updated": 0, "failed": 0, "error": str(e)}

@@ -59,7 +59,7 @@ def enqueue_order_log_event(db, order_log: Any) -> int | None:
         db.flush()
         return evt.id
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[outbox] enqueue failed: {e}")
+        logger.warning(f"[outbox] enqueue failed:{e}，traceback: {traceback.format_exc()}")
         return None
 
 
@@ -109,7 +109,7 @@ async def dispatch_event(event: Any) -> bool:
         )
         return True
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[outbox] dispatch event {event.id} failed: {e}")
+        logger.warning(f"[outbox] dispatch event {event.id} failed:{e}，traceback: {traceback.format_exc()}")
         return False
 
 
@@ -177,7 +177,7 @@ def flush_outbox_sync() -> dict:
             skipped = len(events) - success - failed
             db.commit()
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[outbox] flush_outbox_sync error: {e}")
+        logger.error(f"[outbox] flush_outbox_sync error:{e}，traceback: {traceback.format_exc()}")
         return {"success": 0, "failed": 0, "skipped": 0, "total": 0, "error": str(e)}
     summary = {"success": success, "failed": failed, "skipped": skipped, "total": len(events)}
     logger.info(f"[outbox] flush: {summary}")

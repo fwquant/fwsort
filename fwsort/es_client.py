@@ -24,7 +24,7 @@ def init_es_client() -> None:
             retry_on_timeout=False,
         )
     except Exception as e:
-        logger.warning(f"ES client initialization failed: {e}")
+        logger.warning(f"ES client initialization failed:{e}，traceback: {traceback.format_exc()}")
 
 
 def get_es_client() -> Optional[AsyncElasticsearch]:
@@ -94,4 +94,4 @@ async def close_es_client() -> None:
             await async_es.close()
             logger.info("ES client closed")
         except Exception as e:
-            logger.warning(f"Error closing ES client: {e}")
+            logger.warning(f"Error closing ES client:{e}，traceback: {traceback.format_exc()}")

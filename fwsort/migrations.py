@@ -52,6 +52,10 @@ _PATCHES = [
     ("auto_strategy", "max_drawdown", "FLOAT", "0"),
     ("auto_strategy", "sharpe_ratio", "FLOAT", "0"),
     ("auto_strategy", "profit_loss_ratio", "FLOAT", "0"),
+    # ===== 20260807 风控模块：strategy_risk_profile 新增 3 个字段 =====
+    ("strategy_risk_profile", "max_open_positions", "INTEGER", None),
+    ("strategy_risk_profile", "stop_loss_ratio", "NUMERIC(10,4)", None),
+    ("strategy_risk_profile", "take_profit_ratio", "NUMERIC(10,4)", None),
 ]
 
 # WP-03：本次新增的整张表（无法用 ADD COLUMN 表达，独立处理）
@@ -357,6 +361,9 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
             max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
             max_drawdown_ratio       NUMERIC(10, 4),
+            max_open_positions       INTEGER,
+            stop_loss_ratio          NUMERIC(10, 4),
+            take_profit_ratio        NUMERIC(10, 4),
             consecutive_failures     INTEGER  DEFAULT 0,
             created_at               DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at               DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -377,6 +384,9 @@ _NEW_TABLES_DDL: list[tuple[str, str]] = [
             max_daily_count          INTEGER,
             max_consecutive_failures INTEGER,
             max_drawdown_ratio       NUMERIC(10, 4),
+            max_open_positions       INTEGER,
+            stop_loss_ratio          NUMERIC(10, 4),
+            take_profit_ratio        NUMERIC(10, 4),
             consecutive_failures     INTEGER   DEFAULT 0,
             created_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -570,7 +580,7 @@ def _create_login_attempt_indexes(insp) -> list[str]:
                 conn.execute(text(sql))
                 created.append(name)
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"create index {name} failed (skip): {e}")
+                logger.warning(f"create index {name} failed (skip):{e}，traceback: {traceback.format_exc()}")
     return created
 
 
@@ -617,7 +627,7 @@ def run_migrations_for_engine(engine) -> list[str]:
             applied.append(f"{table_name} (CREATE TABLE)")
             logger.info(f"migration applied: CREATE TABLE {table_name}")
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"create {table_name} failed (skip): {e}")
+            logger.warning(f"create {table_name} failed (skip):{e}，traceback: {traceback.format_exc()}")
 
     # 2) 补列（先补列，后建索引——部分索引依赖新列）
     for table, column, sql_type, default_sql in _PATCHES:
@@ -638,7 +648,7 @@ def run_migrations_for_engine(engine) -> list[str]:
                 applied.append(f"{table}.{column} ({actual_type})")
                 logger.info(f"migration applied: {ddl}")
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"alter table {table} add {column} failed: {e}")
+                logger.warning(f"alter table {table} add {column} failed:{e}，traceback: {traceback.format_exc()}")
 
     # 3) 索引（先删除旧表名遗留索引，再创建新索引）
     try:
@@ -647,22 +657,22 @@ def run_migrations_for_engine(engine) -> list[str]:
                 try:
                     conn.execute(text(f"DROP INDEX IF EXISTS {old_idx}"))
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(f"drop index {old_idx} failed (skip): {e}")
+                    logger.warning(f"drop index {old_idx} failed (skip):{e}，traceback: {traceback.format_exc()}")
             for name, sql in _INDEX_DDL:
                 try:
                     conn.execute(text(sql))
                     applied.append(name)
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(f"create index {name} failed (skip): {e}")
+                    logger.warning(f"create index {name} failed (skip):{e}，traceback: {traceback.format_exc()}")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"create indexes failed: {e}")
+        logger.warning(f"create indexes failed:{e}，traceback: {traceback.format_exc()}")
 
     # 4) migrate_030：把旧表中的风控参数 / 冻结状态回填到新风控表
     try:
         migrated = _migrate_030_risk_backfill(engine)
         applied.extend(migrated)
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"migrate_030 risk backfill failed (skip): {e}")
+        logger.warning(f"migrate_030 risk backfill failed (skip):{e}，traceback: {traceback.format_exc()}")
 
     return applied
 
@@ -716,7 +726,7 @@ def _migrate_030_risk_backfill(engine) -> list[str]:
                            })
                 applied.append("risk_profile: system default inserted")
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"insert system risk_profile failed: {e}")
+                logger.warning(f"insert system risk_profile failed:{e}，traceback: {traceback.format_exc()}")
 
         # 2. 给所有 execution_account 补一个 account_risk_profile（幂等）
         #    - 同时把 ExecutionAccount.risk_frozen 镜像过来

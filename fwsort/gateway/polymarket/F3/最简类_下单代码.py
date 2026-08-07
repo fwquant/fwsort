@@ -33,9 +33,27 @@ async def _retry_call(func, *args, **kwargs):
                 raise last_err
 
 
-def 获得当前时间值(周期: int = 4 * 60 * 60):
-    result = str(((int(time.time()) // 周期)) * (周期))
-    return result
+def 获取周期(self, 标的代码: str) -> int:
+    if '-5m-' in 标的代码.lower():
+        return 5 * 60  # 5分钟 300 秒
+    elif '-15m-' in 标的代码.lower():
+        return 15 * 60  # 15分钟 900 秒
+    elif '-4h-' in 标的代码.lower():
+        return 4 * 60 * 60  # 4小时 14400 秒
+    return 4 * 60 * 60  # 默认4小时 14400 秒
+
+
+def 获得当前区间时间戳(标的代码: str = ""):
+    if '-5m-' in 标的代码.lower():
+        周期 = 5 * 60  # 5分钟 300 秒
+    elif '-15m-' in 标的代码.lower():
+        周期 = 15 * 60  # 15分钟 900 秒
+    elif '-4h-' in 标的代码.lower():
+        周期 = 4 * 60 * 60  # 4小时 14400 秒
+    else:
+        周期 = 1  # 当前时间戳 1秒周期对齐
+    当前区间时间戳 = str(((int(time.time()) // 周期)) * (周期))
+    return 当前区间时间戳, 周期
 
 
 #
@@ -46,6 +64,7 @@ class pm类():
         self.client = None
         self.标的代码 = 标的代码
         self._initialized = False
+        self.当前区间时间戳 = None
 
     async def _ensure_initialized(self):
         if not self._initialized:
@@ -79,8 +98,12 @@ class pm类():
         self.client = client
 
     async def 获得市场(self, 标的代码: str = "btc-updown-4h-{epoch}"):
-        周期 = self._get周期(标的代码)
-        slug = 标的代码.replace("{epoch}", 获得当前时间值(周期=周期))
+        self.当前区间时间戳, self._周期 = 获得当前区间时间戳(标的代码=标的代码)
+        slug = 标的代码
+        slug = slug.replace("{epoch}", self.当前区间时间戳)
+        slug = slug.replace("{时间值}", self.当前区间时间戳)
+        slug = slug.replace("{时间戳}", self.当前区间时间戳)
+
         market = await _retry_call(self.client.get_market, slug=slug)
         print(f"3、【获取市场】 ，market={market}")
         self.market = market
@@ -92,7 +115,7 @@ class pm类():
                    , shares: Decimal = Decimal(1)
                    , side: OrderSide = "BUY"):
         await self._ensure_initialized()
-        current_slug = 标的代码.replace("{epoch}", 获得当前时间值(周期=self._get周期(标的代码)))
+        current_slug = 标的代码.replace("{epoch}", self.当前区间时间戳)
         if self.market is None or getattr(self.market, "slug", "") != current_slug:
             self.market = await self.获得市场(标的代码=标的代码)
 
@@ -117,19 +140,10 @@ class pm类():
         print(f"4、【下市价单】 side={side}, response = {response}")
         return response
 
-    def _get周期(self, 标的代码: str) -> int:
-        if '-5m-' in 标的代码.lower():
-            return 5 * 60  # 5分钟 300 秒
-        elif '-15m-' in 标的代码.lower():
-            return 15 * 60  # 15分钟 900 秒
-        elif '-4h-' in 标的代码.lower():
-            return 4 * 60 * 60  # 4小时 14400 秒
-        return 4 * 60 * 60  # 默认4小时 14400 秒
-
     async def 获得_updown价格(self, 标的代码: str = "btc-updown-4h-{epoch}") -> dict:
         """获得当前市场 UP 和 DOWN 的最新价格(以 USDC 计价, 范围 0-1)"""
         await self._ensure_initialized()
-        current_slug = 标的代码.replace("{epoch}", 获得当前时间值(周期=self._get周期(标的代码)))
+        current_slug = 标的代码.replace("{epoch}", self.当前区间时间戳)
         if self.market is None or getattr(self.market, "slug", "") != current_slug:
             self.market = await self.获得市场(标的代码=标的代码)
 
@@ -237,7 +251,7 @@ class pm类():
                     print(f"  [{i}] 赎回结果 = {result}")
                     results.append({"type": "REDEEM", "condition_id": condition_id, "result": str(result)})
                 except Exception as e:
-                    print(f"  [{i}] 赎回失败: {e}")
+                    print(f"  [{i}] 赎回失败:{e}，traceback: {traceback.format_exc()}")
                     results.append({"type": "FAILED", "condition_id": condition_id, "error": str(e)})
 
         return results
@@ -290,7 +304,7 @@ class pm类():
                         print(f".X、【平仓】无法确定限价，跳过此持仓")
                         results.append({"type": "SKIPPED", "reason": "无流动性且无法确定限价", "size": str(pos.size)})
                 except Exception as e:
-                    print(f".X、【平仓】限价单也失败: {e}")
+                    print(f".X、【平仓】限价单也失败:{e}，traceback: {traceback.format_exc()}")
                     results.append({"type": "FAILED", "reason": str(e), "size": str(pos.size)})
                 continue
 
@@ -338,7 +352,7 @@ class pm类():
                             results.append({"type": "FAILED", "reason": f"市价失败:{err_str} | 限价也失败:{e2}",
                                             "size": str(pos.size)})
                     else:
-                        print(f".3、【平仓】市价单失败: {e}")
+                        print(f".3、【平仓】市价单失败:{e}，traceback: {traceback.format_exc()}")
                         results.append({"type": "FAILED", "reason": err_str, "size": str(pos.size)})
         if dust_positions:
             total_dust_value = sum(d[2] for d in dust_positions)
@@ -361,7 +375,7 @@ class pm类():
             return result
 
         try:
-            current_slug = 标的代码.replace("{epoch}", 获得当前时间值(周期=self._get周期(标的代码)))
+            current_slug = 标的代码.replace("{epoch}", self.当前区间时间戳)
             if self.market is None or getattr(self.market, "slug", "") != current_slug:
                 print(f"【连接信息】 市场已过期，重新获取...")
                 self.market = await self.获得市场(标的代码=标的代码)
@@ -424,7 +438,7 @@ class pm类():
                         "asks_count": len(order_book.asks),
                     }
                 except Exception as e:
-                    print(f"  ── {label} 查询失败: {e}")
+                    print(f"  ── {label} 查询失败:{e}，traceback: {traceback.format_exc()}")
                     return {"error": str(e)}
 
             up盘口, down盘口 = await asyncio.gather(
@@ -435,7 +449,7 @@ class pm类():
 
             print(f"══════════════════════════════════════")
         except Exception as e:
-            print(f"【连接信息】 ❌ 查询异常: {e}")
+            print(f"【连接信息】 ❌ 查询异常:{e}，traceback: {traceback.format_exc()}")
             result["错误"] = str(e)
 
         return result
@@ -539,55 +553,50 @@ class pm类():
         return 标的代码.replace("-{epoch}", "")
 
     async def 查询结算方向历史(self, 标的代码: str = "btc-updown-15m-{epoch}", 数量: int = 20) -> list:
-        """查询历史结算记录（公开数据 Gamma API，一次请求拿全部）。
-        通过事件 slug 一次性获取该事件下的所有市场，从当前周期往前取最近N个。
+        """查询历史结算记录（公开数据 Gamma API）。
+
+        实现说明（已修复 2026-08-06）：
+        - Polymarket 的 Gamma API 中，每个 epoch 对应一个独立的 event（slug 形如 btc-updown-15m-1786024800）
+        - 原实现用前缀 slug（如 btc-updown-15m）查询 /events，会返回空列表
+        - 修复：对每个目标 epoch 单独构造完整 slug，分别请求 /events?slug=<完整slug>
+        - 每个 event 只包含一个 market，直接取 markets[0] 解析结算数据
         """
-        周期 = self._get周期(标的代码)
-        事件slug = self._从标的代码提取事件slug(标的代码)
-        当前epoch = int(time.time()) // 周期 * 周期
+        当前区间时间戳, 周期 = 获得当前区间时间戳(标的代码=标的代码)
 
+        # 构造目标 epoch 列表（从新到旧）
+        target_epochs = [int(当前区间时间戳) - i * 周期 for i in range(数量)]
+
+        results = []
+        not_found_slugs = []
         async with httpx.AsyncClient(timeout=15) as client:
-            item = {"事件slug": 事件slug}
-
-            try:
-                resp = await client.get(
-                    "https://gamma-api.polymarket.com/events",
-                    params={"slug": 事件slug},
-                )
-                data = resp.json()
-                events_list = data.get("events", data.get("data", [])) if isinstance(data, dict) else data
-
-                if not events_list:
-                    item["结算状态"] = "事件不存在"
-                    item["摘要"] = f"事件slug={事件slug} 未找到"
-                    return [item]
-
-                event = events_list[0]
-                all_markets = event.get("markets", [])
-
-                if not all_markets:
-                    item["结算状态"] = "事件无市场"
-                    item["摘要"] = f"事件slug={事件slug} 下无市场数据"
-                    return [item]
-
-                target_epochs = set()
-                for i in range(数量):
-                    target_epochs.add(当前epoch - i * 周期)
-
-                results = []
-                for m in all_markets:
-                    slug = m.get("slug", "")
-                    try:
-                        epoch_val = int(slug.rsplit("-", 1)[-1])
-                    except (ValueError, IndexError):
-                        continue
-                    if epoch_val not in target_epochs:
+            for epoch in target_epochs:
+                slug = 标的代码.replace("{epoch}", str(epoch))
+                try:
+                    resp = await client.get(
+                        "https://gamma-api.polymarket.com/events",
+                        params={"slug": slug},
+                    )
+                    data = resp.json()
+                    events_list = (
+                        data.get("events", data.get("data", []))
+                        if isinstance(data, dict)
+                        else data
+                    )
+                    if not events_list:
+                        not_found_slugs.append(slug)
                         continue
 
+                    event = events_list[0]
+                    all_markets = event.get("markets", [])
+                    if not all_markets:
+                        continue
+
+                    # 一个 event 只有一个 market
+                    m = all_markets[0]
                     parsed = self._解析市场结算数据(m)
                     row = {
                         "slug": slug,
-                        "epoch": epoch_val,
+                        "epoch": epoch,
                         "title": m.get("question") or m.get("title"),
                         "outcomes": parsed["outcomes"],
                         "prices": parsed["prices"],
@@ -597,28 +606,26 @@ class pm类():
                         row["获胜方向"] = parsed["获胜方向"]
                         row["获胜价格"] = parsed["获胜价格"]
                         row["失败价格"] = parsed["失败价格"]
-                    row["摘要"] = f"epoch={epoch_val} {parsed['摘要']}"
+                    row["摘要"] = f"epoch={epoch} {parsed['摘要']}"
                     results.append(row)
+                except Exception as e:
+                    print(f"【结算历史】epoch={epoch} 查询异常:{e}，traceback: {traceback.format_exc()}")
 
-                results.sort(key=lambda x: x["epoch"], reverse=True)
-                results = results[:数量]
+        results.sort(key=lambda x: x["epoch"], reverse=True)
 
-                if not results:
-                    item["结算状态"] = "无匹配市场"
-                    item["摘要"] = f"事件slug={事件slug} 下无匹配当前周期的市场"
-                    results = [item]
+        if not results:
+            item = {"事件slug": 标的代码, "结算状态": "无匹配市场",
+                    "摘要": f"查询 {len(target_epochs)} 个 epoch 均未命中"}
+            return [item]
 
-                已结算 = sum(1 for r in results if r.get("结算状态") == "已结算")
-                未结算 = sum(1 for r in results if r.get("结算状态") == "未结算")
-                print(f"【结算历史】共 {len(results)} 条 | 已结算={已结算} | 未结算={未结算}")
-                return results
-
-            except Exception as e:
-                item["错误"] = str(e)
-                item["结算状态"] = "查询异常"
-                item["摘要"] = f"查询异常: {e}"
-                print(f"【结算历史】查询异常: {e}")
-                return [item]
+        已结算 = sum(1 for r in results if r.get("结算状态") == "已结算")
+        未结算 = sum(1 for r in results if r.get("结算状态") == "未结算")
+        未找到 = len(not_found_slugs)
+        print(
+            f"【结算历史】共 {len(results)} 条 | 已结算={已结算} | 未结算={未结算}"
+            + (f" | 未开放={未找到}" if 未找到 else "")
+        )
+        return results
 
     async def 本人持仓结算方向(self, 数量: int = 10) -> list:
         """查询本人持仓对应市场的结算方向（最近N个）。
@@ -653,7 +660,10 @@ class pm类():
 
         market_data_map = {}
         async with httpx.AsyncClient(timeout=15) as client:
+            # 先尝试用前缀（如 btc-updown-15m）查询，若无结果再用完整 slug
             for event_slug in event_slugs_needed:
+                found = False
+                # 1) 尝试按前缀查 events（可能返回空，因为每个 epoch 是独立 event）
                 try:
                     resp = await client.get(
                         "https://gamma-api.polymarket.com/events",
@@ -661,14 +671,39 @@ class pm类():
                     )
                     data = resp.json()
                     events_list = data.get("events", data.get("data", [])) if isinstance(data, dict) else data
-                    if not events_list:
-                        continue
-                    for m in events_list[0].get("markets", []):
-                        mslug = m.get("slug", "")
-                        if mslug:
-                            market_data_map[mslug] = self._解析市场结算数据(m)
+                    if events_list:
+                        for m in events_list[0].get("markets", []):
+                            mslug = m.get("slug", "")
+                            if mslug:
+                                market_data_map[mslug] = self._解析市场结算数据(m)
+                                found = True
                 except Exception:
                     pass
+
+                # 2) 若前缀查询为空（正常情况），用完整 slug 逐个查
+                if not found:
+                    # 遍历持仓中属于此前缀的 slug，用完整 slug 单独查询
+                    for slug, pos in recent_items:
+                        try:
+                            prefix = slug.rsplit("-", 1)[0]
+                        except (ValueError, IndexError):
+                            continue
+                        if prefix != event_slug:
+                            continue
+                        try:
+                            resp = await client.get(
+                                "https://gamma-api.polymarket.com/events",
+                                params={"slug": slug},
+                            )
+                            data = resp.json()
+                            events_list = data.get("events", data.get("data", [])) if isinstance(data, dict) else data
+                            if events_list:
+                                for m in events_list[0].get("markets", []):
+                                    mslug = m.get("slug", "")
+                                    if mslug:
+                                        market_data_map[mslug] = self._解析市场结算数据(m)
+                        except Exception:
+                            pass
 
         results = []
         for slug, pos in recent_items:

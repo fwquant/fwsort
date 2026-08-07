@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import random
 
-from fwsort.strategy.base import Direction, Signal, StrategyBase
+from fwsort.gateway.polymarket.F3.最简类_下单代码 import 获得当前区间时间戳
+from fwsort.strategy.base import Direction, Signal, StrategyBase, SignalCategory
 
 
 class RandomStrategy(StrategyBase):
@@ -30,18 +31,16 @@ class RandomStrategy(StrategyBase):
     """
 
     name: str = "random"
-    category: str = "internal"
+    category: SignalCategory = SignalCategory.CUSTOM
     description: str = "随机方向信号源，用于测试"
 
-    # 显示参数（Web 可编辑）
-    parameters = ["interval_seconds", "amount"]
-    # 隐藏参数
-    hidden_parameters = ["base_symbol"]
-
     # 参数默认值（会被 Web 界面修改）
-    interval_seconds: int = 3600
-    amount: float = 2.5
-    base_symbol: str = "btc-updown-4h"
+    base_symbol: str = "btc-updown-4h-{时间戳}"
+    amount: float = 1
+
+    # 显示参数（Web 可编辑）
+    parameters = ["amount", "base_symbol"]
+    hidden_parameters = ["base_symbol"]  # 隐藏参数
 
     def __init__(self, config_json: dict | None = None):
         self.config = config_json or {}
@@ -55,18 +54,21 @@ class RandomStrategy(StrategyBase):
 
         时间戳对齐到 interval_seconds 窗口（与 F3 pm类._get周期 逻辑一致）
         """
-        from fwsort.gateway.polymarket.F3.最简类_下单代码 import 获得当前时间值
+        from fwsort.gateway.polymarket.F3.最简类_下单代码 import 获得当前区间时间戳
 
-        epoch = 获得当前时间值(周期=self.interval_seconds)
-        direction: Direction = random.choice(["UP", "DOWN"])
-        symbol = f"{self.base_symbol}-{epoch}"
+        当前区间时间戳= 获得当前区间时间戳(标的代码=self.base_symbol)
+        symbol = self.base_symbol.replace("{时间戳}", 当前区间时间戳)
+        direction: Direction = random.choice(["UP", "DOWN", ""])
+
+
+
 
         return Signal(
             symbol=symbol,
             amount=self.amount,
             direction=direction,
             source=self.name,
-            timestamp=int(epoch),
+            timestamp=int(当前区间时间戳),
         )
 
     def health_check(self) -> dict:

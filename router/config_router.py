@@ -39,7 +39,7 @@ def _refresh_zset_task(rank_type: int) -> None:
             "WP-08: rankings refreshed after weight update"
         )
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"WP-08 refresh_redis_zset (rank_type={rank_type}) failed: {type(e).__name__}: {e}")
+        logger.warning(f"WP-08 refresh_redis_zset (rank_type={rank_type}) failed: {type(e).__name__}:{e}，traceback: {traceback.format_exc()}")
 
 
 async def _refresh_zset_async(rank_type: int) -> None:

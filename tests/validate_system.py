@@ -2,6 +2,7 @@
 import json
 import sys
 import time
+import traceback
 from typing import Optional
 
 import requests
@@ -58,7 +59,7 @@ class SystemValidator:
                 self.log("WARNING", f"注册失败: {data.get('message')}")
                 return True
         except Exception as e:
-            self.log("ERROR", f"注册请求失败: {e}")
+            self.log("ERROR", f"注册请求失败:{e}，traceback: {traceback.format_exc()}")
             return False
 
     def test_login(self) -> bool:
@@ -79,7 +80,7 @@ class SystemValidator:
                 self.log("ERROR", f"登录失败: {data.get('message')}")
                 return False
         except Exception as e:
-            self.log("ERROR", f"登录请求失败: {e}")
+            self.log("ERROR", f"登录请求失败:{e}，traceback: {traceback.format_exc()}")
             return False
 
     def test_create_account(self) -> bool:
@@ -100,7 +101,7 @@ class SystemValidator:
                 self.log("ERROR", f"创建账户失败: {data.get('message')}")
                 return False
         except Exception as e:
-            self.log("ERROR", f"创建账户请求失败: {e}")
+            self.log("ERROR", f"创建账户请求失败:{e}，traceback: {traceback.format_exc()}")
             return False
 
     def test_predict_and_vote(self) -> bool:
@@ -137,7 +138,7 @@ class SystemValidator:
                 self.log("ERROR", f"投票决策失败: {data.get('message')}")
                 return False
         except Exception as e:
-            self.log("ERROR", f"投票请求失败: {e}")
+            self.log("ERROR", f"投票请求失败:{e}，traceback: {traceback.format_exc()}")
             return False
 
     def test_ranking_list(self) -> bool:
@@ -161,7 +162,7 @@ class SystemValidator:
                 self.log("ERROR", f"榜单查询失败: {data.get('message')}")
                 return False
         except Exception as e:
-            self.log("ERROR", f"榜单请求失败: {e}")
+            self.log("ERROR", f"榜单请求失败:{e}，traceback: {traceback.format_exc()}")
             return False
 
     def test_ranking_detail(self) -> bool:
@@ -183,7 +184,7 @@ class SystemValidator:
                 self.log("ERROR", f"策略详情查询失败: {data.get('message')}")
                 return False
         except Exception as e:
-            self.log("ERROR", f"策略详情请求失败: {e}")
+            self.log("ERROR", f"策略详情请求失败:{e}，traceback: {traceback.format_exc()}")
             return False
 
     def test_follow_subscribe(self) -> bool:
@@ -207,7 +208,7 @@ class SystemValidator:
                 self.log("WARNING", f"跟单订阅: {data.get('message')}")
                 return True  # 可能已订阅，不影响整体验证
         except Exception as e:
-            self.log("ERROR", f"跟单订阅请求失败: {e}")
+            self.log("ERROR", f"跟单订阅请求失败:{e}，traceback: {traceback.format_exc()}")
             return False
 
     def test_rental_agents(self) -> bool:

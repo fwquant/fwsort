@@ -307,21 +307,21 @@ class RiskControlService:
         account_effective = effective
         if task.account_id:
             _, account_effective = RiskProfileManager.resolve_account_params(db, task.account_id)
-        # 合并：策略级特有的 3 个 daily 字段来自策略级，其他取 max / 更严
+        # 合并：策略级特有的 3 个字段直接从 AutoStrategy 表读取（用户编辑的源头，确保热加载）
         merged_effective = dict(account_effective)
         merged_effective["max_daily_amount"] = (
-            float(strat_profile.max_daily_amount)
-            if strat_profile.max_daily_amount is not None
+            float(task.max_daily_amount)
+            if task.max_daily_amount is not None
             else merged_effective.get("max_daily_amount")
         )
         merged_effective["max_daily_count"] = (
-            int(strat_profile.max_daily_count)
-            if strat_profile.max_daily_count is not None
+            int(task.max_daily_count)
+            if task.max_daily_count is not None
             else merged_effective.get("max_daily_count")
         )
         merged_effective["max_consecutive_failures"] = (
-            int(strat_profile.max_consecutive_failures)
-            if strat_profile.max_consecutive_failures is not None
+            int(task.max_consecutive_failures)
+            if task.max_consecutive_failures is not None
             else merged_effective.get("max_consecutive_failures")
         )
 

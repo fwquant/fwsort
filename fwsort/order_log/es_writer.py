@@ -64,7 +64,7 @@ async def index_order_log(
         )
         return True
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[ES] order_log index failed (id={order_log_id}): {e}")
+        logger.warning(f"[ES] order_log index failed (id={order_log_id}):{e}，traceback: {traceback.format_exc()}")
         return False
 
 
@@ -81,7 +81,7 @@ async def _index_with_retry(**kwargs: Any) -> bool:
                 return True
             last_err = "index_order_log returned False (ES unavailable?)"
         except Exception as e:  # noqa: BLE001
-            last_err = f"{type(e).__name__}: {e}"
+            last_err = f"{type(e).__name__}:{e}，traceback: {traceback.format_exc()}"
         if attempt < 2:
             # 指数退避：0.2s, 0.4s
             await asyncio.sleep(0.2 * (2 ** attempt))
