@@ -117,6 +117,7 @@ class StrategyBase(ABC):
     # === 参数声明 ===
     parameters: list[str] = []
     hidden_parameters: list[str] = []
+    multiline_parameters: list[str] = []
 
     @abstractmethod
     def get_signal(self) -> Signal:
@@ -179,7 +180,7 @@ class StrategyBase(ABC):
         """返回所有参数的元信息
 
         Returns:
-            list of {name, value, type, type_name, editable}
+            list of {name, value, type, type_name, editable, multiline}
         """
         result = []
         all_names = cls.parameters + cls.hidden_parameters
@@ -189,6 +190,7 @@ class StrategyBase(ABC):
                 type_obj = type(value)
                 type_name = type_obj.__name__
                 editable = name in cls.parameters
+                multiline = name in cls.multiline_parameters
                 if type_obj not in SUPPORTED_PARAM_TYPES:
                     continue
                 result.append({
@@ -197,6 +199,7 @@ class StrategyBase(ABC):
                     "type": type_name,
                     "type_name": PARAM_TYPE_NAMES.get(type_name, type_name),
                     "editable": editable,
+                    "multiline": multiline,
                 })
         return result
 

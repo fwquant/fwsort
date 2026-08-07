@@ -153,6 +153,8 @@ async def global_ranking(
         stmt = stmt.order_by(order_fn(func.avg(StrategyPerformance.annualized_return)))
     elif sort_by == "capital":
         stmt = stmt.order_by(order_fn(func.sum(ExecutionAccount.current_balance)))
+    elif sort_by == "trades":
+        stmt = stmt.order_by(order_fn(func.sum(StrategyPerformance.trade_count)))
     else:
         stmt = stmt.order_by(order_fn(func.avg(StrategyPerformance.composite_score)))
 
@@ -191,6 +193,8 @@ async def global_ranking(
                 mocks.sort(key=lambda x: x["avg_return"], reverse=reverse)
             elif sort_by == "capital":
                 mocks.sort(key=lambda x: x["total_capital"], reverse=reverse)
+            elif sort_by == "trades":
+                mocks.sort(key=lambda x: x.get("trade_count", 0), reverse=reverse)
             else:
                 mocks.sort(key=lambda x: x["avg_score"], reverse=reverse)
 

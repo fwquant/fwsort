@@ -2206,6 +2206,7 @@ def get_strategy_leaderboard(sort_by: str = "win_rate", sort_dir: str = "desc") 
             "task_names": db_info.get("task_names", []),
             "gateways": sorted(db_info.get("gateways", set())),
             "total_trades": total,
+            "resolved_count": resolved_count,
             "win_count": wins,
             "loss_count": losses,
             "win_rate": win_rate,
@@ -2229,8 +2230,17 @@ def get_strategy_leaderboard(sort_by: str = "win_rate", sort_dir: str = "desc") 
         "avg_pnl": "avg_pnl",
         "profit_loss_ratio": "profit_loss_ratio",
         "strategy_name": "strategy_name",
+        "task_count": "task_count",
+        "open_trades": "open_trades",
+        "last_trade_at": "last_trade_at",
+        "first_trade_at": "first_trade_at",
+        "category": "category",
+        "provider_status": "provider_status",
+        "resolved_count": "resolved_count",
+        "gross_profit": "gross_profit",
+        "gross_loss": "gross_loss",
     }
     sort_field = sort_map.get(sort_by, "win_rate")
-    result.sort(key=lambda x: x.get(sort_field, 0), reverse=(sort_dir != "asc"))
+    result.sort(key=lambda x: x.get(sort_field, "") if isinstance(x.get(sort_field), str) else (x.get(sort_field, 0) if x.get(sort_field) is not None else 0), reverse=(sort_dir != "asc"))
 
     return result

@@ -161,6 +161,7 @@ def _build_provider_info_for_inactive(name: str, cls: type[StrategyBase]) -> dic
             "value": p.get("value", None),
             "type": p.get("type", "str"),
             "type_name": p.get("type_name", "字符串"),
+            "multiline": p.get("multiline", False),
         }
 
     # 已停用
@@ -211,6 +212,7 @@ def _build_provider_info(name: str, cls: type[StrategyBase]) -> dict[str, Any]:
             "value": p["value"],
             "type": p["type"],
             "type_name": p["type_name"],
+            "multiline": p.get("multiline", False),
         }
 
     # 判断是否活跃：检查 provider 是否仍在注册表中

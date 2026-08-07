@@ -627,7 +627,7 @@ class pm类():
         )
         return results
 
-    async def 本人持仓结算方向(self, 数量: int = 10) -> list:
+    async def 本人持仓结算结果(self, 数量: int = 10) -> list:
         """查询本人持仓对应市场的结算方向（最近N个）。
         按事件分组批量请求，一次事件请求拿该事件下所有市场。
         """
@@ -851,7 +851,7 @@ async def 显示菜单():
             result = await pm.查询结算方向历史(标的代码="btc-updown-15m-{epoch}", 数量=5, )
             print(f"结算历史 result = {result}")
         elif choice == "3.6":
-            result = await pm.本人持仓结算方向(数量=3)
+            result = await pm.本人持仓结算结果(数量=3)
             print(f"本人持仓结算方向 result = {result} 条")
 
         # 退出

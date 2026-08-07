@@ -1867,16 +1867,48 @@
         <div class="fw-admin-toolbar" id="lb-toolbar">
           <div class="lb-toolbar__filters">
             <select id="lb-sort-select" class="fwui-select fwui-btn--sm lb-sort-select" style="min-width:140px;">
-              <option value="win_rate-desc">胜率 ↓</option>
-              <option value="win_rate-asc">胜率 ↑</option>
-              <option value="total_trades-desc">交易次数 ↓</option>
-              <option value="total_trades-asc">交易次数 ↑</option>
-              <option value="win_count-desc">胜利次数 ↓</option>
-              <option value="loss_count-desc">亏损次数 ↓</option>
-              <option value="total_pnl-desc">盈亏 ↓</option>
-              <option value="total_pnl-asc">盈亏 ↑</option>
-              <option value="profit_loss_ratio-desc">盈亏比 ↓</option>
-              <option value="profit_loss_ratio-asc">盈亏比 ↑</option>
+              <optgroup label="策略">
+                <option value="strategy_name-asc">策略名 ↑</option>
+                <option value="strategy_name-desc">策略名 ↓</option>
+                <option value="task_count-desc">任务数 ↓</option>
+                <option value="task_count-asc">任务数 ↑</option>
+                <option value="category-asc">类别 ↑</option>
+                <option value="category-desc">类别 ↓</option>
+                <option value="provider_status-asc">状态 ↑</option>
+                <option value="provider_status-desc">状态 ↓</option>
+              </optgroup>
+              <optgroup label="交易">
+                <option value="total_trades-desc">总下单 ↓</option>
+                <option value="total_trades-asc">总下单 ↑</option>
+                <option value="resolved_count-desc">已结算 ↓</option>
+                <option value="resolved_count-asc">已结算 ↑</option>
+                <option value="open_trades-desc">未平仓 ↓</option>
+                <option value="open_trades-asc">未平仓 ↑</option>
+                <option value="first_trade_at-desc">首次交易 ↓</option>
+                <option value="first_trade_at-asc">首次交易 ↑</option>
+                <option value="last_trade_at-desc">最近交易 ↓</option>
+                <option value="last_trade_at-asc">最近交易 ↑</option>
+              </optgroup>
+              <optgroup label="胜负">
+                <option value="win_rate-desc">胜率 ↓</option>
+                <option value="win_rate-asc">胜率 ↑</option>
+                <option value="win_count-desc">胜利次数 ↓</option>
+                <option value="win_count-asc">胜利次数 ↑</option>
+                <option value="loss_count-desc">亏损次数 ↓</option>
+                <option value="loss_count-asc">亏损次数 ↑</option>
+              </optgroup>
+              <optgroup label="盈亏">
+                <option value="total_pnl-desc">总盈亏 ↓</option>
+                <option value="total_pnl-asc">总盈亏 ↑</option>
+                <option value="avg_pnl-desc">平均盈亏 ↓</option>
+                <option value="avg_pnl-asc">平均盈亏 ↑</option>
+                <option value="profit_loss_ratio-desc">盈亏比 ↓</option>
+                <option value="profit_loss_ratio-asc">盈亏比 ↑</option>
+                <option value="gross_profit-desc">毛利润 ↓</option>
+                <option value="gross_profit-asc">毛利润 ↑</option>
+                <option value="gross_loss-desc">毛亏损 ↓</option>
+                <option value="gross_loss-asc">毛亏损 ↑</option>
+              </optgroup>
             </select>
             <select id="lb-filter-active" class="fwui-select fwui-btn--sm lb-filter-select" style="min-width:120px;">
               <option value="">全部状态</option>
@@ -1929,24 +1961,24 @@
 
         <!-- 榜单表格（桌面端） -->
         <div class="lb-table-container" id="lb-table-container">
-          <table class="fw-task-list-table" id="lb-table">
+          <table class="fw-task-list-table lb-table" id="lb-table">
             <thead>
               <tr>
                 <th style="width:50px;">排名</th>
-                <th>策略名</th>
-                <th>类别</th>
-                <th>状态</th>
-                <th>任务数</th>
-                <th>总下单</th>
-                <th>已结算</th>
-                <th>未平仓</th>
-                <th>胜利</th>
-                <th>亏损</th>
-                <th>胜率</th>
-                <th>盈亏比</th>
-                <th>总盈亏</th>
-                <th>平均盈亏</th>
-                <th>最近交易</th>
+                <th data-sort-key="strategy_name" class="lb-sortable">策略名<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="category" class="lb-sortable">类别<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="provider_status" class="lb-sortable">状态<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="task_count" class="lb-sortable">任务数<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="total_trades" class="lb-sortable">总下单<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="resolved_count" class="lb-sortable">已结算<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="open_trades" class="lb-sortable">未平仓<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="win_count" class="lb-sortable">胜利<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="loss_count" class="lb-sortable">亏损<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="win_rate" class="lb-sortable lb-sort-active">胜率<span class="lb-sort-arrow lb-sort-arrow--down">▼</span></th>
+                <th data-sort-key="profit_loss_ratio" class="lb-sortable">盈亏比<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="total_pnl" class="lb-sortable">总盈亏<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="avg_pnl" class="lb-sortable">平均盈亏<span class="lb-sort-arrow"></span></th>
+                <th data-sort-key="last_trade_at" class="lb-sortable">最近交易<span class="lb-sort-arrow"></span></th>
               </tr>
             </thead>
             <tbody id="lb-tbody">
@@ -4962,11 +4994,11 @@
         var val = info.value;
         var type = info.type || 'str';
         var typeName = info.type_name || type;
-        var disabled = isHidden ? '' : '';
+        var multiline = info.multiline === true;
 
         var field = '<div>';
         field += '<label style="font-size:12px;color:var(--fwui-text-muted);display:flex;justify-content:space-between;">';
-        field += '<span>' + escapeHtml(name) + (isHidden ? ' 🔒' : '') + '</span>';
+        field += '<span>' + escapeHtml(name) + (isHidden ? ' 🔒' : '') + (multiline ? ' <span style="color:#8b5cf6;font-size:10px;">[多行]</span>' : '') + '</span>';
         field += '<span style="color:var(--fwui-text-muted);font-size:11px;">' + typeName + '</span>';
         field += '</label>';
 
@@ -4979,10 +5011,12 @@
         } else if (type === 'int' || type === 'float') {
           field += '<input type="number" data-param="' + escapeHtml(name) + '" data-type="' + type + '" value="' + escapeHtml(String(val)) + '" onchange="window._onParamInputChange(this)" oninput="window._onParamInputChange(this)" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
         } else {
-          // str - 检查是否多行
-          var strVal = String(val);
-          if (strVal.length > 80 || strVal.indexOf('\n') >= 0) {
-            field += '<textarea data-param="' + escapeHtml(name) + '" rows="3" onchange="window._onParamInputChange(this)" oninput="window._onParamInputChange(this)" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;font-family:monospace;font-size:12px;">' + escapeHtml(strVal) + '</textarea>';
+          // str - 支持多行标记或自动检测
+          var strVal = val != null ? String(val) : '';
+          var useTextarea = multiline || strVal.length > 80 || strVal.indexOf('\n') >= 0;
+          if (useTextarea) {
+            var rows = multiline ? 4 : 3;
+            field += '<textarea data-param="' + escapeHtml(name) + '" rows="' + rows + '" onchange="window._onParamInputChange(this)" oninput="window._onParamInputChange(this)" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;font-family:monospace;font-size:12px;line-height:1.4;resize:vertical;">' + escapeHtml(strVal) + '</textarea>';
           } else {
             field += '<input type="text" data-param="' + escapeHtml(name) + '" value="' + escapeHtml(strVal) + '" onchange="window._onParamInputChange(this)" oninput="window._onParamInputChange(this)" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--fwui-border);background:var(--fwui-bg-input);color:var(--fwui-text);margin-top:4px;">';
           }
@@ -6199,6 +6233,24 @@
       var _lbData = [];
       var _lbState = { sortBy: "win_rate", sortDir: "desc", filterActive: "", view: "auto" };
       var _lbRefreshTimer = null;
+      var _lbLocalSorting = false;
+
+      function _lbSortLocal(data) {
+        if (!data || data.length === 0) return data;
+        var field = _lbState.sortBy;
+        var dir = _lbState.sortDir === "asc" ? 1 : -1;
+        return data.slice().sort(function (a, b) {
+          var va = a[field];
+          var vb = b[field];
+          if (va == null && vb == null) return 0;
+          if (va == null) return 1;
+          if (vb == null) return -1;
+          if (typeof va === "string" && typeof vb === "string") {
+            return va.localeCompare(vb) * dir;
+          }
+          return ((va < vb ? -1 : (va > vb ? 1 : 0))) * dir;
+        });
+      }
 
       function _lbEffectiveView() {
         if (_lbState.view === "auto") {
@@ -6247,17 +6299,82 @@
         }
       }
 
+      // ===== 策略榜单排序辅助函数 =====
+      function _lbUpdateSortArrows() {
+        var ths = document.querySelectorAll(".lb-sortable");
+        ths.forEach(function (th) {
+          var arrow = th.querySelector(".lb-sort-arrow");
+          if (!arrow) return;
+          if (th.dataset.sortKey === _lbState.sortBy) {
+            th.classList.add("lb-sort-active");
+            arrow.textContent = _lbState.sortDir === "asc" ? "▲" : "▼";
+            arrow.classList.add(_lbState.sortDir === "asc" ? "lb-sort-arrow--up" : "lb-sort-arrow--down");
+          } else {
+            th.classList.remove("lb-sort-active");
+            arrow.textContent = "";
+            arrow.classList.remove("lb-sort-arrow--up", "lb-sort-arrow--down");
+          }
+        });
+      }
+
+      function _lbSyncSortDropdown() {
+        var sortSel = document.getElementById("lb-sort-select");
+        if (!sortSel) return;
+        var val = _lbState.sortBy + "-" + _lbState.sortDir;
+        // 尝试匹配下拉框选项
+        var options = sortSel.options;
+        for (var i = 0; i < options.length; i++) {
+          if (options[i].value === val) {
+            sortSel.value = val;
+            return;
+          }
+        }
+        // 如果没有完全匹配，尝试找近似匹配
+        var prefix = _lbState.sortBy + "-";
+        for (var j = 0; j < options.length; j++) {
+          if (options[j].value.indexOf(prefix) === 0) {
+            sortSel.value = options[j].value;
+            return;
+          }
+        }
+      }
+
       function _initLeaderboard() {
         var sortSel = document.getElementById("lb-sort-select");
         var filterSel = document.getElementById("lb-filter-active");
         var refreshBtn = document.getElementById("lb-refresh");
 
+        // 下拉框排序（移动端使用）
         if (sortSel) sortSel.addEventListener("change", function () {
           var parts = sortSel.value.split("-");
           _lbState.sortBy = parts[0];
           _lbState.sortDir = parts[1];
+          _lbUpdateSortArrows();
+          _lbData = _lbSortLocal(_lbData);
           _renderLeaderboard();
+          _loadLeaderboard(true);
         });
+
+        // 表头点击排序（桌面端使用）
+        var sortableThs = document.querySelectorAll(".lb-sortable");
+        sortableThs.forEach(function (th) {
+          th.addEventListener("click", function () {
+            var key = th.dataset.sortKey;
+            if (_lbState.sortBy === key) {
+              _lbState.sortDir = _lbState.sortDir === "desc" ? "asc" : "desc";
+            } else {
+              _lbState.sortBy = key;
+              _lbState.sortDir = "desc";
+            }
+            console.log("[LB Sort] Header clicked:", key, "->", _lbState.sortBy, _lbState.sortDir);
+            _lbUpdateSortArrows();
+            _lbSyncSortDropdown();
+            _lbData = _lbSortLocal(_lbData);
+            _renderLeaderboard();
+            _loadLeaderboard(true);
+          });
+        });
+
         if (filterSel) filterSel.addEventListener("change", function () {
           _lbState.filterActive = filterSel.value;
           _renderLeaderboard();
@@ -6362,15 +6479,17 @@
         }
       }
 
-      async function _loadLeaderboard() {
+      async function _loadLeaderboard(skipLoading) {
         var tbody = document.getElementById("lb-tbody");
         var cardsContainer = document.getElementById("lb-cards-container");
         var view = _lbEffectiveView();
 
-        if (view === "card" && cardsContainer) {
-          cardsContainer.innerHTML = '<div class="lb-card-empty">加载中...</div>';
-        } else if (tbody) {
-          tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--fwui-text-muted);">加载中...</td></tr>';
+        if (!skipLoading) {
+          if (view === "card" && cardsContainer) {
+            cardsContainer.innerHTML = '<div class="lb-card-empty">加载中...</div>';
+          } else if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--fwui-text-muted);">加载中...</td></tr>';
+          }
         }
 
         try {
@@ -6379,11 +6498,13 @@
           _lbData = Array.isArray(r) ? r : ((r && r.data) || []);
           _renderLeaderboard();
         } catch (e) {
-          var msg = '加载失败: ' + escapeHtml(e.message || e);
-          if (view === "card" && cardsContainer) {
-            cardsContainer.innerHTML = '<div class="lb-card-empty" style="color:var(--fwui-danger);">' + msg + '</div>';
-          } else if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--fwui-danger);">' + msg + '</td></tr>';
+          if (!skipLoading) {
+            var msg = '加载失败: ' + escapeHtml(e.message || e);
+            if (view === "card" && cardsContainer) {
+              cardsContainer.innerHTML = '<div class="lb-card-empty" style="color:var(--fwui-danger);">' + msg + '</div>';
+            } else if (tbody) {
+              tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--fwui-danger);">' + msg + '</td></tr>';
+            }
           }
         }
       }

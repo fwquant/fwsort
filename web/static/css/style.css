@@ -1033,10 +1033,9 @@ a:hover { text-decoration: underline; }
   .product-card__action { width: 100% !important; }
 }
 
-/* PC端隐藏工具栏排序按钮组，保留移动端 */
-@media (min-width: 769px) {
-  .fwui-toolbar__group--sort { display: none !important; }
-}
+/* 排序下拉框：列表视图隐藏，卡片视图显示 */
+.fwui-toolbar__group--sort { display: none; }
+body[data-view-mode="card"] .fwui-toolbar__group--sort { display: flex; }
 
 /* ========== 工具栏计数 ========== */
 .fwui-toolbar__count {
@@ -1336,6 +1335,43 @@ a:hover { text-decoration: underline; }
 .lb-table-container {
   margin-top: 12px;
   overflow-x: auto;
+}
+
+/* 策略榜单 - 表头排序样式 */
+.lb-table th.lb-sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 20px;
+  transition: background-color 0.15s ease;
+}
+.lb-table th.lb-sortable:hover {
+  background-color: var(--fwui-hover);
+}
+.lb-table th.lb-sortable.lb-sort-active {
+  color: var(--fwui-primary);
+  font-weight: 600;
+}
+.lb-sort-arrow {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+.lb-sort-active .lb-sort-arrow {
+  opacity: 1;
+  color: var(--fwui-primary);
+}
+
+/* 排序下拉框：桌面端隐藏，移动端显示 */
+.lb-sort-select {
+  display: none;
+}
+@media (max-width: 768px) {
+  .lb-sort-select {
+    display: inline-flex;
+  }
 }
 
 /* 卡片容器 */

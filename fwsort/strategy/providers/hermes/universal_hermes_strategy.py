@@ -79,34 +79,35 @@ class UniversalHermesStrategy(StrategyBase):
     author: str = "fwquant"
     version: str = "1.0.0"
 
-    # === 显示参数（Web 界面可编辑） ===
-    parameters = ["hermes_url", "amount", "default_prompt"]
-
-    # === 隐藏参数（有默认值但 Web 不显示） ===
-    hidden_parameters = ["timeout", "hermes_api_key", "timeframe", "symbol_hint"]
-
     # === 参数默认值 ===
     hermes_url: str = "http://100.64.0.9:8099"
     amount: float = 1.0
-    default_prompt: str = "分析当前市场趋势，给出交易方向"
+    prompt: str = "分析当前市场趋势，给出交易方向"
     timeout: int = 60
     hermes_api_key: str = ""
     timeframe: str = ""
     symbol_hint: str = ""
 
-    固定前缀提示词 = (""
+    固定前缀提示词: str = (""
                       ""
                       "返回JSON结构 ：{'标的代码': 'unknown-updown-4h-1786075200','下单方向': '','amount': 1.0,  'source': 'hermes_universal',  'timestamp': 1786080106}"
                       "根据三个模型的预测结果，选择置信度最高的方向作为最终下单方向"
                       ""
                       "")
 
+    # === 显示参数（Web 界面可编辑） ===
+    parameters = ["hermes_url", "amount", "prompt", "固定前缀提示词"]
+    multiline_parameters = ["prompt", "固定前缀提示词"]
+
+    # === 隐藏参数（有默认值但 Web 不显示） ===
+    hidden_parameters = ["timeout", "hermes_api_key", "timeframe", "symbol_hint"]
+
     def __init__(self, config_json: dict | None = None, **kwargs):
         self.config = config_json or {}
 
         self.hermes_url = kwargs.get("hermes_url") or self.config.get("hermes_url", self.hermes_url)
         self.amount = kwargs.get("amount") or self.config.get("amount", self.amount)
-        self.default_prompt = kwargs.get("default_prompt") or self.config.get("default_prompt", self.default_prompt)
+        self.prompt = kwargs.get("default_prompt") or self.config.get("default_prompt", self.prompt)
         self.timeout = kwargs.get("timeout") or self.config.get("timeout", self.timeout)
         self.hermes_api_key = kwargs.get("hermes_api_key") or self.config.get("hermes_api_key", self.hermes_api_key)
         self.timeframe = kwargs.get("timeframe") or self.config.get("timeframe", self.timeframe)
@@ -128,7 +129,7 @@ class UniversalHermesStrategy(StrategyBase):
             Signal: 适配为符文排行榜可识别的统一格式信号对象。
                     direction 为空字符串时表示无有效交易信号。
         """
-        text = prompt or self.default_prompt
+        text = prompt or self.prompt
         text = f"{self.固定前缀提示词} \n {text}"
 
         self._last_prompt = text
@@ -163,7 +164,7 @@ class UniversalHermesStrategy(StrategyBase):
             }
         """
         if text == "":
-            text = self.default_prompt
+            text = self.prompt
 
         text = f"{self.固定前缀提示词} \n {text} "
         try:
@@ -440,7 +441,7 @@ if __name__ == "__main__":
     strategy = UniversalHermesStrategy(
         hermes_url=args.url or UniversalHermesStrategy.hermes_url,
         amount=args.amount,
-        default_prompt=args.prompt or UniversalHermesStrategy.default_prompt,
+        default_prompt=args.prompt or UniversalHermesStrategy.prompt,
         timeframe=args.timeframe,
         symbol_hint=args.symbol,
         hermes_api_key=args.api_key,
@@ -462,7 +463,7 @@ if __name__ == "__main__":
 
     # 循环模式
     if args.loop:
-        prompt = args.prompt or strategy.default_prompt
+        prompt = args.prompt or strategy.prompt
         interval = args.interval
         print(f"\n[循环] prompt={prompt}, interval={interval}s, Ctrl+C 停止\n")
         seq = 0
@@ -491,7 +492,7 @@ if __name__ == "__main__":
         print("  UniversalHermes 调试菜单")
         print("=" * 50)
         print(f"  Hermes URL: {strategy.hermes_url}")
-        print(f"  默认 Prompt: {strategy.default_prompt}")
+        print(f"  默认 Prompt: {strategy.prompt}")
         print(f"  Timeframe: {strategy.timeframe or '(未设置)'}")
         print(f"  Symbol Hint: {strategy.symbol_hint or '(未设置)'}")
         print(f"  API Key: {'***' if strategy.hermes_api_key else '(未设置)'}")
@@ -516,7 +517,7 @@ if __name__ == "__main__":
         elif choice == "2":
             user_prompt = input("  请输入 prompt: ").strip()
             if not user_prompt:
-                user_prompt = strategy.default_prompt
+                user_prompt = strategy.prompt
             tf = input(f"  Timeframe (当前 '{strategy.timeframe}', 回车保留): ").strip()
             sh = input(f"  Symbol Hint (当前 '{strategy.symbol_hint}', 回车保留): ").strip()
             if tf:
@@ -536,9 +537,9 @@ if __name__ == "__main__":
             interval = input("  间隔秒数 (默认300): ").strip()
             interval = int(interval) if interval else 300
             prompt = input(f"  使用默认 prompt? (Y/n): ").strip().lower()
-            prompt_text = strategy.default_prompt if prompt != "n" else input("  请输入 prompt: ").strip()
+            prompt_text = strategy.prompt if prompt != "n" else input("  请输入 prompt: ").strip()
             if not prompt_text:
-                prompt_text = strategy.default_prompt
+                prompt_text = strategy.prompt
             print(f"\n  [循环] 每 {interval} 秒获取一次，Ctrl+C 停止\n")
             seq = 0
             try:
@@ -576,7 +577,7 @@ if __name__ == "__main__":
             print(f"\n  [当前配置]")
             print(f"  hermes_url: {strategy.hermes_url}")
             print(f"  amount: {strategy.amount}")
-            print(f"  default_prompt: {strategy.default_prompt}")
+            print(f"  default_prompt: {strategy.prompt}")
             print(f"  timeout: {strategy.timeout}")
             print(f"  timeframe: {strategy.timeframe}")
             print(f"  symbol_hint: {strategy.symbol_hint}")

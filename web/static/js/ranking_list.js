@@ -280,8 +280,10 @@
     // 表头点击排序（桌面端）
     document.querySelectorAll("th[data-sort-key]").forEach((th) => {
       th.style.cursor = "pointer";
+      th.style.userSelect = "none";
       th.addEventListener("click", () => {
         const key = th.dataset.sortKey;
+        console.log("[Sort] Header clicked:", key, "current sortBy:", state.sortBy);
         const sortMap = mainTab === "global" ? globalSortMap : mySortMap;
         const mapped = sortMap[key] || "composite";
         if (state.sortBy === mapped) {
@@ -290,6 +292,7 @@
           state.sortBy = mapped;
           state.sortDir = "desc";
         }
+        console.log("[Sort] New state:", state.sortBy, state.sortDir);
         updateSortIndicators();
         syncSortDropdown();
         if (mainTab === "global") loadGlobal();
@@ -389,6 +392,9 @@
     syncDropdownState(globalDropdown, state.view, "[data-view-label]");
     syncDropdownState(myDropdown, state.myView, "[data-my-view-label]");
 
+    // 同步排序下拉框初始状态
+    syncSortDropdown();
+
     // 绑定刷新按钮
     bindRefreshButton();
   }
@@ -442,6 +448,45 @@
         delete th.dataset.sortDir;
       }
     });
+  }
+
+  // 更新排序下拉框的显示/隐藏（列表视图隐藏，卡片视图显示）
+  function updateSortDropdownVisibility(view) {
+    document.body.setAttribute("data-view-mode", view);
+  }
+
+  // 同步排序下拉框状态（表头点击排序后更新下拉框显示）
+  function syncSortDropdown() {
+    const sortDir = state.sortDir === "asc" ? "asc" : "desc";
+    const value = `${state.sortBy}_${sortDir}`;
+
+    if (mainTab === "global") {
+      const dropdown = document.querySelector('[data-sort-dropdown="global"]');
+      if (dropdown) {
+        const options = dropdown.querySelectorAll("[data-sort-value]");
+        options.forEach((opt) => {
+          const isSelected = opt.dataset.sortValue === value;
+          opt.classList.toggle("is-selected", isSelected);
+          if (isSelected) {
+            const labelEl = dropdown.querySelector("[data-sort-label]");
+            if (labelEl) labelEl.textContent = opt.querySelector(".fwui-select-dropdown__option-name")?.textContent || value;
+          }
+        });
+      }
+    } else {
+      const dropdown = document.querySelector('[data-sort-dropdown="my"]');
+      if (dropdown) {
+        const options = dropdown.querySelectorAll("[data-my-sort-value]");
+        options.forEach((opt) => {
+          const isSelected = opt.dataset.mySortValue === value;
+          opt.classList.toggle("is-selected", isSelected);
+          if (isSelected) {
+            const labelEl = dropdown.querySelector("[data-my-sort-label]");
+            if (labelEl) labelEl.textContent = opt.querySelector(".fwui-select-dropdown__option-name")?.textContent || value;
+          }
+        });
+      }
+    }
   }
 
   // ========== 总榜单 ==========
@@ -500,6 +545,9 @@
     const tableWrap = document.getElementById("ranking-table-wrap");
     const cardsWrap = document.getElementById("ranking-cards");
     const body = document.getElementById("ranking-body");
+
+    // 更新排序下拉框显示状态
+    updateSortDropdownVisibility(view);
 
     if (view === "card") {
       tableWrap.style.display = "none";
@@ -647,6 +695,9 @@
     const tableWrap = document.getElementById("my-ranking-table-wrap");
     const cardsWrap = document.getElementById("my-ranking-cards");
     const body = document.getElementById("my-ranking-body");
+
+    // 更新排序下拉框显示状态
+    updateSortDropdownVisibility(view);
 
     if (view === "card") {
       if (tableWrap) tableWrap.style.display = "none";

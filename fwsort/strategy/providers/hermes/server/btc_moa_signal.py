@@ -275,11 +275,14 @@ def to_readme_format(raw_out: dict) -> dict:
     }
 
 
-def _run_models():
+def _run_models(custom_prompt=None, custom_symbol=None):
     """运行三个模型，返回原始结果"""
     price = fetch_btc_price()
     data = fetch_market_data()
-    prompt = build_prompt(data)
+    if custom_prompt:
+        prompt = custom_prompt
+    else:
+        prompt = build_prompt(data)
     results = []
     with ThreadPoolExecutor(max_workers=3) as ex:
         for r in ex.map(lambda m: call_model(m, prompt), MODELS):
@@ -296,12 +299,14 @@ def _run_models():
         "agreement": agreement,
         "mode": mode,
         "action": "ORDER" if signal else "NO_TRADE",
+        "custom_prompt": custom_prompt or "",
+        "custom_symbol": custom_symbol or "",
     }
 
 
-def main():
+def main(custom_prompt=None, custom_symbol=None):
     """人类可读格式"""
-    raw = _run_models()
+    raw = _run_models(custom_prompt=custom_prompt, custom_symbol=custom_symbol)
     price = raw["btc_price"]
     data = raw["market_data"]
     results = [(k, raw["votes"][k], raw["raw"][k]) for k in raw["votes"]]
@@ -310,6 +315,8 @@ def main():
     if data:
         print(f"行情: 5m={data.get('chg_5m', '?')}% 15m={data.get('chg_15m', '?')}% "
               f"RSI={data.get('rsi14', '?')} MA5={data.get('ma5', '?')}")
+    if custom_prompt:
+        print(f"[自定义Prompt] {custom_prompt[:100]}")
     for name, vote, raw_text in results:
         print(f"  {name:14} -> {vote or '无法解析'}  ({raw_text})")
     print(f"统计: 涨x{raw['counts']['涨']} 跌x{raw['counts']['跌']} 平x{raw['counts']['平']}")
@@ -318,9 +325,9 @@ def main():
         print(f"信号: {raw['signal']} -> 触发下单")
 
 
-def main_json():
+def main_json(custom_prompt=None, custom_symbol=None):
     """原始 JSON 格式"""
-    raw = _run_models()
+    raw = _run_models(custom_prompt=custom_prompt, custom_symbol=custom_symbol)
     out = raw.copy()
     if out.get("market_data"):
         out["market_data"] = {k: v for k, v in out["market_data"].items()
@@ -328,21 +335,34 @@ def main_json():
     print(json.dumps(out, ensure_ascii=False))
 
 
-def main_readme():
+def main_readme(custom_prompt=None, custom_symbol=None):
     """readme.md 标准 JSON 格式"""
-    raw = _run_models()
+    raw = _run_models(custom_prompt=custom_prompt, custom_symbol=custom_symbol)
     signal = to_readme_format(raw)
+    if custom_symbol:
+        signal["标的代码"] = f"{custom_symbol}-updown-15m-{raw['ts']}"
+    if custom_prompt:
+        signal["msg"]["自定义Prompt"] = custom_prompt
     line = json.dumps(signal, ensure_ascii=False, indent=2)
     print(line)
     _append_to_history(signal)
 
 
 if __name__ == "__main__":
-    if "--show-history" in sys.argv:
-        limit = 20
-        for arg in sys.argv[1:]:
-            if arg.startswith("--limit="):
-                limit = int(arg.split("=", 1)[1])
+    import argparse
+
+    parser = argparse.ArgumentParser(description="BTC MoA 信号生成器")
+    parser.add_argument("--readme", action="store_true", help="输出 readme 标准 JSON")
+    parser.add_argument("--json", action="store_true", help="输出原始 JSON")
+    parser.add_argument("--show-history", action="store_true", help="显示历史")
+    parser.add_argument("--clear-history", action="store_true", help="清除历史")
+    parser.add_argument("--limit", type=int, default=20, help="历史显示条数")
+    parser.add_argument("--prompt", default="", help="自定义 Prompt（替代默认行情分析）")
+    parser.add_argument("--symbol", default="", help="标的代码提示")
+    args = parser.parse_args()
+
+    if args.show_history:
+        limit = args.limit
         try:
             records = []
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
@@ -356,15 +376,15 @@ if __name__ == "__main__":
                 print(f"  [{i+1}] {r.get('下单方向', '')} | {r.get('标的代码', '')} | {r.get('msg', {}).get('时间范围', '')}")
         except FileNotFoundError:
             print("历史文件不存在，尚未生成任何信号")
-    elif "--clear-history" in sys.argv:
+    elif args.clear_history:
         try:
             os.remove(HISTORY_FILE)
             print("历史文件已清除")
         except FileNotFoundError:
             print("历史文件不存在")
-    elif "--readme" in sys.argv:
-        main_readme()
-    elif "--json" in sys.argv:
-        main_json()
+    elif args.readme:
+        main_readme(custom_prompt=args.prompt or None, custom_symbol=args.symbol or None)
+    elif args.json:
+        main_json(custom_prompt=args.prompt or None, custom_symbol=args.symbol or None)
     else:
-        main()
+        main(custom_prompt=args.prompt or None, custom_symbol=args.symbol or None)
